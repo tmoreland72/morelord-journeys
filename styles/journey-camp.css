@@ -1,0 +1,10 @@
+.ml-journeys-module .journey-roll-controls-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ml-journeys-module .journey-camp-planner { display: grid; gap: 0.75rem; margin-bottom: 0.8rem; }
+.ml-journeys-module .journey-camp-planner header p { margin: 0.25rem 0 0; }
+.ml-journeys-module .journey-watch-list { display: grid; gap: 0.65rem; }
+.ml-journeys-module .journey-watch-row { display: grid; grid-template-columns: 0.65fr 1.35fr 1.35fr 1fr 0.8fr; gap: 0.55rem; align-items: center; padding: 0.55rem; border: 1px solid var(--color-border-light-primary); border-radius: 4px; }
+.ml-journeys-module .journey-watch-result { text-align: center; font-size: 0.85em; opacity: 0.85; }
+.ml-journeys-chat-card { border-left: 3px solid var(--ml-color-accent); padding: 0.55rem 0.75rem; }
+.ml-journeys-chat-card header { display: flex; gap: 0.5rem; align-items: center; color: var(--ml-color-accent); }
+.ml-journeys-chat-card p { margin: 0.4rem 0 0; }
+@media (max-width: 850px) { .ml-journeys-module .journey-watch-row { grid-template-columns: 1fr 1fr; } }

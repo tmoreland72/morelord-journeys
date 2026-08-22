@@ -1,0 +1,46 @@
+<section class="ml-app ml-app-shell ml-journeys-dashboard ml-journeys app-shell ml-journeys-dashboard journey-shell">
+  {{#unless hasJourney}}
+    <header class="ml-hero ml-journeys-hero ml-journeys-dashboard-hero journey-hero"><i class="fa-solid fa-person-hiking"></i><div class="ml-hero__body"><h1>{{localize "MORELORD_JOURNEYS.Planner.Title"}}</h1><p>{{localize "MORELORD_JOURNEYS.Planner.Intro"}}</p></div></header>
+    <section class="ml-card ml-journeys-panel journey-card journey-planner">
+      <h2>{{localize "MORELORD_JOURNEYS.Planner.Journey"}}</h2>
+      <div class="journey-grid two-columns">
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.JourneyName"}}</span><input name="journeyName" type="text" value="Expedition" required></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.RouteName"}}</span><input name="routeName" type="text" value="The Open Road" required></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.Origin"}}</span><input name="origin" type="text" value="Starting Point" required></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.Destination"}}</span><input name="destination" type="text" value="Destination" required></label>
+      </div>
+      <h2>{{localize "MORELORD_JOURNEYS.Planner.RouteRatings"}}</h2>
+      <div class="journey-grid ratings">
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.LengthDays"}}</span><input name="lengthDays" type="number" min="1" value="4"></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.Danger"}}</span><input name="danger" type="number" min="0" max="5" value="2"></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.DiscoveryDC"}}</span><input name="discoveryDC" type="number" min="0" value="15"></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.ResourcesDC"}}</span><input name="resourcesDC" type="number" min="0" value="15"></label>
+        <label><span>{{localize "MORELORD_JOURNEYS.Fields.NavigationDC"}}</span><input name="navigationDC" type="number" min="0" value="10"></label>
+      </div>
+      <button type="button" data-action="createJourney"><i class="fa-solid fa-route"></i> {{localize "MORELORD_JOURNEYS.Actions.Create"}}</button>
+    </section>
+  {{else}}
+<header class="ml-hero ml-journeys-hero ml-journeys-dashboard-hero journey-dashboard-header"><div class="ml-hero__body"><p class="journey-eyebrow">{{route.origin.name}} → {{route.destination.name}}</p><h1>{{journey.name}}</h1><p>{{route.name}} · {{localize "MORELORD_JOURNEYS.Day"}} {{journey.dayNumber}}</p></div><button type="button" class="ml-icon-button ml-journeys-icon-button" data-action="clearJourney" aria-label="{{localize 'MORELORD_JOURNEYS.Actions.Clear'}}" data-tooltip="{{localize 'MORELORD_JOURNEYS.Actions.Clear'}}"><i class="fa-solid fa-trash"></i></button></header>
+<section class="ml-surface ml-journeys-panel journey-card"><div class="journey-progress-label"><strong>{{progress.daysCurrent}} / {{progress.daysTotal}} {{localize "MORELORD_JOURNEYS.TravelDays"}}</strong><span>{{progress.percent}}%</span></div><div class="ml-progress journey-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{progress.percent}}"><span class="ml-progress__fill" style="width: {{progress.percent}}%"></span></div></section>
+    {{#if isArrived}}
+      <section class="ml-card ml-journeys-panel journey-card journey-centered"><i class="fa-solid fa-location-dot journey-large-icon"></i><h2>{{localize "MORELORD_JOURNEYS.Arrived.Title"}}</h2><p>{{localize "MORELORD_JOURNEYS.Arrived.Message" destination=route.destination.name}}</p></section>
+    {{else if canBeginDay}}
+      <section class="ml-card ml-journeys-panel journey-card journey-centered"><i class="fa-solid fa-sun journey-large-icon"></i><h2>{{localize "MORELORD_JOURNEYS.Ready.Title"}}</h2><p>{{localize "MORELORD_JOURNEYS.Ready.Message"}}</p><button type="button" data-action="beginDay">{{localize "MORELORD_JOURNEYS.Actions.BeginDay"}}</button></section>
+    {{else}}
+      <nav class="journey-phases">{{#each phases}}<span class="{{#if active}}active{{/if}} {{#if complete}}complete{{/if}}" data-tooltip="{{label}}">{{#if complete}}<i class="fa-solid fa-check"></i>{{else}}{{number}}{{/if}}</span>{{/each}}</nav>
+      <section class="ml-card ml-journeys-panel journey-card journey-phase-card">
+        <p class="journey-eyebrow">{{localize "MORELORD_JOURNEYS.CurrentPhase"}}</p><h2>{{phaseLabel}}</h2>
+        {{#if phaseIs.weather}}<label class="journey-check"><input name="extremeWeather" type="checkbox"><span>{{localize "MORELORD_JOURNEYS.Inputs.ExtremeWeather"}}</span></label>{{/if}}
+        {{#if phaseIs.pace}}<label><span>{{localize "MORELORD_JOURNEYS.Inputs.Pace"}}</span><select name="pace"><option value="slow">{{localize "MORELORD_JOURNEYS.Paces.slow"}}</option><option value="normal" selected>{{localize "MORELORD_JOURNEYS.Paces.normal"}}</option><option value="fast">{{localize "MORELORD_JOURNEYS.Paces.fast"}}</option><option value="stopped">{{localize "MORELORD_JOURNEYS.Paces.stopped"}}</option></select></label>{{/if}}
+        {{#if phaseIs.encounters}}<label><span>{{localize "MORELORD_JOURNEYS.Inputs.EncounterCount"}}</span><input name="encounterCount" type="number" min="0" value="0"></label>{{/if}}
+        {{#if phaseIs.discovery}}<label class="journey-check"><input name="pursueDiscovery" type="checkbox"><span>{{localize "MORELORD_JOURNEYS.Inputs.PursueDiscovery"}}</span></label>{{/if}}
+        {{#if phaseIs.foraging}}<label><span>{{localize "MORELORD_JOURNEYS.Inputs.Notes"}}</span><textarea name="foragingNotes" rows="3"></textarea></label>{{/if}}
+        {{#if phaseIs.navigation}}<label><span>{{localize "MORELORD_JOURNEYS.Inputs.NavigationOutcome"}}</span><select name="navigationOutcome"><option value="success">{{localize "MORELORD_JOURNEYS.Navigation.success"}}</option><option value="lost">{{localize "MORELORD_JOURNEYS.Navigation.lost"}}</option><option value="reversed">{{localize "MORELORD_JOURNEYS.Navigation.reversed"}}</option></select></label>{{/if}}
+        {{#if phaseIs.pressOn}}<label class="journey-check"><input name="pressedOn" type="checkbox"><span>{{localize "MORELORD_JOURNEYS.Inputs.PressOn"}}</span></label>{{/if}}
+        {{#if phaseIs.camp}}<label><span>{{localize "MORELORD_JOURNEYS.Inputs.Notes"}}</span><textarea name="campNotes" rows="3"></textarea></label>{{/if}}
+        {{#if isDayComplete}}<button type="button" data-action="completeDay">{{localize "MORELORD_JOURNEYS.Actions.CompleteDay"}}</button>{{else}}<button type="button" data-action="advancePhase">{{localize "MORELORD_JOURNEYS.Actions.Continue"}}</button>{{/if}}
+      </section>
+    {{/if}}
+    {{#if recentLog.length}}<section class="ml-card ml-journeys-panel journey-card journey-log"><h2>{{localize "MORELORD_JOURNEYS.Log.Title"}}</h2><ol>{{#each recentLog}}<li><span>{{label}}</span><small>{{localize "MORELORD_JOURNEYS.Day"}} {{dayNumber}}</small></li>{{/each}}</ol></section>{{/if}}
+  {{/unless}}
+</section>

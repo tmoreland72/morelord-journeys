@@ -1,0 +1,30 @@
+<section class="ml-app ml-app-shell ml-journeys-settings">
+  <header class="ml-hero ml-journeys-settings__header">
+    <i class="fa-solid fa-person-hiking"></i>
+    <div class="ml-hero__body"><h2>Morelord Journeys</h2><p>Travel workflow and account access for this world.</p></div>
+  </header>
+
+  <section class="ml-access-card" data-state="{{#if access.connected}}active{{else}}locked{{/if}}">
+    <div class="ml-access-card__icon"><i class="fa-solid fa-crown"></i></div>
+    <div class="ml-access-card__body">
+      <strong>Morelord Account</strong>
+      {{#if access.connected}}<span>Connected with {{access.tierLabel}}</span>{{else if access.coreActive}}<span>Connect a Morelord account through Morelord Core.</span>{{else}}<span>Morelord Core must be enabled to manage subscriptions and premium access.</span>{{/if}}
+      {{#if access.validatedAtLabel}}<small>Access last checked {{access.validatedAtLabel}}</small>{{/if}}
+    </div>
+    <div class="ml-access-card__actions">
+      <button type="button" data-action="manageAccount"><i class="fa-solid fa-user-gear"></i> {{#if access.connected}}Manage Account{{else}}Connect Account{{/if}}</button>
+      {{#if access.connected}}<button type="button" data-action="refreshAccess"><i class="fa-solid fa-rotate"></i> Refresh Access</button>{{/if}}
+    </div>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-dice"></i> Encounter Checks</h3><p>Control how journey encounter checks are rolled and shown.</p></div></div>
+    <div class="ml-journeys-settings__grid">
+      <label class="ml-journeys-setting-row"><span><strong>Encounter Check Die</strong><small>A 1 creates a complication and the maximum result creates a boon.</small></span><select name="encounterDie"><option value="d4" {{#if (eq settings.encounterDie "d4")}}selected{{/if}}>d4 — Frequent events</option><option value="d6" {{#if (eq settings.encounterDie "d6")}}selected{{/if}}>d6</option><option value="d8" {{#if (eq settings.encounterDie "d8")}}selected{{/if}}>d8 — Default</option><option value="d10" {{#if (eq settings.encounterDie "d10")}}selected{{/if}}>d10</option><option value="d12" {{#if (eq settings.encounterDie "d12")}}selected{{/if}}>d12</option><option value="d20" {{#if (eq settings.encounterDie "d20")}}selected{{/if}}>d20 — Rare events</option></select></label>
+      <label class="ml-journeys-setting-row"><span><strong>Encounter Check Method</strong><small>Roll once per Danger level or once for each active party player.</small></span><select name="encounterRollMode"><option value="gm" {{#if (eq settings.encounterRollMode "gm")}}selected{{/if}}>GM rolls by Danger</option><option value="players" {{#if (eq settings.encounterRollMode "players")}}selected{{/if}}>Each player rolls one die</option></select></label>
+      <label class="ml-journeys-setting-row"><span><strong>Player Encounter Roll Visibility</strong><small>Foundry visibility used for encounter checks rolled by players.</small></span><select name="playerEncounterVisibility"><option value="publicroll" {{#if (eq settings.playerEncounterVisibility "publicroll")}}selected{{/if}}>Public Roll — visible to everyone</option><option value="gmroll" {{#if (eq settings.playerEncounterVisibility "gmroll")}}selected{{/if}}>Private GM Roll — roller and GM</option><option value="blindroll" {{#if (eq settings.playerEncounterVisibility "blindroll")}}selected{{/if}}>Blind GM Roll — GM only</option></select></label>
+    </div>
+  </section>
+
+  <footer class="ml-actions ml-journeys-settings__footer"><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button></footer>
+</section>

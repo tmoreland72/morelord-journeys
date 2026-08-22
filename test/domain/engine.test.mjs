@@ -1,0 +1,71 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { TRAVEL_PHASES } from "../../scripts/domain/constants.mjs";
+import {
+  addProgressModifier,
+  beginTravelDay,
+  completeTravelDay,
+  readyJourney,
+  recordPhase
+} from "../../scripts/domain/engine.mjs";
+import { createJourney } from "../../scripts/domain/journey.mjs";
+import { createRoute } from "../../scripts/domain/route.mjs";
+
+function makeJourney(lengthSteps = 12) {
+  const route = createRoute({
+    id: "forest-edge",
+    name: "Forest Edge",
+    origin: { name: "Northwatch" },
+    destination: { name: "Old Keep" },
+    lengthSteps,
+    danger: 2,
+    discoveryDC: 20,
+    resourcesDC: 15,
+    navigationDC: 10
+  });
+  return createJourney({ id: "expedition", name: "To the Old Keep", route });
+}
+
+function resolveDay(source, { pace = "normal", navigation = "success" } = {}) {
+  let current = beginTravelDay(source);
+  for (const phase of TRAVEL_PHASES.slice(0, -1)) {
+    const result = phase === "pace" ? { pace }
+      : phase === "navigation" ? { outcome: navigation }
+        : {};
+    current = recordPhase(current, phase, result);
+  }
+  return completeTravelDay(current);
+}
+
+test("normal travel advances three steps", () => {
+  const result = resolveDay(readyJourney(makeJourney()));
+  assert.equal(result.progressSteps, 3);
+  assert.equal(result.dayNumber, 1);
+});
+
+test("pace and weather modifiers compose as integers", () => {
+  let current = beginTravelDay(readyJourney(makeJourney()));
+  current = recordPhase(current, "weather", {});
+  current = recordPhase(current, "pace", { pace: "fast" });
+  current = addProgressModifier(current, { id: "storm", label: "Extreme weather", steps: -1 });
+  for (const phase of TRAVEL_PHASES.slice(2, -1)) {
+    current = recordPhase(current, phase, phase === "navigation" ? { outcome: "success" } : {});
+  }
+  assert.equal(completeTravelDay(current).progressSteps, 3);
+});
+
+test("failed navigation discards progress", () => {
+  const result = resolveDay(readyJourney(makeJourney()), { pace: "fast", navigation: "lost" });
+  assert.equal(result.progressSteps, 0);
+});
+
+test("reversed navigation cannot produce negative total progress", () => {
+  const result = resolveDay(readyJourney(makeJourney()), { navigation: "reversed" });
+  assert.equal(result.progressSteps, 0);
+});
+
+test("arrival clamps progress to the route length", () => {
+  const result = resolveDay(readyJourney(makeJourney(2)));
+  assert.equal(result.progressSteps, 2);
+  assert.equal(result.status, "arrived");
+});

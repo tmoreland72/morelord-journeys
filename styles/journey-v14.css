@@ -1,0 +1,6 @@
+.ml-journeys-module .journey-core-status { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.45rem; padding: 0.2rem 0.55rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.75rem; text-transform: uppercase; }
+.ml-journeys-module .journey-core-status.connected { color: var(--ml-color-accent); }
+.ml-journeys-module .journey-core-status.disconnected { color: var(--ml-color-muted); }
+.ml-journeys-module .journey-encounter-summary { padding-top: 0.55rem; border-top: 1px solid var(--color-border-light-primary); }
+.ml-journeys-module .journey-open-encounters { margin-top: 0.55rem; }
+.ml-journeys-module .journey-watch-row button:disabled { opacity: 0.45; cursor: not-allowed; }

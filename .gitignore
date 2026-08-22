@@ -1,0 +1,5 @@
+node_modules/
+.codex/
+.craftworks-stage/
+dist/
+*.log
