@@ -57,7 +57,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
     this.element.querySelector("[name='activeQuartermasterUuid']")?.closest("label")?.remove();
     this.#decorateRoleOptions(context);
 
-    const travelerList = this.element.querySelector(".journey-traveler-list");
+    const travelerList = this.element.querySelector(".ml-journeys-traveler-list");
     travelerList?.addEventListener("change", () => queueMicrotask(() => this.#decorateRoleOptions(context)));
   }
 

@@ -72,7 +72,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   #augmentPartyPlanner(travelers) {
     const planner = this.element.querySelector(".journey-party-planner");
     const navigatorField = planner?.querySelector("[name='navigatorUuid']")?.closest("label");
-    const travelerList = planner?.querySelector(".journey-traveler-list");
+    const travelerList = planner?.querySelector(".ml-journeys-traveler-list");
     if (!planner || !navigatorField || !travelerList) return;
 
     const grid = document.createElement("div");
