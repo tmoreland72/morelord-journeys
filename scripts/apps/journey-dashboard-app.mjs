@@ -110,7 +110,7 @@ export class JourneyApplication extends BaseJourneyApplication {
   }
 
   #renderCraftworksGather(context) {
-    const notesLabel = this.element.querySelector("[name='foragingNotes']")?.closest("label");
+    const notesLabel = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!notesLabel) return;
     const panel = document.createElement("div");
     panel.className = "ml-journeys-panel journey-card journey-craftworks-integration";
@@ -127,7 +127,8 @@ export class JourneyApplication extends BaseJourneyApplication {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.action = "openCraftworksGather";
-      button.textContent = "Open Craftworks Gather";
+      button.classList.add("journey-emphasis-button");
+      button.textContent = "Open Morelord Craftworks - Gather";
       panel.append(button);
     }
     notesLabel.before(panel);

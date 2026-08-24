@@ -43,7 +43,7 @@ test("normal travel advances three steps", () => {
   assert.equal(result.dayNumber, 1);
 });
 
-test("pace and weather modifiers compose as integers", () => {
+test("weather delays extend the route while completed progress remains a whole day", () => {
   let current = beginTravelDay(readyJourney(makeJourney()));
   current = recordPhase(current, "weather", {});
   current = recordPhase(current, "pace", { pace: "fast" });
@@ -51,21 +51,36 @@ test("pace and weather modifiers compose as integers", () => {
   for (const phase of TRAVEL_PHASES.slice(2, -1)) {
     current = recordPhase(current, phase, phase === "navigation" ? { outcome: "success" } : {});
   }
-  assert.equal(completeTravelDay(current).progressSteps, 3);
+  const completed = completeTravelDay(current);
+  assert.equal(completed.progressSteps, 3);
+  assert.equal(completed.routeExtensionDays, 1);
 });
 
-test("failed navigation discards progress", () => {
+test("failed navigation does not turn a completed cycle into a fractional day", () => {
   const result = resolveDay(readyJourney(makeJourney()), { pace: "fast", navigation: "lost" });
-  assert.equal(result.progressSteps, 0);
+  assert.equal(result.progressSteps, 3);
 });
 
-test("reversed navigation cannot produce negative total progress", () => {
+test("reversed navigation remains an outcome without undoing elapsed route days", () => {
   const result = resolveDay(readyJourney(makeJourney()), { navigation: "reversed" });
-  assert.equal(result.progressSteps, 0);
+  assert.equal(result.progressSteps, 3);
 });
 
 test("arrival clamps progress to the route length", () => {
   const result = resolveDay(readyJourney(makeJourney(2)));
   assert.equal(result.progressSteps, 2);
   assert.equal(result.status, "arrived");
+});
+
+test("camp watch order and sleep choices carry into the next day", () => {
+  let current = beginTravelDay(readyJourney(makeJourney()));
+  current.currentDay.campWatches = [{ index: 0, actorUuid: "Actor.a", action: "Take a Watch" }];
+  current.currentDay.campSleepPlan = { entries: [{ actorUuid: "Actor.a", equipment: { tent: true } }], coldWeather: true };
+  for (const phase of TRAVEL_PHASES.slice(0, -1)) {
+    const result = phase === "pace" ? { pace: "normal" } : phase === "navigation" ? { outcome: "success" } : {};
+    current = recordPhase(current, phase, result);
+  }
+  const next = beginTravelDay(completeTravelDay(current));
+  assert.equal(next.currentDay.campWatches[0].actorUuid, "Actor.a");
+  assert.equal(next.currentDay.campSleepPlan.entries[0].equipment.tent, true);
 });

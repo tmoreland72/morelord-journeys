@@ -78,6 +78,13 @@ export class SupplyConsumptionService {
         await item.update({ "system.quantity": current - quantity });
         continue;
       }
+      if (/^water\s*\((?:1\s*)?pints?\)$/i.test(item.name) || /^(?:water-)?pint(?:-of-water)?$/i.test(item.system?.identifier ?? "")) {
+        const wrapped = item.system?.quantity && typeof item.system.quantity === "object";
+        const current = Math.max(0, Number(wrapped ? item.system.quantity.value : item.system?.quantity ?? 0));
+        if (quantity > current) throw new Error(`${item.name} no longer has enough quantity.`);
+        await item.update({ [wrapped ? "system.quantity.value" : "system.quantity"]: current - quantity });
+        continue;
+      }
       const flags = item.flags?.["morelord-journeys"] ?? {};
       const explicitUnits = Number(flags.waterUnits);
       if (Number.isFinite(explicitUnits)) {

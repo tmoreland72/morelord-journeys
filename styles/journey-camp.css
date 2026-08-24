@@ -1,5 +1,7 @@
 .ml-journeys-module .journey-roll-controls-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ml-journeys-module .journey-camp-planner { display: grid; gap: 0.75rem; margin-bottom: 0.8rem; }
+.ml-journeys-module .journey-camp-sleep { display: grid; gap: .65rem; margin: .8rem 0; padding: .8rem; border-top: 2px solid var(--color-border-light-primary); }
+.ml-journeys-module .journey-sleep-results p { margin: .25rem 0; }
 .ml-journeys-module .journey-camp-planner header p { margin: 0.25rem 0 0; }
 .ml-journeys-module .journey-watch-list { display: grid; gap: 0.65rem; }
 .ml-journeys-module .journey-watch-row { display: grid; grid-template-columns: 0.65fr 1.35fr 1.35fr 1fr 0.8fr; gap: 0.55rem; align-items: center; padding: 0.55rem; border: 1px solid var(--color-border-light-primary); border-radius: 4px; }

@@ -21,5 +21,8 @@
       "type": "module"
     }]
   },
-  "socket": true
+  "socket": true,
+  "download": "https://github.com/tmoreland72/morelord-journeys/releases/download/v0.1.0/morelord-journeys.zip",
+  "url": "https://github.com/tmoreland72/morelord-journeys",
+  "manifest": "https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json"
 }

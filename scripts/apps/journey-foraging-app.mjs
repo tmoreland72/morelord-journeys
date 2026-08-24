@@ -5,6 +5,7 @@ import { SupplyConsumptionService } from "../services/supply-consumption-service
 import { SupplyManifestService } from "../services/supply-manifest-service.mjs";
 import { supplyConsequenceService } from "../services/supply-consequence-service.mjs";
 import { CampSupplyService } from "../services/camp-supply-service.mjs";
+import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
 import { JourneyFinalApplication as BaseJourneyApplication } from "./journey-final-app.mjs";
 
 const CAMP_ACTION_HELP = Object.freeze({
@@ -37,16 +38,19 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
 
   #foragingUpdated = () => { if (this.rendered) void this.render({ force: true }); };
   #supplyUpdated = () => { if (this.rendered) void this.render({ force: true }); };
+  #campPerceptionUpdated = () => { if (this.rendered) void this.render({ force: true }); };
 
   constructor(options = {}) {
     super(options);
     foragingRollService.addEventListener("updated", this.#foragingUpdated);
     supplyConsequenceService.addEventListener("updated", this.#supplyUpdated);
+    campPerceptionRollService.addEventListener("updated", this.#campPerceptionUpdated);
   }
 
   async close(options = {}) {
     foragingRollService.removeEventListener("updated", this.#foragingUpdated);
     supplyConsequenceService.removeEventListener("updated", this.#supplyUpdated);
+    campPerceptionRollService.removeEventListener("updated", this.#campPerceptionUpdated);
     return super.close(options);
   }
 
@@ -72,6 +76,20 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       for (const select of row.querySelectorAll("select")) select.addEventListener("change", synchronize);
       synchronize();
     }
+    const panel = this.element.querySelector(".journey-camp-planner");
+    panel?.addEventListener("change", async event => {
+      if (!event.target.matches("select[name^='watchMember'], select[name^='watchAction']")) return;
+      const journey = await getActiveJourney();
+      journey.currentDay.campWatches = Array.from({ length: 4 }, (_, index) => {
+        const actorUuid = this.element.querySelector(`[name='watchMember${index}']`)?.value ?? "";
+        const traveler = journey.travelers.find(candidate => candidate.actorUuid === actorUuid);
+        const prior = journey.currentDay.campWatches?.[index] ?? {};
+        return { ...prior, index, actorUuid, actorName: traveler?.name ?? "Unassigned", action: this.element.querySelector(`[name='watchAction${index}']`)?.value ?? "Take a Watch" };
+      });
+      journey.campDefaults ??= {};
+      journey.campDefaults.watches = structuredClone(journey.currentDay.campWatches);
+      await saveActiveJourney(journey);
+    });
   }
 
   #enhanceCampActions() {
@@ -90,8 +108,19 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const craft = document.createElement("button");
     craft.type = "button";
     craft.dataset.action = "openCraftworksCraft";
-    craft.innerHTML = '<i class="fa-solid fa-hammer"></i> Open Craftworks Craft';
-    panel.append(craft);
+    craft.className = "journey-emphasis-button";
+    craft.innerHTML = '<i class="fa-solid fa-hammer"></i> Open Morelord Craftworks - Craft';
+    const craftNotice = document.createElement("p");
+    craftNotice.className = "journey-craft-notice";
+    craftNotice.textContent = "Tell the assigned player to open Morelord Craftworks and perform a Craft action.";
+    const syncCraft = () => {
+      const selected = Array.from(panel.querySelectorAll("select[name^='watchAction']")).some(select => select.value === "Craft");
+      craft.hidden = !selected;
+      craftNotice.hidden = !selected;
+    };
+    panel.querySelectorAll("select[name^='watchAction']").forEach(select => select.addEventListener("change", syncCraft));
+    syncCraft();
+    panel.append(craftNotice, craft);
     this.#renderCampSleep(panel);
   }
 
@@ -124,32 +153,38 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       }
     };
     section.querySelectorAll("input").forEach(input => input.addEventListener("change", recalculate));
-    const save = document.createElement("button");
-    save.type = "button";
-    save.dataset.action = "saveCampSleepPlan";
-    save.innerHTML = '<i class="fa-solid fa-bed"></i> Save Sleep Plan';
     const roll = document.createElement("button");
     roll.type = "button";
     roll.dataset.action = "rollCampSleep";
     roll.innerHTML = '<i class="fa-solid fa-dice-d20"></i> Roll Party Sleep Checks';
-    section.append(save, roll);
-    panel.append(section);
+    section.append(roll);
+    panel.after(section);
     recalculate();
     void getActiveJourney().then(active => {
       const saved = active?.currentDay?.campSleepPlan;
-      if (!saved || !this.rendered) return;
-      section.querySelector("[name='campColdWeather']").checked = saved.coldWeather;
-      for (const entry of saved.entries) {
+      if (!this.rendered) return;
+      section.querySelector("[name='campColdWeather']").checked = active.currentDay?.phases?.weather?.cold ?? saved?.coldWeather ?? false;
+      const entries = saved?.entries ?? active.travelers.map(traveler => ({
+        actorUuid: traveler.actorUuid,
+        equipment: Object.fromEntries(["tent", "bedroll", "blanket"].map(gear => [gear, (active.supplies?.items ?? []).some(item => item.sourceActorUuid === traveler.actorUuid && item.category === gear && item.availableQuantity > 0)]))
+      }));
+      for (const entry of entries) {
         const row = section.querySelector(`[data-actor-uuid='${entry.actorUuid}']`);
         if (!row) continue;
         for (const gear of ["tent", "bedroll", "blanket"]) row.querySelector(`[data-gear='${gear}']`).checked = entry.equipment[gear];
       }
       recalculate();
+      if (active.currentDay?.campSleepResults?.length) {
+        const summary = document.createElement("div");
+        summary.className = "journey-sleep-results";
+        summary.innerHTML = `<h4>Sleep Check Results</h4>${active.currentDay.campSleepResults.map(result => `<p><strong>${foundry.utils.escapeHTML(result.actorName)}</strong>: ${result.succeeded ? "success" : "failure"} (${result.total} vs DC ${result.dc}) — ${foundry.utils.escapeHTML(result.consequence)}</p>`).join("")}`;
+        section.append(summary);
+      }
     });
   }
 
   #renderForaging(context) {
-    const notes = this.element.querySelector("[name='foragingNotes']")?.closest("label");
+    const notes = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!notes) return;
     const craftworks = this.element.querySelector(".journey-craftworks-integration");
     if (craftworks) {
@@ -158,7 +193,10 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         ? "After resolving food and water, optionally open Craftworks Gather to search for crafting materials. Gather does not replace foraging."
         : "Craftworks is unavailable. Food and water foraging still resolves normally in Journeys.";
       const button = craftworks.querySelector("[data-action='openCraftworksGather']");
-      if (button) button.textContent = "Gather Crafting Materials";
+      if (button) {
+        button.textContent = "Open Morelord Craftworks - Gather";
+        button.classList.add("journey-emphasis-button");
+      }
     }
 
     const saved = context.journey.currentDay?.foragingResolution;
@@ -400,8 +438,15 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const encounterCount = results.filter(result => result === 1).length;
       const boonCount = results.filter(result => result === maximum).length;
       journey.currentDay.campWatches[index].encounterRoll = { die, danger, results, encounterCount, boonCount, rolledAt: Date.now() };
+      journey.campDefaults ??= {};
+      journey.campDefaults.watches = structuredClone(journey.currentDay.campWatches);
       await saveActiveJourney(journey);
-      if (roll) await roll.toMessage({ flavor: `Morelord Journeys — Watch ${index + 1} · ${encounterCount} complications, ${boonCount} boons` });
+      if (roll) await roll.toMessage({ flavor: `Morelord Journeys — Watch ${index + 1} · ${encounterCount} complications, ${boonCount} boons`, rollMode: "privateroll" });
+      try {
+        await campPerceptionRollService.request({ watchIndex: index, actorUuid });
+      } catch (error) {
+        ui.notifications.warn(`Encounter roll completed, but the Perception request was not sent: ${error.message}`);
+      }
       await ChatMessage.create({
         speaker: { alias: "Morelord Journeys" },
         content: `<article class="ml-chat-card ml-journeys-chat-card"><header><i class="fa-solid fa-moon"></i><strong>Watch ${index + 1} Complete</strong></header><p>${encounterCount} complication${encounterCount === 1 ? "" : "s"} and ${boonCount} boon${boonCount === 1 ? "" : "s"} during ${foundry.utils.escapeHTML(traveler?.name ?? "the traveler's")} watch (${foundry.utils.escapeHTML(action)}).</p></article>`
@@ -480,8 +525,12 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     event.preventDefault();
     try {
       const journey = await getActiveJourney();
-      const plan = journey.currentDay?.campSleepPlan;
-      if (!plan) throw new Error("Save the Camp sleep plan first.");
+      const assignments = {};
+      for (const row of this.element.querySelectorAll(".journey-camp-sleep-row")) assignments[row.dataset.actorUuid] = Object.fromEntries(["tent", "bedroll", "blanket"].map(gear => [gear, row.querySelector(`[data-gear='${gear}']`).checked]));
+      const plan = campSupplies.buildSleepPlan({ travelers: journey.travelers, supplies: journey.supplies, assignments, extremeWeather: Boolean(journey.currentDay.phases?.weather?.extreme), coldWeather: this.element.querySelector("[name='campColdWeather']")?.checked ?? false });
+      journey.currentDay.campSleepPlan = plan;
+      journey.campDefaults ??= {};
+      journey.campDefaults.sleepPlan = structuredClone(plan);
       const consequences = journey.currentDay?.supplyConsequences ?? { foodActorUuids: [], waterActorUuids: [] };
       const results = [];
       for (const entry of plan.entries) {
@@ -494,8 +543,11 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         const wasFedAndWatered = !consequences.foodActorUuids.includes(entry.actorUuid) && !consequences.waterActorUuids.includes(entry.actorUuid);
         const change = succeeded && wasFedAndWatered ? -1 : succeeded ? 0 : 1;
         if (change) await actor.update({ "system.attributes.exhaustion": Math.max(0, current + change) });
-        await roll.toMessage({ flavor: `${actor.name} — Camp sleep save DC ${entry.dc}` });
-        results.push({ actorUuid: actor.uuid, actorName: actor.name, dc: entry.dc, total: roll.total, succeeded, exhaustionChange: change });
+        const consequence = succeeded
+          ? wasFedAndWatered ? "rested safely; Exhaustion reduced by 1" : "rested safely, but shortages prevent Exhaustion recovery"
+          : "poor sleep; Exhaustion increased by 1";
+        await roll.toMessage({ flavor: `${actor.name} — Camp sleep save DC ${entry.dc}: ${consequence}`, rollMode: "privateroll" });
+        results.push({ actorUuid: actor.uuid, actorName: actor.name, dc: entry.dc, total: roll.total, succeeded, exhaustionChange: change, consequence });
       }
       journey.currentDay.campSleepResults = results;
       await saveActiveJourney(journey);

@@ -42,7 +42,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
   }
 
   #renderCamp(context) {
-    const notes = this.element.querySelector("[name='campNotes']")?.closest("label");
+    const notes = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!notes) return;
     const saved = context.journey.currentDay?.campWatches ?? [];
     const panel = document.createElement("section");
@@ -71,8 +71,21 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       roll.innerHTML = `<i class="fa-solid fa-dice"></i> Roll Watch ${index + 1}`;
       const result = document.createElement("span");
       result.className = "journey-watch-result";
-      result.textContent = prior.encounterRoll ? `${prior.encounterRoll.encounterCount} encounter(s)` : "Not rolled";
+      const perception = context.journey.currentDay?.campPerceptionResults?.find(entry => entry.watchIndex === index);
+      const pendingPerception = context.journey.currentDay?.pendingCampPerceptionRolls?.some(entry => entry.watchIndex === index);
+      result.textContent = perception
+        ? `Perception ${perception.total} · ${prior.encounterRoll?.encounterCount ?? 0} encounter(s)`
+        : pendingPerception ? "Waiting for Perception…"
+          : prior.encounterRoll ? `${prior.encounterRoll.encounterCount} encounter(s) · Perception not requested` : "Not rolled";
       row.append(heading, member, action, roll, result);
+      if (Number(prior.encounterRoll?.encounterCount ?? 0) > 0) {
+        const open = document.createElement("button");
+        open.type = "button";
+        open.dataset.action = "openMorelordEncounters";
+        open.className = "journey-emphasis-button";
+        open.innerHTML = '<i class="fa-solid fa-hydra"></i> Open Encounters';
+        row.append(open);
+      }
       watches.append(row);
     }
     const save = document.createElement("button");

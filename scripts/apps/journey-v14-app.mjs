@@ -2,7 +2,6 @@ import { getEncounterDie, getEncounterRollMode } from "../core/journey-settings.
 import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { encounterRollService } from "../services/encounter-roll-service.mjs";
-import { EntitlementService } from "../services/entitlement-service.mjs";
 import { JourneyCampApplication as BaseJourneyApplication } from "./journey-camp-app.mjs";
 
 const SOCKET = `module.${MODULE_ID}`;
@@ -33,7 +32,6 @@ export class JourneyV14Application extends BaseJourneyApplication {
   async _onRender(context, options) {
     await super._onRender(context, options);
     this.#moveCurrentPhaseToTop();
-    this.#renderCoreStatus();
     this.#enforceSavedWatches(context);
     if (context.phaseIs?.encounters) this.#renderEncounterControls(context);
   }
@@ -45,24 +43,13 @@ export class JourneyV14Application extends BaseJourneyApplication {
     if (header && phase) header.after(phase, ...(navigation ? [navigation] : []));
   }
 
-  #renderCoreStatus() {
-    const header = this.element.querySelector(".journey-dashboard-header > div");
-    if (!header || header.querySelector(".journey-core-status")) return;
-    const status = EntitlementService.status();
-    const badge = document.createElement("span");
-    badge.className = `journey-core-status ${status.connected ? "connected" : "disconnected"}`;
-    badge.innerHTML = `<i class="fa-solid ${status.connected ? "fa-crown" : "fa-link-slash"}"></i> ${status.connected ? `Morelord ${foundry.utils.escapeHTML(status.tier)}` : "Core not connected"}`;
-    header.append(badge);
-  }
-
   #enforceSavedWatches(context) {
     if (!context.phaseIs?.camp) return;
     const rows = Array.from(this.element.querySelectorAll(".journey-watch-row"));
     const rolls = rows.map(row => row.querySelector("[data-action='rollCampWatch']"));
-    const saved = context.journey.currentDay?.campWatches?.length === rows.length;
-    for (const roll of rolls) roll.disabled = !saved;
-    const dirty = () => { for (const roll of rolls) roll.disabled = true; };
-    for (const row of rows) row.querySelectorAll("select").forEach(select => select.addEventListener("change", dirty));
+    for (const [index, roll] of rolls.entries()) {
+      roll.disabled = !rows[index]?.querySelector("select[name^='watchMember']")?.value;
+    }
   }
 
   #renderEncounterControls(context) {
@@ -97,7 +84,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
         const open = document.createElement("button");
         open.type = "button";
         open.dataset.action = "openMorelordEncounters";
-        open.className = "journey-open-encounters";
+        open.className = "journey-open-encounters journey-emphasis-button";
         open.innerHTML = '<i class="fa-solid fa-hydra"></i> Open Morelord Encounters';
         panel.append(open);
       }

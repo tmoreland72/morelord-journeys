@@ -4,3 +4,16 @@
 .ml-journeys-module .journey-encounter-summary { padding-top: 0.55rem; border-top: 1px solid var(--color-border-light-primary); }
 .ml-journeys-module .journey-open-encounters { margin-top: 0.55rem; }
 .ml-journeys-module .journey-watch-row button:disabled { opacity: 0.45; cursor: not-allowed; }
+.ml-journeys-module .journey-emphasis-button {
+  background: var(--ml-color-accent, #e9862c);
+  border-color: #ffad55;
+  color: #17120d;
+  font-weight: 700;
+}
+.ml-journeys-module .journey-phases span.complete {
+  background: var(--ml-color-accent, #e9862c);
+  border-color: var(--ml-color-accent, #e9862c);
+  color: #17120d;
+}
+.ml-journeys-module .journey-weather-result { display: grid; gap: .2rem; margin: .5rem 0; padding: .65rem; border-left: 3px solid var(--ml-color-accent); }
+.ml-journeys-module .journey-inline-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }

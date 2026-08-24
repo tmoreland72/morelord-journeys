@@ -16,11 +16,13 @@ export function createJourney({ id, name, route, travelers = [], rulesProfileId 
     status: JOURNEY_STATUS.PLANNING,
     phase: null,
     progressSteps: 0,
+    routeExtensionDays: 0,
     dayNumber: 0,
     travelers: structuredClone(travelers),
     roles: {},
     supplies: { food: 0, water: 0 },
     currentDay: null,
+    campDefaults: { watches: [], sleepPlan: null },
     log: [],
     rulesProfileId,
     schemaVersion: SCHEMA_VERSION

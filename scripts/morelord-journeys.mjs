@@ -7,10 +7,12 @@ import { createJourney, validateJourney } from "./domain/journey.mjs";
 import { createRoute, validateRoute } from "./domain/route.mjs";
 import { clearActiveJourney, getActiveJourney, registerSettings, saveActiveJourney } from "./foundry/settings-repository.mjs";
 import { encounterRollService } from "./services/encounter-roll-service.mjs";
+import { campPerceptionRollService } from "./services/camp-perception-roll-service.mjs";
 import { foragingRollService } from "./services/foraging-roll-service.mjs";
 import { roleRollService } from "./services/role-roll-service.mjs";
 import { supplyConsequenceService } from "./services/supply-consequence-service.mjs";
 import { supplySyncService } from "./services/supply-sync-service.mjs";
+import { SupplyManifestService } from "./services/supply-manifest-service.mjs";
 
 Hooks.once("init", () => { registerSettings(); registerJourneySettings(); });
 Hooks.on("getSceneControlButtons", controls => {
@@ -22,14 +24,32 @@ Hooks.on("getSceneControlButtons", controls => {
 Hooks.once("ready", async () => {
   roleRollService.start();
   encounterRollService.start();
+  campPerceptionRollService.start();
   foragingRollService.start();
   supplyConsequenceService.start();
   supplySyncService.start();
   const coreAccess = new MorelordCoreAccessService();
+  const supplyManifest = new SupplyManifestService();
   await coreAccess.refresh({ quiet: true });
   let journeyApp = null;
-  const open = async () => { if (journeyApp?.rendered) { journeyApp.bringToFront(); return journeyApp; } journeyApp = new JourneyApplication(); return journeyApp.render({ force: true }); };
-  const api = Object.freeze({ open, createJourney, createRoute, validateJourney, validateRoute, engine: Object.freeze({ ...engine }), repository: Object.freeze({ clearActiveJourney, getActiveJourney, saveActiveJourney }), applications: Object.freeze({ JourneyApplication }), coreAccess, roleRolls: roleRollService, encounterRolls: encounterRollService, foragingRolls: foragingRollService, supplyConsequences: supplyConsequenceService, getAccess: () => coreAccess.snapshot(), refreshEntitlements: options => coreAccess.refresh(options) });
+  const open = async () => {
+    const journey = await getActiveJourney();
+    if (journey?.travelers?.length) {
+      journey.supplies = await supplyManifest.build({
+        travelerUuids: journey.travelers.map(traveler => traveler.actorUuid),
+        partyActorUuid: journey.partyActorUuid
+      });
+      await saveActiveJourney(journey);
+    }
+    if (journeyApp?.rendered) {
+      await journeyApp.render({ force: true });
+      journeyApp.bringToFront();
+      return journeyApp;
+    }
+    journeyApp = new JourneyApplication();
+    return journeyApp.render({ force: true });
+  };
+  const api = Object.freeze({ open, createJourney, createRoute, validateJourney, validateRoute, engine: Object.freeze({ ...engine }), repository: Object.freeze({ clearActiveJourney, getActiveJourney, saveActiveJourney }), applications: Object.freeze({ JourneyApplication }), coreAccess, roleRolls: roleRollService, encounterRolls: encounterRollService, campPerceptionRolls: campPerceptionRollService, foragingRolls: foragingRollService, supplyConsequences: supplyConsequenceService, getAccess: () => coreAccess.snapshot(), refreshEntitlements: options => coreAccess.refresh(options) });
   game.modules.get(MODULE_ID).api = api;
   globalThis.MorelordJourneys = api;
   console.info(`${MODULE_ID} | Ready for Foundry v14 · ${coreAccess.snapshot().tier}`);

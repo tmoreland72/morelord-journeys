@@ -56,7 +56,7 @@
   "MORELORD_JOURNEYS.Notifications.Created": "Journey created.",
   "MORELORD_JOURNEYS.Notifications.DayComplete": "Travel day completed.",
   "MORELORD_JOURNEYS.Notifications.Arrived": "The party has arrived.",
-  "MORELORD_JOURNEYS.Log.Title": "Recent Activity",
+  "MORELORD_JOURNEYS.Log.Title": "Expedition Log",
   "MORELORD_JOURNEYS.Log.journeyReady": "Journey prepared",
   "MORELORD_JOURNEYS.Log.dayStarted": "Travel day started",
   "MORELORD_JOURNEYS.Log.phaseRecorded": "Phase resolved",

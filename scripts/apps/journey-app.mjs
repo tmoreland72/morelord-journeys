@@ -23,7 +23,8 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       beginDay: this.#beginDay,
       advancePhase: this.#advancePhase,
       completeDay: this.#completeDay,
-      clearJourney: this.#clearJourney
+      clearJourney: this.#clearJourney,
+      rollWeather: this.#rollWeather
     }
   };
 
@@ -35,7 +36,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     const context = await super._prepareContext(options);
     const journey = await getActiveJourney();
     if (!journey) return { ...context, hasJourney: false };
-    const length = journey.routeSnapshot.lengthSteps;
+    const length = journey.routeSnapshot.lengthSteps + Math.max(0, Number(journey.routeExtensionDays ?? 0)) * 3;
     const phase = journey.phase;
     const phaseIndex = phase ? TRAVEL_PHASES.indexOf(phase) : -1;
     return {
@@ -50,8 +51,10 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         current: journey.progressSteps,
         total: length,
         percent: length ? Math.min(100, Math.round((journey.progressSteps / length) * 100)) : 0,
-        daysCurrent: (journey.progressSteps / 3).toFixed(1),
-        daysTotal: (length / 3).toFixed(1)
+        daysCurrent: Math.floor(journey.progressSteps / 3),
+        daysTotal: Math.ceil(length / 3),
+        originalDaysTotal: Math.ceil(journey.routeSnapshot.lengthSteps / 3),
+        extended: Number(journey.routeExtensionDays ?? 0) > 0
       },
       phases: TRAVEL_PHASES.slice(0, -1).map((name, index) => ({
         name,
@@ -61,9 +64,13 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       })),
       phaseLabel: phase ? game.i18n.localize(`MORELORD_JOURNEYS.Phases.${phase}`) : "",
       phaseIs: Object.fromEntries(TRAVEL_PHASES.map(name => [name, phase === name])),
-      recentLog: journey.log.slice(-5).reverse().map(entry => ({
+      weather: journey.currentDay?.generatedWeather ?? null,
+      recentLog: journey.log.filter(entry => entry.type !== "progressModifierAdded").slice(-12).reverse().map(entry => ({
         ...entry,
-        label: game.i18n.localize(`MORELORD_JOURNEYS.Log.${entry.type}`)
+        label: entry.type === "phaseRecorded"
+          ? game.i18n.localize(`MORELORD_JOURNEYS.Phases.${entry.data.phase}`)
+          : game.i18n.localize(`MORELORD_JOURNEYS.Log.${entry.type}`),
+        result: JourneyApplication.#formatLogResult(entry)
       }))
     };
   }
@@ -108,14 +115,18 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       const source = await getActiveJourney();
       const phase = source.phase;
       let result = {};
-      if (phase === "weather") result = { extreme: checked(this.element, "extremeWeather") };
+      if (phase === "weather") result = {
+        extreme: checked(this.element, "extremeWeather"),
+        cold: Boolean(source.currentDay?.generatedWeather?.cold),
+        generated: source.currentDay?.generatedWeather ?? null
+      };
       if (phase === "pace") result = { pace: value(this.element, "pace") || "normal" };
-      if (phase === "encounters") result = { count: integer(this.element, "encounterCount") };
+      if (phase === "encounters") result = { count: Number(source.currentDay?.encounterCheck?.encounterCount ?? 0) };
       if (phase === "discovery") result = { pursued: checked(this.element, "pursueDiscovery") };
-      if (phase === "foraging") result = { notes: value(this.element, "foragingNotes") };
+      if (phase === "foraging") result = { resolution: source.currentDay?.foragingResolution ?? null };
       if (phase === "navigation") result = { outcome: value(this.element, "navigationOutcome") || "success" };
       if (phase === "pressOn") result = { pressedOn: checked(this.element, "pressedOn") };
-      if (phase === "camp") result = { notes: value(this.element, "campNotes") };
+      if (phase === "camp") result = { watches: source.currentDay?.campWatches ?? [], sleep: source.currentDay?.campSleepResults ?? [] };
 
       let journey = recordPhase(source, phase, result);
       if (phase === "weather" && result.extreme) journey = addProgressModifier(journey, { id: "extreme-weather", label: "Extreme weather", steps: -1 });
@@ -148,6 +159,50 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     if (!confirmed) return;
     await clearActiveJourney();
     await this.render({ force: true });
+  }
+
+  static async #rollWeather(event) {
+    event.preventDefault();
+    try {
+      const journey = await getActiveJourney();
+      const roll = await new Roll("1d20").evaluate();
+      const total = Number(roll.total);
+      const weather = total === 1
+        ? { label: "Extreme cold", detail: "Bitter cold and dangerous exposure.", extreme: true, cold: true }
+        : total === 20
+          ? { label: "Extreme heat", detail: "Oppressive heat and dangerous exposure.", extreme: true, cold: false }
+          : total <= 4
+            ? { label: "Cold snap", detail: "Cold conditions; blankets help at camp.", extreme: false, cold: true }
+            : total <= 8
+              ? { label: "Rain or snow", detail: "Wet weather and reduced visibility.", extreme: false, cold: total <= 6 }
+              : total <= 12
+                ? { label: "Overcast", detail: "Cloud cover with otherwise ordinary travel.", extreme: false, cold: false }
+                : total <= 17
+                  ? { label: "Fair weather", detail: "Clear, comfortable traveling conditions.", extreme: false, cold: false }
+                  : { label: "Strong winds", detail: "Gusting winds make travel difficult.", extreme: false, cold: false };
+      journey.currentDay.generatedWeather = { ...weather, roll: total, rolledAt: Date.now() };
+      await saveActiveJourney(journey);
+      await this.render({ force: true });
+    } catch (error) {
+      console.error("morelord-journeys | Weather generation failed", error);
+      ui.notifications.error(error.issues?.join("; ") ?? error.message);
+    }
+  }
+
+  static #formatLogResult(entry) {
+    if (entry.type === "dayCompleted") return `${entry.data.applied ?? 0} step(s) applied; ${entry.data.total ?? 0} total`;
+    if (entry.type !== "phaseRecorded") return "";
+    const result = entry.data?.result ?? {};
+    const phase = entry.data?.phase;
+    if (phase === "weather") return result.generated ? `${result.generated.label}${result.extreme ? " (extreme)" : ""}` : result.extreme ? "Extreme weather" : "No generated weather";
+    if (phase === "pace") return result.pace ?? "";
+    if (phase === "encounters") return `${result.count ?? 0} encounter(s)`;
+    if (phase === "navigation") return result.outcome ?? "";
+    if (phase === "discovery") return result.pursued ? "Discovery pursued" : "Passed by";
+    if (phase === "pressOn") return result.pressedOn ? "Pressed on" : "Made camp";
+    if (phase === "foraging") return result.resolution ? `${result.resolution.foodRequired ?? 0} food, ${result.resolution.waterRequired ?? 0} water` : "Resolved";
+    if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} sleep checks`;
+    return "Resolved";
   }
 
   #notifyError(error) {

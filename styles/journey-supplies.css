@@ -38,6 +38,7 @@
   align-items: center;
   gap: 4px;
 }
+.ml-journeys-window .journey-supply-source-text { display: block; margin-top: 2px; opacity: .75; font-weight: 400; }
 
 @media (max-width: 700px) {
   .ml-journeys-window .journey-role-grid,

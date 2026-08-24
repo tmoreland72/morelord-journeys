@@ -1,0 +1,79 @@
+import { MODULE_ID } from "../domain/constants.mjs";
+import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
+
+const SOCKET = `module.${MODULE_ID}`;
+
+class CampPerceptionRollService extends EventTarget {
+  #started = false;
+  #dialogs = new Map();
+
+  start() {
+    if (this.#started) return;
+    this.#started = true;
+    game.socket.on(SOCKET, message => void this.#receive(message));
+  }
+
+  async request({ watchIndex, actorUuid }) {
+    if (!game.user.isGM) throw new Error("Only the GM can request a camp Perception check.");
+    const journey = await getActiveJourney();
+    const actor = await fromUuid(actorUuid);
+    if (!journey?.currentDay || journey.phase !== "camp" || !actor) throw new Error("The assigned watcher could not be found.");
+    const user = game.users.find(candidate => candidate.active && !candidate.isGM && (candidate.character?.uuid === actor.uuid || actor.testUserPermission?.(candidate, "OWNER")));
+    if (!user) throw new Error(`${actor.name} has no active player owner for the Perception check.`);
+    const request = { id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, watchIndex, actorUuid, actorName: actor.name, userId: user.id, requestedAt: Date.now() };
+    journey.currentDay.pendingCampPerceptionRolls ??= [];
+    journey.currentDay.pendingCampPerceptionRolls = journey.currentDay.pendingCampPerceptionRolls.filter(entry => entry.watchIndex !== watchIndex);
+    journey.currentDay.pendingCampPerceptionRolls.push(request);
+    await saveActiveJourney(journey);
+    game.socket.emit(SOCKET, { type: "campPerception.request", request });
+    this.#updated();
+    return request;
+  }
+
+  async #receive(message) {
+    if (message?.type === "campPerception.request" && message.request?.userId === game.user.id) return this.#open(message.request);
+    if (message?.type === "campPerception.result" && game.user.isGM) {
+      const journey = await getActiveJourney();
+      const pending = journey?.currentDay?.pendingCampPerceptionRolls ?? [];
+      const request = pending.find(entry => entry.id === message.requestId);
+      if (!request) return;
+      journey.currentDay.campPerceptionResults ??= [];
+      journey.currentDay.campPerceptionResults = journey.currentDay.campPerceptionResults.filter(entry => entry.watchIndex !== request.watchIndex);
+      journey.currentDay.campPerceptionResults.push({ ...message.result, watchIndex: request.watchIndex, actorUuid: request.actorUuid, actorName: request.actorName, resolvedAt: Date.now() });
+      journey.currentDay.pendingCampPerceptionRolls = pending.filter(entry => entry.id !== request.id);
+      await saveActiveJourney(journey);
+      game.socket.emit(SOCKET, { type: "campPerception.resolved", requestId: request.id });
+      this.#updated();
+    }
+    if (message?.type === "campPerception.resolved") {
+      await this.#dialogs.get(message.requestId)?.close();
+      this.#dialogs.delete(message.requestId);
+    }
+  }
+
+  async #open(request) {
+    if (this.#dialogs.has(request.id)) return;
+    const actor = await fromUuid(request.actorUuid);
+    if (!actor) return;
+    const dialog = new foundry.applications.api.DialogV2({
+      window: { title: `Morelord Journeys — Watch ${request.watchIndex + 1}`, icon: "fa-solid fa-eye" },
+      content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must roll Perception for Watch ${request.watchIndex + 1} to detect surprise encounters or find a boon.</p>`,
+      modal: false,
+      buttons: [{ action: "roll", label: "Roll Perception", icon: "fa-solid fa-dice-d20", default: true, callback: async () => {
+        const native = await actor.rollSkill({ skill: "prc" }, { configure: true, title: `${request.actorName} — Camp Watch Perception` }, { create: true, data: { flavor: `Morelord Journeys — Watch ${request.watchIndex + 1} Perception` } });
+        if (!native) return null;
+        const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
+        const total = Number(roll?.total ?? native?.total ?? Number.NaN);
+        if (!Number.isFinite(total)) throw new Error("The Perception check did not return a numeric total.");
+        game.socket.emit(SOCKET, { type: "campPerception.result", requestId: request.id, result: { total, userId: game.user.id } });
+        return total;
+      }}]
+    });
+    this.#dialogs.set(request.id, dialog);
+    await dialog.render({ force: true });
+  }
+
+  #updated() { this.dispatchEvent(new Event("updated")); }
+}
+
+export const campPerceptionRollService = new CampPerceptionRollService();

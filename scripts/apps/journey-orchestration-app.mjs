@@ -91,13 +91,11 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
   }
 
   #renderEncounterCheck(context) {
-    const input = this.element.querySelector("[name='encounterCount']");
-    const anchor = input?.closest("label");
+    const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
     const die = getEncounterDie();
     const danger = Number(context.route.danger ?? 0);
     const prior = context.journey.currentDay?.encounterCheck;
-    if (prior) input.value = prior.encounterCount;
     const panel = document.createElement("div");
     panel.className = "ml-journeys-panel journey-card journey-encounter-check";
     const detail = document.createElement("p");

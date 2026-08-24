@@ -66,6 +66,9 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     else {
       this.#renderRoles(context);
       this.#renderSupplyManifest(context);
+      const ready = this.element.querySelector(".journey-centered");
+      const header = this.element.querySelector(".journey-dashboard-header");
+      if (ready && header) header.after(ready);
     }
   }
 
@@ -111,41 +114,38 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   }
 
   #renderRoles(context) {
+    const neededRole = context.phaseIs?.navigation ? "navigator" : context.phaseIs?.discovery ? "observer" : null;
+    if (!neededRole) return;
     const progress = this.element.querySelector(".journey-progress")?.closest("section");
     if (!progress) return;
     const panel = document.createElement("section");
     panel.className = "ml-journeys-panel journey-card journey-roles-panel";
     const header = document.createElement("h2");
-    header.textContent = "Expedition Roles";
+    header.textContent = neededRole === "navigator" ? "Navigator" : "Observer";
     const grid = document.createElement("div");
     grid.className = "journey-role-grid";
     const navigator = selectField("activeNavigatorUuid", "Navigator");
     const observer = selectField("activeObserverUuid", "Observer");
-    const quartermaster = selectField("activeQuartermasterUuid", "Quartermaster");
     for (const traveler of context.journey.travelers) {
       option(navigator.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.navigatorUuid });
       option(observer.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.observerUuid });
     }
-    const partySource = context.journey.supplies?.sources?.find(source => source.sourceType === "group");
-    if (partySource) option(quartermaster.select, {
-      value: partySource.actorUuid,
-      label: `${partySource.actorName} (shared inventory)`,
-      selected: partySource.actorUuid === context.journey.roles?.quartermasterUuid
-    });
-    for (const traveler of context.journey.travelers) {
-      option(quartermaster.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.quartermasterUuid });
-    }
-    grid.append(navigator.field, observer.field, quartermaster.field);
-    const save = document.createElement("button");
-    save.type = "button";
-    save.dataset.action = "saveRoles";
-    save.textContent = "Save Roles";
-    panel.append(header, grid, save);
+    const active = neededRole === "navigator" ? navigator : observer;
+    grid.append(active.field);
+    const saveOnChange = async () => {
+      const journey = await getActiveJourney();
+      journey.roles[`${neededRole}Uuid`] = active.select.value;
+      await saveActiveJourney(journey);
+    };
+    active.select.addEventListener("change", saveOnChange);
+    const hint = document.createElement("small");
+    hint.textContent = "Role changes are remembered automatically.";
+    panel.append(header, grid, hint);
     progress.after(panel);
   }
 
   #renderSupplyManifest(context) {
-    const roles = this.element.querySelector(".journey-roles-panel");
+    const roles = this.element.querySelector(".journey-roles-panel") ?? this.element.querySelector(".journey-progress")?.closest("section");
     if (!roles) return;
     const manifest = context.journey.supplies ?? {};
     const panel = document.createElement("section");
@@ -154,6 +154,11 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     header.className = "journey-progress-label";
     const title = document.createElement("h2");
     title.textContent = "Supply Manifest";
+    const sourceText = document.createElement("small");
+    sourceText.className = "journey-supply-source-text";
+    sourceText.textContent = (manifest.sources ?? []).map(source => `${source.actorName}${source.sourceType === "group" ? " (group inventory)" : ""}`).join(" · ");
+    const heading = document.createElement("div");
+    heading.append(title, sourceText);
     const refresh = document.createElement("button");
     refresh.type = "button";
     refresh.className = "ml-icon-button ml-journeys-icon-button";
@@ -161,7 +166,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     refresh.dataset.tooltip = "Refresh from inventories";
     refresh.setAttribute("aria-label", refresh.dataset.tooltip);
     refresh.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i>';
-    header.append(title, refresh);
+    header.append(heading, refresh);
 
     const totals = document.createElement("div");
     totals.className = "journey-supply-totals";
@@ -180,33 +185,14 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       totals.append(total);
     }
 
-    const sources = document.createElement("div");
-    sources.className = "journey-supply-sources";
-    for (const source of manifest.sources ?? []) {
-      const tag = document.createElement("span");
-      tag.textContent = `${source.actorName}${source.sourceType === "group" ? " · Group inventory" : ""}`;
-      sources.append(tag);
-    }
     const items = document.createElement("div");
     items.className = "journey-supply-items";
     for (const item of manifest.items ?? []) {
       const tag = document.createElement("span");
       tag.className = "journey-supply-item";
       const text = document.createElement("span");
-      text.textContent = `${item.quantity}× ${item.name} — ${item.sourceActorName}${item.category === "water" ? ` · ${item.supplyState}` : ""}`;
+      text.textContent = `${item.quantity}× ${item.name} — ${item.sourceActorName}`;
       tag.append(text);
-      if (item.category === "water") {
-        const state = document.createElement("button");
-        state.type = "button";
-        state.className = "ml-icon-button ml-journeys-icon-button";
-        state.dataset.action = "setWaterState";
-        state.dataset.itemUuid = item.itemUuid;
-        state.dataset.waterState = item.supplyState === "filled" ? "empty" : "full";
-        state.dataset.tooltip = item.supplyState === "filled" ? "Mark container empty" : "Mark container full";
-        state.setAttribute("aria-label", state.dataset.tooltip);
-        state.innerHTML = `<i class="fa-solid ${item.supplyState === "filled" ? "fa-glass-water-droplet" : "fa-glass-water"}"></i>`;
-        tag.append(state);
-      }
       items.append(tag);
     }
     if (!(manifest.items?.length)) {
@@ -214,7 +200,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       empty.textContent = "No recognized travel supplies were found in the Group or traveler inventories.";
       items.append(empty);
     }
-    panel.append(header, totals, sources, items);
+    panel.append(header, totals, items);
     roles.after(panel);
   }
 

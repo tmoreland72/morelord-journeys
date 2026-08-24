@@ -1,9 +1,9 @@
 const SUPPLY_CATEGORIES = Object.freeze([
-  { id: "food", label: "Food", matches: name => /\bration(s)?\b|\bfood\b/.test(name) },
-  { id: "water", label: "Water", matches: name => /waterskin|water skin|water flask|water barrel/.test(name) },
-  { id: "tent", label: "Tents", matches: name => /\btent\b/.test(name) },
-  { id: "bedroll", label: "Bedrolls", matches: name => /bedroll/.test(name) },
-  { id: "blanket", label: "Blankets", matches: name => /blanket/.test(name) }
+  { id: "food", label: "Food", matches: (name) => /\bration(s)?\b|\bfood\b/.test(name) },
+  { id: "water", label: "Water", matches: (name, item) => /^water\s*\((?:1\s*)?pints?\)$/.test(name) || /^(?:water-)?pint(?:-of-water)?$/.test(String(item.system?.identifier ?? "").toLowerCase()) },
+  { id: "tent", label: "Tents", matches: (name) => /\btent\b/.test(name) },
+  { id: "bedroll", label: "Bedrolls", matches: (name) => /bedroll/.test(name) },
+  { id: "blanket", label: "Blankets", matches: (name) => /blanket/.test(name) }
 ]);
 
 export class SupplyManifestService {
@@ -32,9 +32,10 @@ export class SupplyManifestService {
     const items = [];
     for (const source of sources) {
       for (const item of Array.from(source.actor.items ?? [])) {
-        const category = this.#category(item.name);
+        const category = this.#category(item);
         if (!category) continue;
-        const quantity = Math.max(0, Number(item.system?.quantity ?? 1) || 0);
+        const rawQuantity = item.system?.quantity?.value ?? item.system?.quantity ?? 1;
+        const quantity = Math.max(0, Number(rawQuantity) || 0);
         const availability = this.#availability(item, category.id, quantity);
         items.push({
           category: category.id,
@@ -69,36 +70,13 @@ export class SupplyManifestService {
     };
   }
 
-  #category(name) {
-    const normalized = String(name ?? "").trim().toLowerCase();
-    return SUPPLY_CATEGORIES.find(category => category.matches(normalized)) ?? null;
+  #category(item) {
+    const normalized = String(item?.name ?? "").trim().toLowerCase();
+    return SUPPLY_CATEGORIES.find(category => category.matches(normalized, item)) ?? null;
   }
 
   #availability(item, category, quantity) {
-    if (category !== "water") return { quantity, state: quantity > 0 ? "available" : "empty" };
-    const name = String(item.name ?? "").toLowerCase();
-    const flags = item.flags?.["morelord-journeys"] ?? {};
-    const explicitUnits = Number(flags.waterUnits);
-    if (Number.isFinite(explicitUnits)) {
-      const units = Math.max(0, Math.min(quantity, explicitUnits));
-      return { quantity: units, state: units > 0 ? "filled" : "empty" };
-    }
-    if (flags.waterState === "full") return { quantity, state: "filled" };
-    if (flags.waterState === "empty" || /\bempty\b/.test(name)) return { quantity: 0, state: "empty" };
-
-    const uses = item.system?.uses;
-    const maximum = Number(uses?.max);
-    const spent = Number(uses?.spent);
-    if (Number.isFinite(maximum) && maximum > 0 && Number.isFinite(spent)) {
-      const remaining = Math.max(0, maximum - spent);
-      return { quantity: Math.min(quantity, remaining), state: remaining > 0 ? "filled" : "empty" };
-    }
-    const value = Number(uses?.value);
-    if (Number.isFinite(value) && (Number.isFinite(maximum) ? maximum > 0 : true)) {
-      return { quantity: Math.min(quantity, Math.max(0, value)), state: value > 0 ? "filled" : "empty" };
-    }
-    if (/\bfull\b|filled/.test(name)) return { quantity, state: "filled" };
-    return { quantity: 0, state: "unknown" };
+    return { quantity, state: quantity > 0 ? "available" : "empty" };
   }
 
   #groupCharacters(group) {
