@@ -18,10 +18,30 @@
   </section>
 
   <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-bed"></i> Sleep Deprivation</h3><p>By default Journeys uses Xanathar-style escalating Constitution saves when a character fails to complete a Long Rest.</p></div></div>
+    <label class="ml-journeys-setting-row"><span><strong>Do not add Exhaustion level for lack of sleep</strong><small>The character still receives no Long Rest benefits, but Journeys skips the deprivation save and Exhaustion.</small></span><input type="checkbox" name="suppressSleepDeprivationExhaustion" {{#if settings.suppressSleepDeprivationExhaustion}}checked{{/if}}></label>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-list-check"></i> Travel Phases</h3><p>Disabled phases are visibly skipped and logged. Pace defaults to Normal and Navigation defaults to success when disabled.</p></div></div>
+    <div class="ml-journeys-settings__grid">
+      <label class="ml-journeys-setting-row"><span><strong>Weather</strong></span><input type="checkbox" name="phase-weather" {{#if settings.phases.weather}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Pace</strong></span><input type="checkbox" name="phase-pace" {{#if settings.phases.pace}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Day Encounters</strong></span><input type="checkbox" name="phase-encounters" {{#if settings.phases.encounters}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Discoveries</strong></span><input type="checkbox" name="phase-discovery" {{#if settings.phases.discovery}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Navigation</strong></span><input type="checkbox" name="phase-navigation" {{#if settings.phases.navigation}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Press On</strong></span><input type="checkbox" name="phase-pressOn" {{#if settings.phases.pressOn}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Foraging & Supplies</strong></span><input type="checkbox" name="phase-foraging" {{#if settings.phases.foraging}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Camp</strong></span><input type="checkbox" name="phase-camp" {{#if settings.phases.camp}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Night Encounters</strong><small>When disabled, Camp skips its nightly d100 roll.</small></span><input type="checkbox" name="enableNightEncounters" {{#if settings.enableNightEncounters}}checked{{/if}}></label>
+      <label class="ml-journeys-setting-row"><span><strong>Sleep & Shelter</strong><small>When disabled, Camp does not require sleep checks or resolve Long Rest outcomes.</small></span><input type="checkbox" name="enableSleepAndShelter" {{#if settings.enableSleepAndShelter}}checked{{/if}}></label>
+    </div>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
     <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-dice"></i> Encounter Checks</h3><p>Control how journey encounter checks are rolled and shown.</p></div></div>
     <div class="ml-journeys-settings__grid">
-      <label class="ml-journeys-setting-row"><span><strong>Encounter Check Die</strong><small>A 1 creates a complication and the maximum result creates a boon.</small></span><select name="encounterDie"><option value="d4" {{#if (eq settings.encounterDie "d4")}}selected{{/if}}>d4 — Frequent events</option><option value="d6" {{#if (eq settings.encounterDie "d6")}}selected{{/if}}>d6</option><option value="d8" {{#if (eq settings.encounterDie "d8")}}selected{{/if}}>d8 — Default</option><option value="d10" {{#if (eq settings.encounterDie "d10")}}selected{{/if}}>d10</option><option value="d12" {{#if (eq settings.encounterDie "d12")}}selected{{/if}}>d12</option><option value="d20" {{#if (eq settings.encounterDie "d20")}}selected{{/if}}>d20 — Rare events</option></select></label>
-      <label class="ml-journeys-setting-row"><span><strong>Encounter Check Method</strong><small>Roll once per Danger level or once for each active party player.</small></span><select name="encounterRollMode"><option value="gm" {{#if (eq settings.encounterRollMode "gm")}}selected{{/if}}>GM rolls by Danger</option><option value="players" {{#if (eq settings.encounterRollMode "players")}}selected{{/if}}>Each player rolls one die</option></select></label>
+      <label class="ml-journeys-setting-row"><span><strong>Encounter Check Method</strong><small>The GM or one active party owner rolls the day's d100 check; Danger modifies the result.</small></span><select name="encounterRollMode"><option value="gm" {{#if (eq settings.encounterRollMode "gm")}}selected{{/if}}>GM rolls d100</option><option value="players" {{#if (eq settings.encounterRollMode "players")}}selected{{/if}}>Player rolls d100</option></select></label>
       <label class="ml-journeys-setting-row"><span><strong>Player Encounter Roll Visibility</strong><small>Foundry visibility used for encounter checks rolled by players.</small></span><select name="playerEncounterVisibility"><option value="publicroll" {{#if (eq settings.playerEncounterVisibility "publicroll")}}selected{{/if}}>Public Roll — visible to everyone</option><option value="gmroll" {{#if (eq settings.playerEncounterVisibility "gmroll")}}selected{{/if}}>Private GM Roll — roller and GM</option><option value="blindroll" {{#if (eq settings.playerEncounterVisibility "blindroll")}}selected{{/if}}>Blind GM Roll — GM only</option></select></label>
     </div>
   </section>

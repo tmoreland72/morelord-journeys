@@ -4,12 +4,14 @@ import {
   DANGER_OPTIONS,
   DISCOVERY_OPTIONS,
   LENGTH_OPTIONS,
+  LENGTH_THIRD_OPTIONS,
   NAVIGATION_OPTIONS,
   RESOURCE_OPTIONS
 } from "../../scripts/domain/route-options.mjs";
 
 test("route option sets expose ordered numeric values", () => {
-  assert.equal(LENGTH_OPTIONS.length, 100);
+  assert.equal(LENGTH_OPTIONS.length, 101);
+  assert.deepEqual(LENGTH_THIRD_OPTIONS.map(option => option.value), [0, 1, 2]);
   assert.deepEqual(DANGER_OPTIONS.map(option => option.value), [0, 1, 2, 3, 4, 5]);
   assert.deepEqual(DISCOVERY_OPTIONS.map(option => option.value), [5, 10, 15, 20, 25]);
   assert.deepEqual(RESOURCE_OPTIONS.map(option => option.value), [5, 10, 15, 20, 25, 30]);

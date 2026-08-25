@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.1.0
+version: 0.2.0
 foundry: 14
 order: 10
 ---
@@ -38,8 +38,8 @@ Enter the journey and route names, origin, destination, planned length, danger, 
 
 ### Route ratings
 
-- **Length** is the initial number of travel days.
-- **Danger** determines how many encounter dice are rolled.
+- **Length** is entered as whole days plus 0, ⅓, or ⅔.
+- **Danger** modifies d100 encounter results toward or away from major events.
 - **Discovery DC** is used by the Observer's Perception check.
 - **Resources DC** is used by traveler foraging checks.
 - **Navigation DC** is used by the Navigator's Survival check.
@@ -60,32 +60,34 @@ Recognized supplies are:
 
 Waterskins, flasks, and barrels are containers, not water. Put `Water (Pint)` items inside a container and set their quantity to the number of available pints. Consuming water reduces that item quantity directly.
 
-Supply allocation uses a traveler's own inventory first and then the shared Group inventory. It never takes supplies from another traveler.
+The Supply Manifest summarizes one Water for every four available pints; detailed allocation still uses individual pints. Empty containers contribute zero even when they retain a capacity flag. The manifest appears before beginning a day and again during Foraging, not during unrelated phases.
+
+Food and water form one expedition pool across traveler and Group inventories. Sleeping supplies are not pooled: a traveler may only use tents, bedrolls, and blankets from that traveler's own inventory.
 
 ## Starting and completing a day
 
-Select **Begin Travel Day** to start the eight-phase cycle. Completing the cycle advances one whole travel day. Delays extend the estimated total rather than creating fractional progress.
+Select **Begin Travel Day** to start the nine-phase cycle. Camp and Sleep & Shelter are separate phases. Journeys calculates movement in thirds. Pace supplies base movement; weather, discoveries, forced marching, and Navigation change the exact distance remaining.
 
 The Expedition Log records phase names and results. The step indicator uses an orange checked circle for every completed phase.
 
 ## Weather
 
-Weather generation is optional.
+Weather resolution is required while the Weather phase is enabled.
 
-- Select **Generate Weather** to roll a result.
-- Select **Reroll Weather** until the result suits the route or fiction.
-- Continue without rolling to supply weather manually.
-- The **Extreme Weather** control marks travel conditions that extend the journey estimate.
+- Roll the extreme-weather check first; a 1 on `1d20` enables extreme weather.
+- Then roll a compatible forecast. An extreme day cannot generate an ordinary clear forecast.
+- The override can force an extreme forecast, but it does not replace the initial check.
+- Disable the Weather phase in Journeys Settings when weather will be handled entirely outside Journeys.
 
 Cold weather is carried into Camp automatically but can be changed there when local conditions differ.
 
 ## Pace
 
-Choose Slow, Normal, Fast, or Stopped. Pace is recorded in the Expedition Log. A completed travel cycle still advances a whole elapsed day; travel complications alter the estimated total instead of displaying fractions.
+Choose Slow (⅔ day and foraging advantage), Normal (1 day), Fast (1⅓ days, foraging disadvantage, and -5 passive Perception), or Stopped (no movement and advantage on foraging and sleep).
 
 ## Encounters
 
-Roll the route's encounter dice or request player encounter rolls, depending on module settings. Each result of 1 produces a complication; the highest face produces a boon.
+Roll one daytime d100 or request it from an active player. The result can be No Encounter, Signs, Minor Encounter, or Major Encounter. Danger and every known route, pace, and weather modifier change the total. Mark **Route traffic** during route creation so Journeys applies the road/high-traffic modifier explicitly.
 
 When a complication occurs, **Open Morelord Encounters** appears as an orange action button. If Morelord Encounters is not installed, Journeys explains how to enable it.
 
@@ -93,7 +95,9 @@ When a complication occurs, **Open Morelord Encounters** appears as an orange ac
 
 The assigned Observer receives a Perception request. The dialog opens automatically on the active owning player's client and returns the result to the GM interface.
 
-The GM can resolve a pending request automatically when no player is available. Pursuing a discovery can extend the estimated journey length.
+Discovery pursuit is inferred from its duration. Enter zero when the clue is ignored; otherwise enter any number of whole days plus zero, one, or two thirds. This supports extended ruins or dungeon expeditions rather than limiting discoveries to one day.
+
+The GM can resolve a pending request automatically when no player is available. Pursuit normally costs ⅓ day, with GM-selectable costs from zero through one day and an optional d100 lead prompt.
 
 ## Foraging
 
@@ -104,17 +108,17 @@ After all checks resolve:
 1. Review the food and water required.
 2. Confirm the proposed personal and Group allocations.
 3. Consume supplies.
-4. Resolve shortage consequences and pending Constitution saves.
+4. Journeys immediately applies water consequences, updates hunger, and sends any required starvation Constitution saves after supplies are confirmed.
 
 **Open Morelord Craftworks - Gather** is an optional orange action. Gathering crafting materials does not replace Journeys' food and water resolution.
 
 ## Navigation
 
-The assigned Navigator receives a Survival request against the Navigation DC. Results are recorded as success, lost, or reversed. Navigation outcomes remain part of the expedition record without turning completed days into fractions.
+The assigned Navigator receives a Survival request against the Navigation DC. Success applies the day's movement, failure by 1–4 applies no progress, and failure by 5 or more adds the day's movement back to distance remaining.
 
 ## Press On
 
-Use this phase to record whether the party travels for two additional hours. Pressing on and its consequences are retained in the Expedition Log.
+Pressing on adds ⅓ day. Every traveler receives a DC 12 Constitution saving throw request; failure adds one Exhaustion.
 
 ## Camp
 
@@ -135,35 +139,25 @@ Selecting Craft displays a GM reminder and an orange **Open Morelord Craftworks 
 
 ### Rolling a watch
 
-Select **Roll Watch** after assigning the traveler. Journeys:
+Camp makes one night d100 roll. Danger, weather, and derived camp quality modify the result. A fire is required for Craft, Cook, and Prepare; it indicates excellent setup but also advertises the camp. No fire and no tents indicates poor setup. Assignments save automatically. Anyone not assigned to Take a Watch receives Slumber's rest treatment.
 
-1. Rolls the encounter check privately.
-2. Opens a Perception-roll dialog on the assigned player's client.
-3. Returns the Perception total to the GM's watch row.
-4. Displays an orange Encounters button if a complication occurs.
-
-A watch can produce complications or boons. The player's Perception check determines whether the character notices surprise danger or finds the boon in time.
+Journeys Settings can disable the nightly d100 independently from Sleep & Shelter. Camp must resolve its enabled nightly check before advancing. Sleep checks and pending Peaceful Rest choices are completed on the following Sleep & Shelter phase.
 
 ### Sleep & Shelter
 
 Sleep & Shelter is separate from watch planning. Tents, bedrolls, and blankets default from each traveler's own inventory. Prior selections carry into the next day.
 
-- A tent supports two travelers and reduces the sleep DC by 5.
+- A traveler-owned tent reduces that traveler's sleep DC by 5.
 - A bedroll supports one traveler and reduces the sleep DC by 2.
 - A blanket supports one traveler and reduces the DC by 1 in cold weather.
 - Extreme weather increases the sleep DC by 5.
+- A Peaceful Rest night result reduces the sleep DC by 5.
 
-Select **Roll Party Sleep Checks** to save the current choices and roll privately. Each result explains whether Exhaustion decreased, increased, or could not recover because of food or water shortages.
+Select **Roll Party Sleep Checks** to roll privately. Cold weather is inherited from the forecast. Sleep begins at eight hours minus two hours for each watch taken. Journeys tracks interruptions in hours; a Night Attack prefills one combat-interruption hour for the affected watcher, while Minor encounters add no interruption unless the GM determines that combat occurred. Six hours of sleep and less than one interrupted hour are required. Player-submitted Peaceful Rest selections are shown to the GM and committed when the phase advances; Journeys does not apply those benefits mechanically. Missed Long Rests use escalating Xanathar-style deprivation saves unless the GM enables **Do not add Exhaustion level for lack of sleep**.
 
 ## Journey progress
 
-Progress is always shown in whole completed days. If delays are added, the current estimate changes while the original plan remains visible.
-
-Example:
-
-`2 of 6 travel days (originally planned for 4 days) — 33%`
-
-The journey completes when the number of completed days reaches the current estimate.
+Progress is shown in days and thirds. The daily calculation explains every added or removed third while the original route length remains visible. The journey completes when distance remaining reaches zero.
 
 ## Troubleshooting
 

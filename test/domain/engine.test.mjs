@@ -43,7 +43,7 @@ test("normal travel advances three steps", () => {
   assert.equal(result.dayNumber, 1);
 });
 
-test("weather delays extend the route while completed progress remains a whole day", () => {
+test("weather delay subtracts exactly one third from fast progress", () => {
   let current = beginTravelDay(readyJourney(makeJourney()));
   current = recordPhase(current, "weather", {});
   current = recordPhase(current, "pace", { pace: "fast" });
@@ -53,17 +53,19 @@ test("weather delays extend the route while completed progress remains a whole d
   }
   const completed = completeTravelDay(current);
   assert.equal(completed.progressSteps, 3);
-  assert.equal(completed.routeExtensionDays, 1);
+  assert.equal(completed.remainingSteps, 9);
 });
 
-test("failed navigation does not turn a completed cycle into a fractional day", () => {
+test("failed navigation applies no route progress", () => {
   const result = resolveDay(readyJourney(makeJourney()), { pace: "fast", navigation: "lost" });
-  assert.equal(result.progressSteps, 3);
+  assert.equal(result.progressSteps, 0);
+  assert.equal(result.remainingSteps, 12);
 });
 
-test("reversed navigation remains an outcome without undoing elapsed route days", () => {
-  const result = resolveDay(readyJourney(makeJourney()), { navigation: "reversed" });
-  assert.equal(result.progressSteps, 3);
+test("turned-around navigation adds exactly one day to distance remaining", () => {
+  const result = resolveDay(readyJourney(makeJourney()), { pace: "fast", navigation: "reversed" });
+  assert.equal(result.progressSteps, 0);
+  assert.equal(result.remainingSteps, 15);
 });
 
 test("arrival clamps progress to the route length", () => {
@@ -82,5 +84,6 @@ test("camp watch order and sleep choices carry into the next day", () => {
   }
   const next = beginTravelDay(completeTravelDay(current));
   assert.equal(next.currentDay.campWatches[0].actorUuid, "Actor.a");
+  assert.equal(next.currentDay.campWatches[0].action, "Take a Watch");
   assert.equal(next.currentDay.campSleepPlan.entries[0].equipment.tent, true);
 });

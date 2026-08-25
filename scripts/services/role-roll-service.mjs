@@ -45,12 +45,14 @@ class RoleRollService extends EventTarget {
       actorName: actor.name,
       skillId,
       dc,
+      disadvantage: phase === "navigation" && Boolean(journey.currentDay?.phases?.weather?.extreme),
       targetUserIds,
       requestedAt: Date.now()
     };
     journey.currentDay.pendingRoleRoll = request;
     await saveActiveJourney(journey);
-    game.socket.emit(SOCKET, { type: "roleRoll.request", request });
+    if (request.targetUserIds.includes(game.user.id)) await this.#openClientRoll(request);
+    else game.socket.emit(SOCKET, { type: "roleRoll.request", request });
     this.#updated();
     return request;
   }
@@ -66,6 +68,28 @@ class RoleRollService extends EventTarget {
       outcome: roleRollOutcome({ phase: request.phase, dc: request.dc, automatic: succeeded }),
       resolvedBy: game.user.id
     });
+  }
+
+  async autoResolveOutcome(outcome) {
+    if (!game.user.isGM) throw new Error("Only a GM can resolve a pending role check.");
+    const journey = await getActiveJourney();
+    const request = journey?.currentDay?.pendingRoleRoll;
+    if (!request || request.phase !== "navigation") throw new Error("There is no pending Navigation check.");
+    if (!["success", "lost", "reversed"].includes(outcome)) throw new Error("Unknown Navigation outcome.");
+    await this.#saveResult(journey, request, { automatic: true, total: null, outcome, resolvedBy: game.user.id });
+  }
+
+  async resend() {
+    if (!game.user.isGM) throw new Error("Only a GM can resend a journey role check.");
+    const journey = await getActiveJourney();
+    const request = journey?.currentDay?.pendingRoleRoll;
+    if (!request) throw new Error("There is no pending role check.");
+    request.resentAt = Date.now();
+    request.resendCount = Number(request.resendCount ?? 0) + 1;
+    await saveActiveJourney(journey);
+    if (request.targetUserIds.includes(game.user.id)) await this.#openClientRoll(request, { replace: true });
+    else game.socket.emit(SOCKET, { type: "roleRoll.request", request });
+    this.#updated();
   }
 
   getPending(journey) {
@@ -94,14 +118,15 @@ class RoleRollService extends EventTarget {
     }
   }
 
-  async #openClientRoll(request) {
-    if (this.#dialogs.has(request.id)) return;
+  async #openClientRoll(request, { replace = false } = {}) {
+    if (this.#dialogs.has(request.id) && !replace) return;
+    if (replace) await this.#dialogs.get(request.id)?.close();
     const actor = await fromUuid(request.actorUuid);
     if (!actor) return;
     ui.notifications.info(`${request.actorName} has a pending ${request.role} check.`);
     const content = document.createElement("div");
     const text = document.createElement("p");
-    text.textContent = `${request.actorName} must make a ${request.skillId === "sur" ? "Survival" : "Perception"} check against DC ${request.dc}.`;
+    text.textContent = `${request.actorName} must make a ${request.skillId === "sur" ? "Survival" : "Perception"} check against DC ${request.dc}.${request.disadvantage ? " Extreme weather imposes disadvantage." : ""}`;
     content.append(text);
     const dialog = new foundry.applications.api.DialogV2({
       window: { title: `Morelord Journeys — ${request.role === "navigator" ? "Navigator" : "Observer"}` },
@@ -114,7 +139,7 @@ class RoleRollService extends EventTarget {
         default: true,
         callback: async () => {
           const native = await actor.rollSkill(
-            { skill: request.skillId, target: request.dc },
+            { skill: request.skillId, target: request.dc, disadvantage: request.disadvantage },
             { configure: true, title: `${request.actorName} — DC ${request.dc}` },
             { create: true, data: { flavor: `Morelord Journeys ${request.role} check — DC ${request.dc}` } }
           );
@@ -122,16 +147,17 @@ class RoleRollService extends EventTarget {
           const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
           const total = Number(roll?.total ?? native?.total ?? Number.NaN);
           if (!Number.isFinite(total)) throw new Error("The role check did not return a numeric total.");
-          game.socket.emit(SOCKET, {
-            type: "roleRoll.result",
-            requestId: request.id,
-            result: {
+          const result = {
               automatic: false,
               total,
               outcome: roleRollOutcome({ phase: request.phase, total, dc: request.dc }),
               resolvedBy: game.user.id
-            }
-          });
+          };
+          if (game.user.isGM) {
+            const current = await getActiveJourney();
+            const pending = current?.currentDay?.pendingRoleRoll;
+            if (pending?.id === request.id) await this.#saveResult(current, pending, result);
+          } else game.socket.emit(SOCKET, { type: "roleRoll.result", requestId: request.id, result });
           return total;
         }
       }]

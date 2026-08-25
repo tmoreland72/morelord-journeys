@@ -19,9 +19,17 @@
 }
 
 .ml-journeys-window .journey-party-planner .journey-role-grid {
-  margin-top: 20px !important;
-  padding-top: 20px !important;
-  border-top: 2px solid var(--color-border-light-2) !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
+.ml-journeys-window .journey-expedition-roles {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid var(--color-border-light-2);
 }
 
 .ml-journeys-window .journey-planner > h2:not(:first-child) {

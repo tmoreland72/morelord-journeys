@@ -4,7 +4,7 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.1.0
+version: 0.2.0
 foundry: 14
 order: 20
 ---
@@ -17,10 +17,10 @@ Morelord Journeys gives players direct responsibility for the checks their chara
 
 Keep travel supplies on your character or in the shared party Group inventory.
 
-- Food is recognized from rations and food items.
-- Water is tracked as `Water (Pint)` quantity.
+- Food and water carried by travelers and the Group actor are pooled for the expedition.
+- Water is tracked as `Water (Pint)` quantity; a Medium traveler needs four pints when no source is found.
 - Waterskins and flasks are containers and do not count as water by themselves.
-- Tents, bedrolls, and blankets are used during Sleep & Shelter.
+- Tents, bedrolls, and blankets are used during Sleep & Shelter, but only by the traveler who personally owns them.
 
 You may place `Water (Pint)` inside a waterskin. Journeys counts the contained water item and consumes its quantity when needed.
 
@@ -44,19 +44,21 @@ The Navigator rolls Survival against the route's Navigation DC. The result is re
 
 ## Encounter rolls
 
-When player encounter rolling is enabled, Journeys opens an encounter-die request. A result of 1 is a complication; the die's highest result is a boon.
+When player encounter rolling is enabled, Journeys asks one active party owner to make the day's d100 encounter check. Danger and GM-selected situational modifiers determine whether the result is quiet, signs, a minor event, or a major encounter.
 
 ## Camp watches
 
-When your character is assigned a watch, the GM's **Roll Watch** action opens a Perception request on your client.
+Journeys makes one night encounter roll for camp. If it selects your character's watch, a Perception request opens on your client.
 
 Roll Perception to determine whether your character notices a surprise encounter or finds a boon. The total returns to the GM and appears beside that watch.
 
 Your selected camp action may affect how alert the character is:
 
 - **Take a Watch** keeps full attention on the surroundings.
-- **Craft**, **Cook**, and many tasks divide attention and may justify disadvantage.
+- **Craft**, **Cook**, **Prepare**, and most tasks divide attention and impose disadvantage.
 - **Slumber** means the character is asleep and automatically fails Perception checks.
+
+Craft, Cook, and Prepare require a campfire. A character who is not assigned to Take a Watch receives the same rest treatment as Slumber.
 
 Follow the GM's instruction about advantage or disadvantage in the D&D 5e roll configuration dialog.
 
@@ -72,7 +74,7 @@ Sleep checks are private. The GM interface records the result and explains the c
 
 - Safe sleep can reduce Exhaustion when the character was fed and watered.
 - Supply shortages can prevent recovery even after a successful check.
-- Poor sleep can increase Exhaustion.
+- Journeys tracks sleep hours and interruptions. Missing a Long Rest can trigger an escalating Xanathar-style Constitution save against Exhaustion unless the GM disables that consequence.
 
 ## If a request does not appear
 

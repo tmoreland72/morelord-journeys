@@ -4,6 +4,7 @@ import { createRoute } from "../domain/route.mjs";
 import { saveActiveJourney, getActiveJourney } from "../foundry/settings-repository.mjs";
 import { CraftworksGatherIntegration } from "../integrations/craftworks-gather-integration.mjs";
 import { JourneyApplication as BaseJourneyApplication } from "./journey-app.mjs";
+import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 
 const craftworksGather = new CraftworksGatherIntegration();
 const dnd5e = new Dnd5eJourneyAdapter();
@@ -16,7 +17,7 @@ const integer = (element, name, fallback = 0) => {
 export class JourneyApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
       classes: ["ml-window", "ml-journeys-module", "ml-journeys-window", "ml-journeys-dashboard-window"],
-    position: { width: 760, height: 680 },
+    position: { width: 1180, height: 880 },
     window: { title: "Morelord Journeys", icon: "fa-solid fa-person-hiking", resizable: true },
     actions: {
       createJourney: this.createJourney,
@@ -148,7 +149,21 @@ export class JourneyApplication extends BaseJourneyApplication {
     button.dataset.action = "rollNavigation";
     button.disabled = !context.navigator;
     button.textContent = "Roll Navigation";
-    panel.append(name, detail, button);
+    const prior = context.journey.currentDay?.gmNavigationRoll;
+    panel.append(name);
+    if (prior) {
+      const result = document.createElement("p");
+      result.className = `journey-roll-result ${prior.outcome}`;
+      result.textContent = `Navigation: ${prior.outcome}.`;
+      panel.append(result, createOutcomeDetails({ cards: [{ title: "Navigation Check", rows: [
+        { label: "Character", value: prior.actorName },
+        { label: "DC", value: prior.dc ?? "Automatic" },
+        { label: "Roll", value: prior.total ?? "Automatic success" },
+        { label: "Outcome", value: prior.outcome }
+      ] }] }), button);
+      const select = this.element.querySelector("[name='navigationOutcome']");
+      if (select) select.value = prior.outcome;
+    } else panel.append(detail, button);
     outcome.before(panel);
   }
 
@@ -167,11 +182,12 @@ export class JourneyApplication extends BaseJourneyApplication {
         name: value(this.element, "routeName"),
         origin: { name: value(this.element, "origin") },
         destination: { name: value(this.element, "destination") },
-        lengthSteps: integer(this.element, "lengthDays", 1) * 3,
+        lengthSteps: integer(this.element, "lengthDays", 1) * 3 + integer(this.element, "lengthThirds", 0),
         danger: integer(this.element, "danger", 1),
         discoveryDC: integer(this.element, "discoveryDC", 15),
         resourcesDC: integer(this.element, "resourcesDC", 15),
-        navigationDC: integer(this.element, "navigationDC", 10)
+        navigationDC: integer(this.element, "navigationDC", 10),
+        traffic: value(this.element, "routeTraffic") || "ordinary"
       });
       const journey = createJourney({
         id: crypto.randomUUID(),
@@ -205,11 +221,12 @@ export class JourneyApplication extends BaseJourneyApplication {
   static async rollNavigation(event) {
     event.preventDefault();
     try {
-      const result = await dnd5e.rollNavigation(await getActiveJourney());
+      const journey = await getActiveJourney();
+      const result = await dnd5e.rollNavigation(journey);
       if (result.cancelled) return;
-      const select = this.element.querySelector("[name='navigationOutcome']");
-      if (select) select.value = result.outcome;
-      ui.notifications.info(`${result.actorName}: ${result.total ?? "automatic success"} — ${result.outcome}`);
+      journey.currentDay.gmNavigationRoll = { actorUuid: result.actorUuid, actorName: result.actorName, dc: result.dc, total: result.total, outcome: result.outcome, rolledAt: Date.now() };
+      await saveActiveJourney(journey);
+      await this.render({ force: true });
     } catch (error) {
       console.error("Morelord Journeys | Navigation roll failed.", error);
       ui.notifications.error(error.message);

@@ -42,9 +42,14 @@ export function beginTravelDay(source) {
     progressModifiers: [],
     appliedProgressSteps: 0,
     phases: {},
-    campWatches: structuredClone(journey.campDefaults?.watches ?? []),
+    campWatches: structuredClone(journey.campDefaults?.watches ?? []).map(watch => ({ ...watch, action: "Take a Watch", encounterRoll: null })),
     campSleepPlan: journey.campDefaults?.sleepPlan ? structuredClone(journey.campDefaults.sleepPlan) : null
   };
+  for (const entry of journey.currentDay.campSleepPlan?.entries ?? []) {
+    delete entry.sleepHours;
+    delete entry.interruptionHours;
+    delete entry.interruptionMinutes;
+  }
   appendLog(journey, "dayStarted");
   return journey;
 }
@@ -82,21 +87,14 @@ export function completeTravelDay(source) {
     throw new JourneyValidationError("All travel-day phases must be resolved before completion");
   }
   const day = journey.currentDay;
-  const previouslyCompletedDays = journey.log.filter(entry => entry.type === "dayCompleted").length;
-  journey.progressSteps = Math.min(journey.routeSnapshot.lengthSteps, previouslyCompletedDays * 3);
   const planned = day.baseProgressSteps + day.progressModifiers.reduce((sum, item) => sum + item.steps, 0);
   const outcome = day.phases.navigation?.outcome ?? "success";
-  const delayDays = day.progressModifiers.reduce((sum, item) => sum + Math.max(0, -Number(item.steps ?? 0)), 0);
-  journey.routeExtensionDays = Math.max(0, Number(journey.routeExtensionDays ?? 0)) + delayDays;
-  const effectiveLengthSteps = journey.routeSnapshot.lengthSteps + journey.routeExtensionDays * 3;
-  const remaining = effectiveLengthSteps - journey.progressSteps;
-  // A completed travel workflow represents one elapsed route day. Pace, weather,
-  // discoveries, and navigation remain recorded outcomes, but they must not make
-  // a completed day display as a confusing fraction of a day.
-  const applied = Math.min(3, remaining);
+  const navigated = outcome === "lost" ? 0 : outcome === "reversed" ? -3 : planned;
+  const applied = Math.min(journey.remainingSteps, navigated);
 
   day.appliedProgressSteps = applied;
-  journey.progressSteps += applied;
+  journey.remainingSteps = Math.max(0, journey.remainingSteps - applied);
+  journey.progressSteps = Math.max(0, journey.routeSnapshot.lengthSteps - journey.remainingSteps);
   journey.campDefaults = {
     watches: structuredClone(day.campWatches ?? journey.campDefaults?.watches ?? []),
     sleepPlan: day.campSleepPlan ? structuredClone(day.campSleepPlan) : journey.campDefaults?.sleepPlan ?? null
@@ -104,7 +102,7 @@ export function completeTravelDay(source) {
   appendLog(journey, "dayCompleted", { planned, outcome, applied, total: journey.progressSteps });
   journey.currentDay = null;
   journey.phase = null;
-  if (journey.progressSteps >= effectiveLengthSteps) {
+  if (journey.remainingSteps <= 0) {
     journey.status = JOURNEY_STATUS.ARRIVED;
     appendLog(journey, "journeyArrived");
   }

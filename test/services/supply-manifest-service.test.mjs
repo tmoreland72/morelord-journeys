@@ -47,6 +47,7 @@ test("water supply counts Water (Pint) and ignores containers", async () => {
   globalThis.fromUuid = async () => traveler;
   const manifest = await new SupplyManifestService().build({ travelerUuids: [traveler.uuid] });
   assert.equal(manifest.totals.water, 5);
+  assert.equal(manifest.waterUnits, 1);
   assert.equal(manifest.items.some(entry => entry.name === "Waterskin"), false);
   assert.equal(manifest.items.find(entry => entry.name === "Water (Pint)").availableQuantity, 5);
   delete globalThis.fromUuid;
@@ -56,6 +57,7 @@ test("water supply counts Water (Pint) and ignores containers", async () => {
 test("water inside a waterskin is counted from the contained Water item", async () => {
   const waterskin = item("Waterskin", 1);
   waterskin.id = "skin";
+  waterskin.flags = { "morelord-journeys": { waterState: "full", waterUnits: 4 } };
   const water = item("Water (1 Pint)", 4, { system: { container: "skin", identifier: "water-pint" } });
   const traveler = { uuid: "Actor.hero", name: "Hero", type: "character", items: [waterskin, water] };
   const actors = [traveler];
@@ -63,7 +65,46 @@ test("water inside a waterskin is counted from the contained Water item", async 
   globalThis.fromUuid = async () => traveler;
   const manifest = await new SupplyManifestService().build({ travelerUuids: [traveler.uuid] });
   assert.equal(manifest.totals.water, 4);
+  assert.equal(manifest.waterUnits, 1);
+  assert.equal(manifest.items.some(entry => entry.name === "Waterskin"), false);
   assert.equal(manifest.items.find(entry => entry.category === "water").sourceActorUuid, traveler.uuid);
+  delete globalThis.fromUuid;
+  delete globalThis.game;
+});
+
+test("flagged waterskins do not double count their contained pint items", async () => {
+  const travelers = ["a", "b", "c"].map(id => {
+    const waterskin = item(`Waterskin ${id}`, 1, { flags: { "morelord-journeys": { waterState: "full", waterUnits: 4 } } });
+    waterskin.id = `skin-${id}`;
+    waterskin.uuid = `Item.skin-${id}`;
+    const water = item(`Water (1 Pint) ${id}`, 4, { system: { container: waterskin.id, identifier: "water-pint" } });
+    water.uuid = `Item.water-${id}`;
+    return { uuid: `Actor.${id}`, name: id.toUpperCase(), type: "character", items: [waterskin, water] };
+  });
+  const actors = [...travelers];
+  globalThis.game = { actors };
+  globalThis.fromUuid = async uuid => actors.find(actor => actor.uuid === uuid) ?? null;
+
+  const manifest = await new SupplyManifestService().build({ travelerUuids: travelers.map(actor => actor.uuid) });
+
+  assert.equal(manifest.totals.water, 12);
+  assert.equal(manifest.waterUnits, 3);
+  assert.equal(manifest.items.filter(entry => entry.category === "water").length, 3);
+  delete globalThis.fromUuid;
+  delete globalThis.game;
+});
+
+test("empty flagged water containers do not add available pints", async () => {
+  const empty = item("Waterskin", 1, { flags: { "morelord-journeys": { waterState: "empty", waterUnits: 4 } } });
+  const full = item("Waterskin Full", 1, { flags: { "morelord-journeys": { waterState: "full", waterUnits: 4 } } });
+  full.uuid = "Item.full";
+  const traveler = { uuid: "Actor.hero", name: "Hero", type: "character", items: [empty, full] };
+  const actors = [traveler];
+  globalThis.game = { actors };
+  globalThis.fromUuid = async () => traveler;
+  const manifest = await new SupplyManifestService().build({ travelerUuids: [traveler.uuid] });
+  assert.equal(manifest.totals.water, 4);
+  assert.equal(manifest.waterUnits, 1);
   delete globalThis.fromUuid;
   delete globalThis.game;
 });

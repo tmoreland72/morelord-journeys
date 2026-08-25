@@ -11,11 +11,11 @@ const HELP = Object.freeze({
   },
   lengthDays: {
     title: "Length (Days)",
-    content: "The route's expected duration at a normal pace with successful navigation and no delays. Journeys stores each day as three progress steps. Routes may be from 1 to 100 days long."
+    content: "Enter whole days plus 0, ⅓, or ⅔. Journeys stores the route as integer thirds, so daily modifiers never use rounded decimals. Example: 4 days + ⅔ is stored as 14 thirds."
   },
   danger: {
     title: "Danger",
-    content: "Danger controls encounter frequency. Each travel day rolls one d4 per Danger level; every result of 1 creates a potential encounter. Higher Danger means more exposure, not necessarily harder combat."
+    content: "One daytime d100 and one nightly d100 are possible. Danger modifies each result: 0 = -10, 1 = +0, 2 = +5, 3 = +10, 4 = +15, 5 = +20. Higher totals move toward Major Encounters or Night Attacks."
   },
   discoveryDC: {
     title: "Discovery DC",
@@ -28,7 +28,20 @@ const HELP = Object.freeze({
   navigationDC: {
     title: "Navigation DC",
     content: "The Survival DC used by the Navigator to keep the party on course. Easy roads may require little or no navigation, while uncharted or featureless terrain should use a higher value."
-  }
+  },
+  routeTraffic: {
+    title: "Route Traffic",
+    content: "Choose Road or high traffic when travelers are exposed to patrols, merchants, settlements, or other frequent traffic. Journeys then adds +5 to daytime and night encounter totals. This is independent of Danger."
+  },
+  weather: { title: "Weather", content: "First roll 1d20; a 1 means extreme weather. Then roll a compatible seasonal forecast. Extreme weather costs ⅓ day, gives Navigation disadvantage, and adds 5 to sleep DCs. Clear weather cannot be selected as extreme." },
+  pace: { title: "Pace", content: "Stopped = 0 thirds and advantage on forage/sleep; Slow = ⅔ day and foraging advantage; Normal = 1 day; Fast = 1⅓ days, foraging disadvantage, and -5 to the highest passive Perception." },
+  encounters: { title: "Day Encounters", content: "Roll one d100. 1–40 none, 41–60 signs, 61–85 minor hazard/discovery/social, 86+ major. Danger and every applicable route, pace, and weather modifier change the total. Journeys shows the highest party passive Perception." },
+  discovery: { title: "Discovery", content: "The Observer rolls Perception against Discovery DC. Success reveals a clue. Pursuit normally costs ⅓ day, but the GM may select 0, ⅓, ⅔, or 1 day. The optional d100 produces a prompt, not a complete discovery." },
+  navigation: { title: "Navigation", content: "Meet the DC to apply movement. Fail by 1–4 for Lost and no progress. Fail by 5+ for Turned Around and add one full day to the remaining journey. Extreme weather imposes disadvantage." },
+  pressOn: { title: "Press On", content: "Add ⅓ day of movement. Every traveler must make a DC 12 Constitution save; failure adds one Exhaustion. Resolve all player requests before continuing." },
+  foraging: { title: "Foraging & Supplies", content: "Success provides that traveler a full meal. Failure consumes one pooled ration. Any success finds water for everyone and refills containers; otherwise each Medium traveler consumes 4 pooled pints." },
+  camp: { title: "Camp", content: "Assignments save automatically. Craft, Cook, and Prepare require fire. Fire creates excellent setup but attracts attention; no fire and no tents is poor setup. One night d100 selects an affected watch when interrupted." },
+  sleep: { title: "Sleep & Shelter", content: "Each traveler uses only personally owned shelter. Record sleep hours and interruption minutes, then roll the Constitution sleep check. Six hours, less than 60 interrupted minutes, and a successful check are required for a Long Rest." }
 });
 
 const FIELD_HELP = Object.freeze({
@@ -37,10 +50,12 @@ const FIELD_HELP = Object.freeze({
   observerUuid: "observer",
   activeObserverUuid: "observer",
   lengthDays: "lengthDays",
+  lengthThirds: "lengthDays",
   danger: "danger",
   discoveryDC: "discoveryDC",
   resourcesDC: "resourcesDC",
-  navigationDC: "navigationDC"
+  navigationDC: "navigationDC",
+  routeTraffic: "routeTraffic"
 });
 
 export class JourneyContextHelpApplication extends BaseJourneyApplication {
@@ -61,11 +76,11 @@ export class JourneyContextHelpApplication extends BaseJourneyApplication {
     select.name = "danger";
     const choices = [
       ["0", "0 — None (no encounter checks)"],
-      ["1", "1 — Safe or civilized (1 check/day)"],
-      ["2", "2 — Untamed wilderness (2 checks/day)"],
-      ["3", "3 — Hostile territory (3 checks/day)"],
-      ["4", "4 — Extremely dangerous (4 checks/day)"],
-      ["5", "5 — Lethal or otherworldly (5 checks/day)"]
+      ["1", "1 — Safe or civilized (+0)"],
+      ["2", "2 — Untamed wilderness (+5)"],
+      ["3", "3 — Hostile territory (+10)"],
+      ["4", "4 — Extremely dangerous (+15)"],
+      ["5", "5 — Lethal or otherworldly (+20)"]
     ];
     for (const [choiceValue, label] of choices) {
       const option = document.createElement("option");
@@ -98,6 +113,20 @@ export class JourneyContextHelpApplication extends BaseJourneyApplication {
         void this.#showHelp(helpId);
       });
       heading.append(button);
+    }
+    const phase = this.element.querySelector(".journey-phase-card h2");
+    const phaseLabel = phase?.textContent?.trim().toLowerCase();
+    const phaseId = ({ weather: "weather", pace: "pace", encounters: "encounters", discovery: "discovery", navigation: "navigation", "press on": "pressOn", foraging: "foraging", camp: "camp", "sleep & shelter": "sleep" })[phaseLabel];
+    if (phase && phaseId && !phase.querySelector(".journey-help-button")) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "journey-help-button";
+      button.dataset.help = phaseId;
+      button.setAttribute("aria-label", `Explain ${HELP[phaseId].title} outcomes`);
+      button.dataset.tooltip = `Explain ${HELP[phaseId].title} outcomes`;
+      button.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
+      button.addEventListener("click", event => { event.preventDefault(); void this.#showHelp(phaseId); });
+      phase.append(" ", button);
     }
   }
 

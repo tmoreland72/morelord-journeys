@@ -36,6 +36,7 @@ export function createRoute(data) {
     resourcesDC: data.resourcesDC ?? null,
     navigationDC: data.navigationDC ?? null,
     terrain: [...(data.terrain ?? [])],
+    traffic: ["ordinary", "high"].includes(data.traffic) ? data.traffic : "ordinary",
     encounterTableUuid: data.encounterTableUuid ?? null,
     discoveryTableUuid: data.discoveryTableUuid ?? null,
     weatherTableUuid: data.weatherTableUuid ?? null,

@@ -65,10 +65,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     if (!context.hasJourney) this.#augmentPartyPlanner(context.availableTravelers);
     else {
       this.#renderRoles(context);
-      this.#renderSupplyManifest(context);
-      const ready = this.element.querySelector(".journey-centered");
-      const header = this.element.querySelector(".journey-dashboard-header");
-      if (ready && header) header.after(ready);
+      if (context.canBeginDay || context.phaseIs?.foraging) this.#renderSupplyManifest(context);
     }
   }
 
@@ -80,10 +77,15 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
 
     const grid = document.createElement("div");
     grid.className = "journey-role-grid";
+    const heading = document.createElement("h2");
+    heading.textContent = "Expedition Roles";
+    const section = document.createElement("section");
+    section.className = "journey-expedition-roles";
     const observer = selectField("observerUuid", "Observer");
     const quartermaster = selectField("quartermasterUuid", "Quartermaster");
     grid.append(navigatorField, observer.field, quartermaster.field);
-    planner.append(grid);
+    section.append(heading, grid);
+    planner.append(section);
 
     const synchronize = () => {
       const selectedUuids = Array.from(travelerList.querySelectorAll("input:checked"), input => input.value);
@@ -171,7 +173,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const totals = document.createElement("div");
     totals.className = "journey-supply-totals";
     for (const [label, amount] of [
-      ["Food", manifest.totals?.food ?? 0], ["Water", manifest.totals?.water ?? 0],
+      ["Food", manifest.totals?.food ?? 0], ["Water (4 pints each)", manifest.waterUnits ?? Math.floor(Number(manifest.totals?.water ?? 0) / 4)],
       ["Tents", manifest.totals?.tent ?? 0], ["Bedrolls", manifest.totals?.bedroll ?? 0],
       ["Blankets", manifest.totals?.blanket ?? 0]
     ]) {
@@ -218,9 +220,10 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       const route = createRoute({
         id: crypto.randomUUID(), name: value(this.element, "routeName"),
         origin: { name: value(this.element, "origin") }, destination: { name: value(this.element, "destination") },
-        lengthSteps: integer(this.element, "lengthDays", 1) * 3,
+        lengthSteps: integer(this.element, "lengthDays", 1) * 3 + integer(this.element, "lengthThirds", 0),
         danger: integer(this.element, "danger", 1), discoveryDC: integer(this.element, "discoveryDC", 15),
-        resourcesDC: integer(this.element, "resourcesDC", 15), navigationDC: integer(this.element, "navigationDC", 10)
+        resourcesDC: integer(this.element, "resourcesDC", 15), navigationDC: integer(this.element, "navigationDC", 10),
+        traffic: value(this.element, "routeTraffic") || "ordinary"
       });
       let journey = createJourney({
         id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,

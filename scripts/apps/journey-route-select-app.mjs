@@ -2,6 +2,7 @@ import {
   DANGER_OPTIONS,
   DISCOVERY_OPTIONS,
   LENGTH_OPTIONS,
+  LENGTH_THIRD_OPTIONS,
   NAVIGATION_OPTIONS,
   RESOURCE_OPTIONS
 } from "../domain/route-options.mjs";
@@ -28,6 +29,7 @@ export class JourneyRouteSelectApplication extends BaseJourneyApplication {
   async _onRender(context, options) {
     await super._onRender(context, options);
     replaceWithSelect(this.element, "lengthDays", LENGTH_OPTIONS);
+    replaceWithSelect(this.element, "lengthThirds", LENGTH_THIRD_OPTIONS);
     replaceWithSelect(this.element, "danger", DANGER_OPTIONS);
     replaceWithSelect(this.element, "discoveryDC", DISCOVERY_OPTIONS);
     replaceWithSelect(this.element, "resourcesDC", RESOURCE_OPTIONS);

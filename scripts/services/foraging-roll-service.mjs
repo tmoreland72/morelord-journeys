@@ -27,7 +27,9 @@ class ForagingRollService extends EventTarget {
       requests.push({
         id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber,
         userId: user.id, actorUuid: actor.uuid, actorName: actor.name,
-        dc: journey.routeSnapshot.resourcesDC, requestedAt: Date.now()
+        dc: journey.routeSnapshot.resourcesDC,
+        rollMode: journey.currentDay?.pace === "slow" || journey.currentDay?.pace === "stopped" ? "advantage" : journey.currentDay?.pace === "fast" ? "disadvantage" : "normal",
+        requestedAt: Date.now()
       });
     }
     if (!requests.length) throw new Error("No active player owns a traveler in this journey.");
@@ -49,6 +51,19 @@ class ForagingRollService extends EventTarget {
     await this.#record(journey, request, { total: null, succeeded, automatic: true, resolvedBy: game.user.id });
   }
 
+  async resend(requestId) {
+    if (!game.user.isGM) throw new Error("Only the GM can resend a foraging check.");
+    const journey = await getActiveJourney();
+    const request = journey?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === requestId);
+    if (!request) throw new Error("That foraging request is no longer pending.");
+    request.resentAt = Date.now();
+    request.resendCount = Number(request.resendCount ?? 0) + 1;
+    await saveActiveJourney(journey);
+    if (request.userId === game.user.id) await this.#open(request, { replace: true });
+    else game.socket.emit(SOCKET, { type: "foragingRoll.request", request });
+    this.#updated();
+  }
+
   async #receive(message) {
     if (message?.type === "foragingRoll.request" && message.request?.userId === game.user.id) return this.#open(message.request);
     if (message?.type === "foragingRoll.result" && game.user.isGM) {
@@ -63,24 +78,32 @@ class ForagingRollService extends EventTarget {
     }
   }
 
-  async #open(request) {
+  async #open(request, { replace = false } = {}) {
+    if (this.#dialogs.has(request.id) && !replace) return;
+    if (replace) await this.#dialogs.get(request.id)?.close();
     const actor = await fromUuid(request.actorUuid);
     if (!actor) return;
     ui.notifications.info(`${request.actorName} has a pending foraging check.`);
     const dialog = new foundry.applications.api.DialogV2({
       window: { title: "Morelord Journeys — Forage", icon: "fa-solid fa-basket-shopping" },
-      content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must make a Survival check against Resources DC ${request.dc}.</p>`,
+      content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must make a Survival check against Resources DC ${request.dc}. Pace requires ${request.rollMode}.</p>`,
       modal: false,
       buttons: [{ action: "roll", label: "Roll Survival", icon: "fa-solid fa-dice-d20", default: true, callback: async () => {
         const native = await actor.rollSkill(
-          { skill: "sur", target: request.dc },
+          { skill: "sur", target: request.dc, advantage: request.rollMode === "advantage", disadvantage: request.rollMode === "disadvantage" },
           { configure: true, title: `${request.actorName} — Foraging DC ${request.dc}` },
           { create: true, data: { flavor: `Morelord Journeys foraging check — DC ${request.dc}` } }
         );
         if (!native) return;
         const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
         const total = Number(roll?.total ?? native?.total);
-        game.socket.emit(SOCKET, { type: "foragingRoll.result", requestId: request.id, result: { total, succeeded: total >= request.dc, automatic: false, resolvedBy: game.user.id } });
+        const result = { total, succeeded: total >= request.dc, automatic: false, resolvedBy: game.user.id };
+        if (game.user.isGM) {
+          const current = await getActiveJourney();
+          const pending = current?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === request.id);
+          if (pending) await this.#record(current, pending, result);
+        } else game.socket.emit(SOCKET, { type: "foragingRoll.result", requestId: request.id, result });
+        return total;
       }}]
     });
     this.#dialogs.set(request.id, dialog);
@@ -98,7 +121,8 @@ class ForagingRollService extends EventTarget {
       successfulActorUuids: successes.map(candidate => candidate.actorUuid),
       failedActorUuids: journey.travelers.filter(traveler => !successes.some(candidate => candidate.actorUuid === traveler.actorUuid)).map(traveler => traveler.actorUuid),
       foodRequired: partySize - successes.length,
-      waterRequired: successes.length ? 0 : partySize,
+      waterRequired: successes.length ? 0 : partySize * 4,
+      waterSourceFound: successes.length > 0,
       resourcesDC: journey.routeSnapshot.resourcesDC,
       resolvedAt: Date.now()
     };

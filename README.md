@@ -7,9 +7,9 @@ It manages route planning, travel-day decisions, progress, supplies, discoveries
 ## Features
 
 - Eight-step travel-day workflow with weather, encounters, discovery, foraging, navigation, and camp resolution
-- Whole-day route progress with delays that extend the current journey estimate while preserving the original plan
+- Exact one-third-day route progress with pace, delay, navigation, discovery, and forced-march adjustments
 - D&D 5e expedition roles and player-side Survival, Perception, encounter, and foraging roll requests
-- Inventory-backed food, `Water (Pint)`, tents, bedrolls, and blankets
+- Expedition-pooled food and `Water (Pint)`, plus traveler-owned tents, bedrolls, and blankets
 - Persistent camp watch order, private watch rolls, sleep checks, and explicit consequences
 - Optional Morelord Encounters and Morelord Craftworks integrations
 - Expedition log with phase names and recorded results

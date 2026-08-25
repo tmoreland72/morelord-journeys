@@ -6,10 +6,13 @@ export class SupplyConsumptionService {
     const shortageActorUuids = { food: [], water: [] };
     for (const [category, actorUuids] of [["food", foodActorUuids], ["water", waterActorUuids]]) {
       for (const actorUuid of actorUuids) {
-        let remaining = 1;
+        let remaining = category === "water" ? 4 : 1;
         const candidates = (manifest?.items ?? [])
-          .filter(item => item.category === category && (item.sourceActorUuid === actorUuid || item.sourceType === "group"))
-          .sort((left, right) => Number(right.sourceActorUuid === actorUuid) - Number(left.sourceActorUuid === actorUuid));
+          .filter(item => item.category === category)
+          .sort((left, right) => {
+            const priority = item => item.sourceActorUuid === actorUuid ? 0 : item.sourceType === "group" ? 1 : 2;
+            return priority(left) - priority(right);
+          });
         for (const item of candidates) {
           const usable = available.get(item.itemUuid) ?? 0;
           const quantity = Math.min(remaining, usable);
@@ -34,7 +37,7 @@ export class SupplyConsumptionService {
       }
     }
     return {
-      requirements: { food: foodActorUuids.length, water: waterActorUuids.length },
+      requirements: { food: foodActorUuids.length, water: waterActorUuids.length * 4 },
       allocations,
       shortages: { food: shortageActorUuids.food.length, water: shortageActorUuids.water.length },
       shortageActorUuids

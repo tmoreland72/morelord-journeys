@@ -19,6 +19,7 @@ export const TRAVEL_PHASES = Object.freeze([
   "pressOn",
   "foraging",
   "camp",
+  "sleep",
   "dayComplete"
 ]);
 

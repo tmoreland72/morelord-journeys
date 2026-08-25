@@ -1,7 +1,8 @@
-import { getEncounterDie } from "../core/journey-settings.mjs";
+import { automaticDayEncounterModifiers, resolveEncounterRoll } from "../domain/encounter-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyRouteSelectApplication as BaseJourneyApplication } from "./journey-route-select-app.mjs";
+import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 
 function button(action, label, icon = null) {
   const element = document.createElement("button");
@@ -22,6 +23,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       requestRoleRoll: this.requestRoleRoll,
       autoRoleSuccess: this.autoRoleSuccess,
       autoRoleFailure: this.autoRoleFailure,
+      autoRoleReversed: this.autoRoleReversed,
       rollEncounterChecks: this.rollEncounterChecks
     }
   };
@@ -50,7 +52,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
   #renderRoleCheck(context) {
     this.element.querySelector(".journey-navigator-panel")?.remove();
     const phase = context.journey.phase;
-    const anchorName = phase === "navigation" ? "navigationOutcome" : "pursueDiscovery";
+    const anchorName = phase === "navigation" ? "navigationOutcome" : "discoveryCostDays";
     const anchor = this.element.querySelector(`[name='${anchorName}']`)?.closest("label");
     if (!anchor) return;
     const role = phase === "navigation" ? "Navigator" : "Observer";
@@ -73,43 +75,59 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       status.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Waiting for ${pending.actorName}…`;
       const controls = document.createElement("div");
       controls.className = "journey-roll-controls";
-      controls.append(button("autoRoleFailure", "Auto Fail", "fa-xmark"), button("autoRoleSuccess", "Auto Succeed", "fa-check"));
+      controls.append(button("autoRoleFailure", phase === "navigation" ? "Lost" : "Fail", "fa-xmark"));
+      if (phase === "navigation") controls.append(button("autoRoleReversed", "Turned Around", "fa-rotate-left"));
+      controls.append(button("autoRoleSuccess", "Succeed", "fa-check"));
       panel.append(status, controls);
     } else if (result) {
       const status = document.createElement("p");
       status.className = `journey-roll-result ${result.outcome}`;
-      const total = result.automatic ? "GM resolved" : `rolled ${result.total}`;
-      status.textContent = `${result.actorName} ${total}: ${result.outcome}.`;
-      panel.append(status);
-      if (phase === "navigation") this.element.querySelector("[name='navigationOutcome']").value = result.outcome;
+      status.textContent = `${result.actorName}: ${result.outcome}.`;
+      panel.append(status, createOutcomeDetails({ cards: [{ title: `${skill} Check`, rows: [
+        { label: "Character", value: result.actorName },
+        { label: "DC", value: phase === "navigation" ? context.route.navigationDC : context.route.discoveryDC },
+        { label: "Roll", value: result.automatic ? "GM resolved manually" : result.total },
+        { label: "Outcome", value: result.outcome }
+      ] }] }));
+      if (phase === "navigation") {
+        const outcome = this.element.querySelector("[name='navigationOutcome']");
+        outcome.value = result.outcome;
+        outcome.disabled = true;
+        outcome.dataset.tooltip = "Navigation outcome is enforced by the completed Survival check.";
+      } else {
+        const days = this.element.querySelector("[name='discoveryCostDays']");
+        const thirds = this.element.querySelector("[name='discoveryCostThirds']");
+        if (result.outcome !== "success") {
+          days.value = "0";
+          thirds.value = "0";
+          days.disabled = true;
+          thirds.disabled = true;
+          days.dataset.tooltip = "A failed discovery check reveals no lead and costs no time.";
+        }
+      }
     } else {
       const request = button("requestRoleRoll", `Request ${skill} Check`, "fa-dice-d20");
       request.disabled = !traveler;
       panel.append(request);
     }
-    anchor.before(panel);
+    if (phase === "discovery") {
+      const costs = this.element.querySelector(".journey-discovery-cost");
+      costs?.before(panel);
+      const lead = this.element.querySelector(".journey-discovery-lead");
+      if (lead) panel.after(lead);
+    } else anchor.before(panel);
   }
 
   #renderEncounterCheck(context) {
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
-    const die = getEncounterDie();
     const danger = Number(context.route.danger ?? 0);
     const prior = context.journey.currentDay?.encounterCheck;
     const panel = document.createElement("div");
     panel.className = "ml-journeys-panel journey-card journey-encounter-check";
-    const detail = document.createElement("p");
-    detail.textContent = danger
-      ? `Danger ${danger} rolls ${danger}${die}. Each die showing 1 creates an encounter.`
-      : "This route has no encounter checks.";
-    const roll = button("rollEncounterChecks", `Roll ${danger}${die}`, "fa-dice");
-    roll.disabled = danger === 0;
-    panel.append(detail, roll);
-    if (prior) {
-      const result = document.createElement("strong");
-      result.textContent = `${prior.encounterCount} encounter${prior.encounterCount === 1 ? "" : "s"} generated.`;
-      panel.append(result);
-    }
+    const roll = button("rollEncounterChecks", "Roll Day Encounter");
+    roll.disabled = context.journey.currentDay?.pace === "stopped";
+    panel.append(roll);
     anchor.before(panel);
   }
 
@@ -135,6 +153,12 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     await this.#autoResolve(false);
   }
 
+  static async autoRoleReversed(event) {
+    event.preventDefault();
+    try { await roleRollService.autoResolveOutcome("reversed"); await this.render({ force: true }); }
+    catch (error) { ui.notifications.error(error.message); }
+  }
+
   static async #autoResolve(succeeded) {
     try {
       await roleRollService.autoResolve(succeeded);
@@ -149,15 +173,16 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     event.preventDefault();
     try {
       const journey = await getActiveJourney();
-      const danger = Number(journey.routeSnapshot.danger ?? 0);
-      const die = getEncounterDie();
-      if (!danger) return;
-      const roll = await new Roll(`${danger}${die}`).evaluate();
-      const results = roll.dice.flatMap(term => term.results.filter(result => result.active !== false).map(result => result.result));
-      const encounterCount = results.filter(result => result === 1).length;
-      journey.currentDay.encounterCheck = { die, danger, results, encounterCount, rolledAt: Date.now() };
+      if (journey.currentDay?.pace === "stopped") throw new Error("Stopped travel does not make a daytime encounter check.");
+      const roll = await new Roll("1d100").evaluate();
+      const actors = (await Promise.all(journey.travelers.map(traveler => fromUuid(traveler.actorUuid)))).filter(Boolean);
+      const passives = actors.map(actor => Number(actor.system?.skills?.prc?.passive ?? 10 + Number(actor.system?.skills?.prc?.total ?? 0)));
+      const pacePenalty = journey.currentDay?.pace === "fast" ? -5 : 0;
+      const modifiers = automaticDayEncounterModifiers(journey);
+      const result = resolveEncounterRoll({ raw: Number(roll.total), danger: journey.routeSnapshot.danger, modifiers });
+      journey.currentDay.encounterCheck = { ...result, highestPassivePerception: (passives.length ? Math.max(...passives) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
       await saveActiveJourney(journey);
-      await roll.toMessage({ flavor: `Morelord Journeys encounter checks — Danger ${danger}` });
+      await roll.toMessage({ flavor: `Morelord Journeys daytime encounter — ${result.outcome} (${result.modified})` });
       await this.render({ force: true });
     } catch (error) {
       console.error("Morelord Journeys | Encounter checks failed.", error);

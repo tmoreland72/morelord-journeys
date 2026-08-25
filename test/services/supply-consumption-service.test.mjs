@@ -14,7 +14,7 @@ test("supply allocation prefers group inventory and reports shortages", () => {
   assert.deepEqual(plan.shortages, { food: 0, water: 1 });
 });
 
-test("traveler allocation uses personal supplies before group and never another traveler", () => {
+test("traveler allocation uses owned supplies before the pooled group inventory", () => {
   const service = new SupplyConsumptionService();
   const manifest = { items: [
     { category: "food", itemUuid: "affrun", sourceActorUuid: "a", sourceActorName: "Affrun", sourceType: "traveler", availableQuantity: 10, name: "Rations" },
@@ -26,6 +26,32 @@ test("traveler allocation uses personal supplies before group and never another 
     foodActorUuids: ["d", "t"]
   });
   assert.deepEqual(plan.allocations.map(entry => [entry.consumerActorUuid, entry.itemUuid]), [["d", "doorin"], ["t", "party"]]);
-  assert.equal(plan.allocations.some(entry => entry.itemUuid === "affrun"), false);
+  assert.equal(plan.allocations.some(entry => entry.itemUuid === "party"), true);
   assert.deepEqual(plan.shortageActorUuids.food, []);
+});
+
+test("water requires four pooled pints per traveler", () => {
+  const service = new SupplyConsumptionService();
+  const manifest = { items: [{ category: "water", itemUuid: "pool", sourceActorUuid: "a", sourceType: "traveler", availableQuantity: 7, name: "Water (Pint)" }] };
+  const plan = service.planForTravelers(manifest, { travelers: [{ actorUuid: "a", name: "A" }, { actorUuid: "b", name: "B" }], waterActorUuids: ["a", "b"] });
+  assert.equal(plan.requirements.water, 8);
+  assert.deepEqual(plan.shortageActorUuids.water, ["b"]);
+});
+
+test("traveler supplies are allocated from self, then group, then another traveler", () => {
+  const service = new SupplyConsumptionService();
+  const travelers = [{ actorUuid: "a", name: "A" }, { actorUuid: "b", name: "B" }, { actorUuid: "c", name: "C" }];
+  const manifest = { items: [
+    { category: "food", itemUuid: "other", sourceActorUuid: "a", sourceActorName: "A", sourceType: "traveler", availableQuantity: 3, name: "Rations" },
+    { category: "food", itemUuid: "group", sourceActorUuid: "g", sourceActorName: "Group", sourceType: "group", availableQuantity: 1, name: "Rations" },
+    { category: "food", itemUuid: "own", sourceActorUuid: "c", sourceActorName: "C", sourceType: "traveler", availableQuantity: 1, name: "Rations" }
+  ] };
+
+  const plan = service.planForTravelers(manifest, { travelers, foodActorUuids: ["c", "b", "a"] });
+
+  assert.deepEqual(plan.allocations.map(entry => [entry.consumerActorUuid, entry.itemUuid]), [
+    ["c", "own"],
+    ["b", "group"],
+    ["a", "other"]
+  ]);
 });

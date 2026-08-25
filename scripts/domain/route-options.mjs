@@ -34,8 +34,14 @@ export const DANGER_OPTIONS = Object.freeze([
 ]);
 
 export const LENGTH_OPTIONS = Object.freeze(
-  Array.from({ length: 100 }, (_, index) => ({
-    value: index + 1,
-    label: `${index + 1} ${index === 0 ? "day" : "days"}`
+  Array.from({ length: 101 }, (_, index) => ({
+    value: index,
+    label: `${index} ${index === 1 ? "day" : "days"}`
   }))
 );
+
+export const LENGTH_THIRD_OPTIONS = Object.freeze([
+  { value: 0, label: "No additional thirds" },
+  { value: 1, label: "+ ⅓ day" },
+  { value: 2, label: "+ ⅔ day" }
+]);

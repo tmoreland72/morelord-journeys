@@ -16,7 +16,7 @@ export function createJourney({ id, name, route, travelers = [], rulesProfileId 
     status: JOURNEY_STATUS.PLANNING,
     phase: null,
     progressSteps: 0,
-    routeExtensionDays: 0,
+    remainingSteps: route.lengthSteps,
     dayNumber: 0,
     travelers: structuredClone(travelers),
     roles: {},
@@ -37,6 +37,9 @@ export function validateJourney(journey) {
   if (journey?.phase !== null && !TRAVEL_PHASES.includes(journey.phase)) issues.push("phase is not recognized");
   if (!Number.isInteger(journey?.progressSteps) || journey.progressSteps < 0) {
     issues.push("progressSteps must be a non-negative integer");
+  }
+  if (!Number.isInteger(journey?.remainingSteps) || journey.remainingSteps < 0) {
+    issues.push("remainingSteps must be a non-negative integer");
   }
   try {
     validateRoute(journey?.routeSnapshot);

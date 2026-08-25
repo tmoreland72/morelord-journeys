@@ -1,7 +1,8 @@
-import { getEncounterDie } from "../core/journey-settings.mjs";
+import { nightEncountersEnabled } from "../core/journey-settings.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { JourneyActionApplication as BaseJourneyApplication } from "./journey-action-fix-app.mjs";
+import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 
 const SOCKET = `module.${MODULE_ID}`;
 const CAMP_ACTIONS = ["Take a Watch", "Craft", "Cook", "Prepare", "Slumber", "Task"];
@@ -18,8 +19,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
     actions: {
       resendRoleRoll: this.resendRoleRoll,
-      saveCampPlan: this.saveCampPlan,
-      rollCampWatch: this.rollCampWatch
+      saveCampPlan: this.saveCampPlan
     }
   };
 
@@ -47,7 +47,11 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     const saved = context.journey.currentDay?.campWatches ?? [];
     const panel = document.createElement("section");
     panel.className = "ml-journeys-panel journey-card journey-camp-planner";
-    panel.innerHTML = `<header><h3>Watch Order & Camp Actions</h3><p>Assign the party's watches and how each traveler spends that watch. Every watch makes its own encounter check.</p></header>`;
+    panel.innerHTML = `<header><h3>Watch Order & Camp Actions</h3><p>Assignments save automatically. Anyone not assigned to Take a Watch receives the same rest treatment as Slumber.</p></header><div><label class="journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="journey-help-button" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
+    panel.querySelector("[data-campfire-help]").addEventListener("click", event => {
+      event.preventDefault();
+      void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><p>Craft, Cook, and Prepare require a fire. A fire marks excellent setup (-10) while its visibility adds +5 to the night encounter check, for a net -5. No fire and no tents marks poor setup (+10).</p></div>", ok: { label: "Close" } });
+    });
     const watches = document.createElement("div");
     watches.className = "journey-watch-list";
     for (let index = 0; index < 4; index += 1) {
@@ -64,11 +68,6 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       const action = document.createElement("select");
       action.name = `watchAction${index}`;
       for (const name of CAMP_ACTIONS) action.append(option(name, name, prior.action ?? "Take a Watch"));
-      const roll = document.createElement("button");
-      roll.type = "button";
-      roll.dataset.action = "rollCampWatch";
-      roll.dataset.watchIndex = String(index);
-      roll.innerHTML = `<i class="fa-solid fa-dice"></i> Roll Watch ${index + 1}`;
       const result = document.createElement("span");
       result.className = "journey-watch-result";
       const perception = context.journey.currentDay?.campPerceptionResults?.find(entry => entry.watchIndex === index);
@@ -77,7 +76,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
         ? `Perception ${perception.total} · ${prior.encounterRoll?.encounterCount ?? 0} encounter(s)`
         : pendingPerception ? "Waiting for Perception…"
           : prior.encounterRoll ? `${prior.encounterRoll.encounterCount} encounter(s) · Perception not requested` : "Not rolled";
-      row.append(heading, member, action, roll, result);
+      row.append(heading, member, action, result);
       if (Number(prior.encounterRoll?.encounterCount ?? 0) > 0) {
         const open = document.createElement("button");
         open.type = "button";
@@ -88,11 +87,55 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       }
       watches.append(row);
     }
-    const save = document.createElement("button");
-    save.type = "button";
-    save.dataset.action = "saveCampPlan";
-    save.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Watch Order';
-    panel.append(watches, save);
+    panel.append(watches);
+    if (nightEncountersEnabled()) {
+      const rollNight = document.createElement("button");
+      rollNight.type = "button";
+      rollNight.dataset.action = "rollNightEncounter";
+      rollNight.textContent = "Roll Night Encounter";
+      const nightHelp = document.createElement("button");
+      nightHelp.type = "button";
+      nightHelp.className = "journey-help-button";
+      nightHelp.dataset.action = "showNightEncounterOutcomes";
+      nightHelp.setAttribute("aria-label", "Explain night encounter outcomes");
+      nightHelp.dataset.tooltip = "Explain night encounter outcomes";
+      nightHelp.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
+      const nightControls = document.createElement("div");
+      nightControls.className = "journey-inline-actions journey-night-controls";
+      nightControls.append(rollNight, nightHelp);
+      panel.append(nightControls);
+    }
+    const night = context.journey.currentDay?.nightEncounterCheck;
+    if (night) {
+      const label = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[night.outcome] ?? night.outcome;
+      const descriptions = {
+        peacefulRest: "The camp remains exceptionally calm. Continue to Sleep & Shelter to confirm each traveler’s rest; this result reduces the sleep DC by 5.",
+        uneventful: "No encounter occurs. Continue to Sleep & Shelter to confirm each traveler’s final rest outcome.",
+        minor: "A hazard, discovery, or social scene occurs—for example strange tracks, a distressed traveler, unstable ground, or nearby activity. If it becomes combat, record the actual interrupted hours during Sleep & Shelter.",
+        nightAttack: "A combat encounter interrupts the selected watch. One interrupted hour is prefilled in Sleep & Shelter; adjust it to the actual duration before rolling."
+      };
+      const summary = document.createElement("div");
+      summary.className = "journey-encounter-summary journey-encounter-outcome";
+      summary.innerHTML = `<h4>${label}</h4><p>${descriptions[night.outcome] ?? "Resolve the result, then continue to Sleep & Shelter."}</p><p><em>Pending confirmation after Sleep & Shelter.</em></p>`;
+      panel.append(summary);
+      panel.append(createOutcomeDetails({ cards: [{ title: "Night Encounter Calculation", rows: [
+        { label: "Raw d100", value: night.raw },
+        { label: `Danger ${night.danger}`, value: `${night.dangerModifier >= 0 ? "+" : ""}${night.dangerModifier}` },
+        ...(night.modifiers ?? []).map(item => ({ label: item.label, value: `${item.value >= 0 ? "+" : ""}${item.value}` })),
+        { label: "Final result", value: night.modified },
+        { label: "Outcome", value: label },
+        { label: "Affected watch roll", value: night.watchRoll },
+        { label: "Affected watch", value: Number.isInteger(night.watchIndex) ? `Watch ${night.watchIndex + 1}` : null }
+      ] }] }));
+      if (["minor", "nightAttack"].includes(night.outcome)) {
+        const open = document.createElement("button");
+        open.type = "button";
+        open.dataset.action = "openMorelordEncounters";
+        open.className = "journey-open-encounters journey-emphasis-button";
+        open.innerHTML = '<i class="fa-solid fa-hydra"></i> Open Morelord Encounters';
+        panel.append(open);
+      }
+    }
     notes.before(panel);
   }
 
@@ -123,6 +166,8 @@ export class JourneyCampApplication extends BaseJourneyApplication {
         const prior = journey.currentDay.campWatches?.[index];
         return { index, actorUuid, actorName: traveler?.name ?? "Unassigned", action: this.element.querySelector(`[name='watchAction${index}']`)?.value ?? "Take a Watch", encounterRoll: prior?.encounterRoll ?? null };
       });
+      journey.currentDay.campfire = Boolean(this.element.querySelector("[name='campfire']")?.checked);
+      journey.currentDay.campSetupTotal = Number(this.element.querySelector("[name='campSetupTotal']")?.value ?? 10);
       await saveActiveJourney(journey);
       ui.notifications.info("Camp watch order saved.");
       await this.render({ force: true });
@@ -131,24 +176,4 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     }
   }
 
-  static async rollCampWatch(event, target) {
-    event.preventDefault();
-    try {
-      const index = Number(target.dataset.watchIndex);
-      const journey = await getActiveJourney();
-      if (!journey.currentDay.campWatches?.length) throw new Error("Save the watch order before rolling watches.");
-      const danger = Number(journey.routeSnapshot.danger ?? 0);
-      const die = getEncounterDie();
-      const roll = danger ? await new Roll(`${danger}${die}`).evaluate() : null;
-      const results = roll ? roll.dice.flatMap(term => term.results.filter(result => result.active !== false).map(result => result.result)) : [];
-      const encounterCount = results.filter(result => result === 1).length;
-      journey.currentDay.campWatches[index].encounterRoll = { die, danger, results, encounterCount, rolledAt: Date.now() };
-      await saveActiveJourney(journey);
-      if (roll) await roll.toMessage({ flavor: `Morelord Journeys — Camp Watch ${index + 1}` });
-      await ChatMessage.create({ speaker: { alias: "Morelord Journeys" }, content: `<article class="ml-chat-card ml-journeys-chat-card"><header><i class="fa-solid fa-moon"></i><strong>Watch ${index + 1} Complete</strong></header><p>${encounterCount} encounter${encounterCount === 1 ? "" : "s"} generated during ${journey.currentDay.campWatches[index].actorName}'s watch.</p></article>` });
-      await this.render({ force: true });
-    } catch (error) {
-      ui.notifications.error(error.message);
-    }
-  }
 }

@@ -1,10 +1,9 @@
-import { getEncounterDie, getPlayerEncounterVisibility } from "../core/journey-settings.mjs";
+import { getPlayerEncounterVisibility } from "../core/journey-settings.mjs";
+import { resolveEncounterRoll } from "../domain/encounter-rules.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 
 const SOCKET = `module.${MODULE_ID}`;
-const faces = die => Number(String(die).replace(/^d/, ""));
-
 class EncounterRollService extends EventTarget {
   #started = false;
   #dialogs = new Map();
@@ -15,16 +14,18 @@ class EncounterRollService extends EventTarget {
     game.socket.on(SOCKET, message => void this.#receive(message));
   }
 
-  async requestPlayers() {
+  async requestPlayers({ modifiers = [] } = {}) {
     if (!game.user.isGM) throw new Error("Only the GM can request encounter checks.");
     const journey = await getActiveJourney();
     const recipients = this.#partyUsers(journey);
     if (!recipients.length) throw new Error("No active player owns a traveler in this journey.");
-    const requests = recipients.map(({ user, actor }) => ({
+    // A travel day has one encounter check. Player mode delegates that single
+    // d100 check to the first active owner in party order.
+    const requests = recipients.slice(0, 1).map(({ user, actor }) => ({
       id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber,
       userId: user.id, userName: user.name, actorUuid: actor?.uuid ?? user.character?.uuid ?? null,
       actorName: actor?.name ?? user.character?.name ?? user.name,
-      die: getEncounterDie(), rollMode: getPlayerEncounterVisibility(), requestedAt: Date.now()
+      die: "1d100", danger: Number(journey.routeSnapshot.danger ?? 0), modifiers, rollMode: getPlayerEncounterVisibility(), requestedAt: Date.now()
     }));
     journey.currentDay.pendingEncounterRolls = requests;
     journey.currentDay.encounterPlayerResults = [];
@@ -46,12 +47,11 @@ class EncounterRollService extends EventTarget {
       journey.currentDay.encounterPlayerResults ??= [];
       journey.currentDay.encounterPlayerResults.push(message.result);
       journey.currentDay.pendingEncounterRolls = pending.filter(request => request.id !== message.requestId);
-      const results = journey.currentDay.encounterPlayerResults;
-      journey.currentDay.encounterCheck = {
-        die: message.result.die, mode: "players", results: results.map(result => result.total),
-        encounterCount: results.filter(result => result.kind === "complication").length,
-        boonCount: results.filter(result => result.kind === "boon").length, rolledAt: Date.now()
-      };
+      const result = resolveEncounterRoll({ raw: message.result.total, danger: message.result.danger, modifiers: message.result.modifiers });
+      const actors = (await Promise.all(journey.travelers.map(traveler => fromUuid(traveler.actorUuid)))).filter(Boolean);
+      const passives = actors.map(actor => Number(actor.system?.skills?.prc?.passive ?? 10 + Number(actor.system?.skills?.prc?.total ?? 0)));
+      const pacePenalty = journey.currentDay?.pace === "fast" ? -5 : 0;
+      journey.currentDay.encounterCheck = { ...result, mode: "players", roller: message.result.actorName, highestPassivePerception: (passives.length ? Math.max(...passives) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
       await saveActiveJourney(journey);
       game.socket.emit(SOCKET, { type: "encounterRoll.resolved", requestId: message.requestId });
       this.#updated();
@@ -66,16 +66,15 @@ class EncounterRollService extends EventTarget {
   async #open(request) {
     this.#dialogs.get(request.id)?.close();
     this.#dialogs.delete(request.id);
-    const content = `<div class="ml-journeys encounter-roll-request"><p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must roll one ${request.die} encounter check.</p><p>A <strong>1</strong> is a complication; a <strong>${faces(request.die)}</strong> is a boon.</p></div>`;
+    const content = `<div class="ml-journeys encounter-roll-request"><p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> makes the party's daytime encounter check.</p><p>Roll 1d100. Danger ${request.danger} modifies the result toward or away from major encounters.</p></div>`;
     const dialog = new foundry.applications.api.DialogV2({
       window: { title: "Morelord Journeys — Encounter Check", icon: "fa-solid fa-dice" }, content, modal: false,
       buttons: [{ action: "roll", label: `Roll ${request.die}`, default: true, icon: "fa-solid fa-dice", callback: async () => {
-        const roll = await new Roll(request.die).evaluate();
+        const roll = await new Roll("1d100").evaluate();
         const flavor = `${request.actorName} — Journey encounter check`;
         await roll.toMessage({ flavor }, { rollMode: request.rollMode ?? "gmroll" });
         const total = Number(roll.total);
-        const kind = total === 1 ? "complication" : total === faces(request.die) ? "boon" : "quiet";
-        game.socket.emit(SOCKET, { type: "encounterRoll.result", requestId: request.id, result: { requestId: request.id, userId: game.user.id, userName: game.user.name, actorName: request.actorName, die: request.die, total, kind, resolvedAt: Date.now() } });
+        game.socket.emit(SOCKET, { type: "encounterRoll.result", requestId: request.id, result: { requestId: request.id, userId: game.user.id, userName: game.user.name, actorName: request.actorName, die: "1d100", danger: request.danger, modifiers: request.modifiers, total, resolvedAt: Date.now() } });
       }}]
     });
     this.#dialogs.set(request.id, dialog);

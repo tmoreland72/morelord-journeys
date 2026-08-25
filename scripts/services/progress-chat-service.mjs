@@ -1,13 +1,21 @@
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
 
 const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
+const formatSteps = steps => {
+  const value = Number(steps ?? 0);
+  const sign = value < 0 ? "-" : "";
+  const absolute = Math.abs(value);
+  const days = Math.floor(absolute / 3);
+  const remainder = absolute % 3;
+  return `${sign}${days || !remainder ? days : ""}${remainder === 1 ? "⅓" : remainder === 2 ? "⅔" : ""}`;
+};
 
 function describe(entry, journey) {
   if (entry.type === "journeyReady") return { icon: "fa-route", title: "Journey Planned", body: `${journey.name} is ready to depart.` };
   if (entry.type === "dayStarted") return { icon: "fa-sun", title: `Day ${entry.dayNumber} Begins`, body: `The party sets out toward ${journey.routeSnapshot.destination.name}.` };
   if (entry.type === "dayCompleted") {
     const applied = entry.data?.applied ?? 0;
-    return { icon: "fa-flag-checkered", title: `Day ${entry.dayNumber} Complete`, body: `The party made ${applied / 3} day${Math.abs(applied) === 3 ? "" : "s"} of route progress.` };
+    return { icon: "fa-flag-checkered", title: `Day ${entry.dayNumber} Complete`, body: `The route changed by ${formatSteps(applied)} travel day${Math.abs(applied) === 3 ? "" : "s"}.` };
   }
   if (entry.type === "journeyArrived") return { icon: "fa-location-dot", title: "Destination Reached", body: `The party has arrived at ${journey.routeSnapshot.destination.name}.` };
   if (entry.type === "phaseRecorded") {

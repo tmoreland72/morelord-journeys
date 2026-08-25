@@ -1,12 +1,13 @@
-import { getEncounterDie, getEncounterRollMode } from "../core/journey-settings.mjs";
+import { getEncounterRollMode } from "../core/journey-settings.mjs";
+import { automaticDayEncounterModifiers, resolveEncounterRoll } from "../domain/encounter-rules.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { encounterRollService } from "../services/encounter-roll-service.mjs";
+import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyCampApplication as BaseJourneyApplication } from "./journey-camp-app.mjs";
+import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 
 const SOCKET = `module.${MODULE_ID}`;
-const dieFaces = die => Number(String(die).replace(/^d/, ""));
-
 export class JourneyV14Application extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
     actions: {
@@ -45,11 +46,6 @@ export class JourneyV14Application extends BaseJourneyApplication {
 
   #enforceSavedWatches(context) {
     if (!context.phaseIs?.camp) return;
-    const rows = Array.from(this.element.querySelectorAll(".journey-watch-row"));
-    const rolls = rows.map(row => row.querySelector("[data-action='rollCampWatch']"));
-    for (const [index, roll] of rolls.entries()) {
-      roll.disabled = !rows[index]?.querySelector("select[name^='watchMember']")?.value;
-    }
   }
 
   #renderEncounterControls(context) {
@@ -60,7 +56,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
     const check = context.journey.currentDay?.encounterCheck;
     if (mode === "players") {
       gmButton?.remove();
-      if (!context.journey.currentDay?.pendingEncounterRolls?.length && !check?.results?.length) {
+      if (!context.journey.currentDay?.pendingEncounterRolls?.length && !check) {
         const request = document.createElement("button");
         request.type = "button";
         request.dataset.action = "requestPlayerEncounterRolls";
@@ -76,11 +72,46 @@ export class JourneyV14Application extends BaseJourneyApplication {
       }
     }
     if (check) {
-      const summary = document.createElement("p");
+      const label = { none: "No Encounter", signs: "Signs & Foreshadowing", minor: "Minor Encounter", major: "Major Encounter" }[check.outcome] ?? check.outcome;
+      const descriptions = {
+        none: "The road remains quiet. Describe uneventful travel or move directly to the next phase.",
+        signs: "Along the path the party could find tracks, smoke, abandoned equipment, distant sounds, frightened travelers, or evidence that something recently passed through.",
+        minor: "Present a meaningful choice such as a damaged bridge, curious traveler, localized hazard, useful ruin, animal threat, or brief faction scene. Combat is not required.",
+        major: "Present an important event such as a deadly hazard, major discovery, faction confrontation, chase, siege, consequential social scene, or combat. Major describes narrative impact, not encounter type."
+      };
+      const summary = document.createElement("section");
       summary.className = "journey-encounter-summary";
-      summary.innerHTML = `<strong>${check.encounterCount ?? 0} complications</strong> · <strong>${check.boonCount ?? 0} boons</strong>`;
+      summary.innerHTML = `<h3>${label}</h3><p>${descriptions[check.outcome] ?? "Use the modified result to frame the next event along the route."}</p>`;
+      const perception = document.createElement("div");
+      perception.className = "journey-passive-perception";
+      const value = document.createElement("strong");
+      value.textContent = `Party Passive Perception: ${check.highestPassivePerception ?? "unknown"}`;
+      const help = document.createElement("button");
+      help.type = "button";
+      help.className = "journey-help-button";
+      help.setAttribute("aria-label", "Explain Party Passive Perception");
+      help.dataset.tooltip = "Explain Party Passive Perception";
+      help.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
+      help.addEventListener("click", event => {
+        event.preventDefault();
+        void foundry.applications.api.DialogV2.prompt({
+          window: { title: "Party Passive Perception", icon: "fa-solid fa-circle-question" },
+          content: "<div class='ml-journeys-help-content'><p>This is the highest Passive Perception in the traveling party after pace adjustments. Use it when something attempts to remain unnoticed. For a creature encounter, compare the encounter's Stealth check against this value to determine detection and whether surprise may apply. Morelord Encounters can make the opposing Stealth check using the selected creature with the lowest Stealth modifier.</p></div>",
+          ok: { label: "Close" }
+        });
+      });
+      perception.append(value, help);
+      summary.append(perception);
       panel.append(summary);
-      if (Number(check.encounterCount ?? 0) > 0) {
+      panel.append(createOutcomeDetails({ cards: [{ title: "Day Encounter Calculation", rows: [
+        { label: "Raw d100", value: check.raw },
+        { label: `Danger ${check.danger}`, value: `${check.dangerModifier >= 0 ? "+" : ""}${check.dangerModifier}` },
+        ...(check.modifiers ?? []).map(item => ({ label: item.label, value: `${item.value >= 0 ? "+" : ""}${item.value}` })),
+        { label: "Final result", value: check.modified },
+        { label: "Outcome", value: label },
+        { label: "Party Passive Perception", value: check.highestPassivePerception }
+      ] }] }));
+      if (["minor", "major"].includes(check.outcome)) {
         const open = document.createElement("button");
         open.type = "button";
         open.dataset.action = "openMorelordEncounters";
@@ -110,7 +141,20 @@ export class JourneyV14Application extends BaseJourneyApplication {
 
     const api = encountersModule.api ?? globalThis.MorelordEncounters;
     if (typeof api?.open === "function") {
-      await api.open();
+      const journey = await getActiveJourney();
+      const night = journey?.currentDay?.nightEncounterCheck;
+      const watchPerception = night ? journey.currentDay?.campPerceptionResults?.find(result => result.watchIndex === night.watchIndex) : null;
+      await api.open({
+        source: "morelord-journeys",
+        contractVersion: 1,
+        journeyId: journey?.id,
+        dayNumber: journey?.dayNumber,
+        phase: journey?.phase,
+        encounterOutcome: night?.outcome ?? journey?.currentDay?.encounterCheck?.outcome,
+        detection: night
+          ? { mode: "activePerception", total: watchPerception?.total ?? null, actorUuid: night.watcherActorUuid, useLowestCreatureStealth: true }
+          : { mode: "passivePerception", total: journey?.currentDay?.encounterCheck?.highestPassivePerception ?? null, useLowestCreatureStealth: true }
+      });
       return;
     }
 
@@ -131,24 +175,19 @@ export class JourneyV14Application extends BaseJourneyApplication {
   static async resendRoleRoll(event) {
     event.preventDefault();
     try {
-      const journey = await getActiveJourney();
-      const request = journey?.currentDay?.pendingRoleRoll;
-      if (!request) throw new Error("There is no pending role check to resend.");
-      const oldId = request.id;
-      request.id = crypto.randomUUID();
-      request.resentAt = Date.now();
-      request.resendCount = (request.resendCount ?? 0) + 1;
-      await saveActiveJourney(journey);
-      game.socket.emit(SOCKET, { type: "roleRoll.resolved", requestId: oldId });
-      game.socket.emit(SOCKET, { type: "roleRoll.request", request });
-      ui.notifications.info(`A new roll request was sent to ${request.actorName}.`);
+      await roleRollService.resend();
+      ui.notifications.info("The roll request was sent again.");
       await this.render({ force: true });
     } catch (error) { ui.notifications.error(error.message); }
   }
 
   static async requestPlayerEncounterRolls(event) {
     event.preventDefault();
-    try { await encounterRollService.requestPlayers(); await this.render({ force: true }); }
+    try {
+      const journey = await getActiveJourney();
+      const modifiers = automaticDayEncounterModifiers(journey);
+      await encounterRollService.requestPlayers({ modifiers }); await this.render({ force: true });
+    }
     catch (error) { ui.notifications.error(error.message); }
   }
 
@@ -156,15 +195,16 @@ export class JourneyV14Application extends BaseJourneyApplication {
     event.preventDefault();
     try {
       const journey = await getActiveJourney();
-      const danger = Number(journey.routeSnapshot.danger ?? 0);
-      const die = getEncounterDie();
-      const roll = danger ? await new Roll(`${danger}${die}`).evaluate() : null;
-      const results = roll ? roll.dice.flatMap(term => term.results.filter(result => result.active !== false).map(result => result.result)) : [];
-      const encounterCount = results.filter(result => result === 1).length;
-      const boonCount = results.filter(result => result === dieFaces(die)).length;
-      journey.currentDay.encounterCheck = { die, danger, mode: "gm", results, encounterCount, boonCount, rolledAt: Date.now() };
+      if (journey.currentDay?.pace === "stopped") throw new Error("Stopped travel does not make a daytime encounter check.");
+      const roll = await new Roll("1d100").evaluate();
+      const actors = (await Promise.all(journey.travelers.map(traveler => fromUuid(traveler.actorUuid)))).filter(Boolean);
+      const passive = actors.map(actor => Number(actor.system?.skills?.prc?.passive ?? 10 + Number(actor.system?.skills?.prc?.total ?? 0)));
+      const pacePenalty = journey.currentDay?.pace === "fast" ? -5 : 0;
+      const modifiers = automaticDayEncounterModifiers(journey);
+      const result = resolveEncounterRoll({ raw: Number(roll.total), danger: journey.routeSnapshot.danger, modifiers });
+      journey.currentDay.encounterCheck = { ...result, mode: "gm", highestPassivePerception: (passive.length ? Math.max(...passive) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
       await saveActiveJourney(journey);
-      if (roll) await roll.toMessage({ flavor: `Morelord Journeys encounter checks — ${encounterCount} complications, ${boonCount} boons` });
+      await roll.toMessage({ flavor: `Morelord Journeys daytime encounter — ${result.outcome} (${result.modified})` });
       await this.render({ force: true });
     } catch (error) { ui.notifications.error(error.message); }
   }

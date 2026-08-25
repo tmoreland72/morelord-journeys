@@ -1,7 +1,7 @@
 import { MODULE_ID } from "../domain/constants.mjs";
+import { NIGHT_ENCOUNTERS_SETTING, PHASE_SETTING_KEYS, SLEEP_AND_SHELTER_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
 import { EntitlementService } from "../services/entitlement-service.mjs";
 const SETTINGS = Object.freeze({
-  ENCOUNTER_DIE: "encounterDie",
   ENCOUNTER_ROLL_MODE: "encounterRollMode",
   PLAYER_ENCOUNTER_VISIBILITY: "playerEncounterVisibility"
 });
@@ -25,9 +25,12 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     return {
       ...context,
       settings: {
-        encounterDie: game.settings.get(MODULE_ID, SETTINGS.ENCOUNTER_DIE),
         encounterRollMode: game.settings.get(MODULE_ID, SETTINGS.ENCOUNTER_ROLL_MODE),
-        playerEncounterVisibility: game.settings.get(MODULE_ID, SETTINGS.PLAYER_ENCOUNTER_VISIBILITY)
+        playerEncounterVisibility: game.settings.get(MODULE_ID, SETTINGS.PLAYER_ENCOUNTER_VISIBILITY),
+        phases: Object.fromEntries(Object.entries(PHASE_SETTING_KEYS).map(([phase, key]) => [phase, game.settings.get(MODULE_ID, key)]))
+        , suppressSleepDeprivationExhaustion: game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING),
+        enableNightEncounters: game.settings.get(MODULE_ID, NIGHT_ENCOUNTERS_SETTING),
+        enableSleepAndShelter: game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING)
       },
       access: {
         ...access,
@@ -58,12 +61,10 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     target.disabled = true;
     try {
       const values = {
-        [SETTINGS.ENCOUNTER_DIE]: this.element.querySelector(`[name="${SETTINGS.ENCOUNTER_DIE}"]`)?.value,
         [SETTINGS.ENCOUNTER_ROLL_MODE]: this.element.querySelector(`[name="${SETTINGS.ENCOUNTER_ROLL_MODE}"]`)?.value,
         [SETTINGS.PLAYER_ENCOUNTER_VISIBILITY]: this.element.querySelector(`[name="${SETTINGS.PLAYER_ENCOUNTER_VISIBILITY}"]`)?.value
       };
       const allowed = {
-        [SETTINGS.ENCOUNTER_DIE]: new Set(["d4", "d6", "d8", "d10", "d12", "d20"]),
         [SETTINGS.ENCOUNTER_ROLL_MODE]: new Set(["gm", "players"]),
         [SETTINGS.PLAYER_ENCOUNTER_VISIBILITY]: new Set(["publicroll", "gmroll", "blindroll"])
       };
@@ -72,6 +73,12 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
         return;
       }
       for (const [key, value] of Object.entries(values)) await game.settings.set(MODULE_ID, key, value);
+      for (const [phase, key] of Object.entries(PHASE_SETTING_KEYS)) {
+        await game.settings.set(MODULE_ID, key, Boolean(this.element.querySelector(`[name="phase-${phase}"]`)?.checked));
+      }
+      await game.settings.set(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING, Boolean(this.element.querySelector('[name="suppressSleepDeprivationExhaustion"]')?.checked));
+      await game.settings.set(MODULE_ID, NIGHT_ENCOUNTERS_SETTING, Boolean(this.element.querySelector('[name="enableNightEncounters"]')?.checked));
+      await game.settings.set(MODULE_ID, SLEEP_AND_SHELTER_SETTING, Boolean(this.element.querySelector('[name="enableSleepAndShelter"]')?.checked));
       ui.notifications.info("Morelord Journeys settings saved.");
       await this.close();
     } finally {
