@@ -24,6 +24,14 @@ export const NAVIGATION_OPTIONS = Object.freeze([
   { value: 30, label: "Extreme — DC 30" }
 ]);
 
+export function routeOptionsWithDCs(options, values = []) {
+  return options.map((option, index) => {
+    const value = Number(values[index] ?? option.value);
+    const description = option.label.replace(/\s+—\s+DC\s+\d+$/i, "");
+    return { value, label: `${description} — DC ${value}` };
+  });
+}
+
 export const DANGER_OPTIONS = Object.freeze([
   { value: 0, label: "None — no encounter checks" },
   { value: 1, label: "Safe or civilized — 1 check/day" },

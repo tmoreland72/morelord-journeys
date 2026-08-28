@@ -1,7 +1,6 @@
-import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-
-const SOCKET = `module.${MODULE_ID}`;
+import { requestRecipientForActor } from "./client-request-routing-service.mjs";
+import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 const CHOICES = Object.freeze({
   firstSaveAdvantage: "Advantage on the first saving throw tomorrow",
   exhaustion: "Remove one additional level of Exhaustion",
@@ -11,7 +10,15 @@ const CHOICES = Object.freeze({
 class PeacefulRestService extends EventTarget {
   #started = false;
   #dialogs = new Map();
-  start() { if (!this.#started) { this.#started = true; game.socket.on(SOCKET, message => void this.#receive(message)); } }
+  #channel = null;
+  start() {
+    if (this.#started) return;
+    this.#started = true;
+    this.#channel = getMorelordSocketChannel();
+    this.#channel.on("peacefulRest.request", data => this.#receive({ type: "peacefulRest.request", ...data }));
+    this.#channel.on("peacefulRest.result", data => this.#receive({ type: "peacefulRest.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
+    this.#channel.on("peacefulRest.resolved", data => this.#receive({ type: "peacefulRest.resolved", ...data }));
+  }
 
   async requestEligible() {
     if (!game.user.isGM) throw new Error("Only the GM can offer Peaceful Rest benefits.");
@@ -22,12 +29,16 @@ class PeacefulRestService extends EventTarget {
       if (existing.has(actorUuid)) continue;
       const actor = await fromUuid(actorUuid);
       if (!actor) continue;
-      const user = game.users.find(candidate => candidate.active && !candidate.isGM && (candidate.character?.uuid === actor.uuid || actor.testUserPermission?.(candidate, "OWNER"))) ?? game.user;
-      requests.push({ id: crypto.randomUUID(), actorUuid, actorName: actor.name, userId: user.id });
+      const recipient = requestRecipientForActor(actor);
+      if (!recipient) continue;
+      requests.push({ id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, actorUuid, actorName: actor.name, userId: recipient.user.id, fallbackToGM: recipient.fallbackToGM });
     }
     journey.currentDay.pendingPeacefulRestChoices = requests;
     await saveActiveJourney(journey);
-    for (const request of requests) request.userId === game.user.id ? await this.#open(request) : game.socket.emit(SOCKET, { type: "peacefulRest.request", request });
+    for (const request of requests) {
+      if (request.userId === game.user.id) await this.#open(request);
+      else await this.#channel.executeAsUser("peacefulRest.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    }
     this.#updated();
   }
 
@@ -36,11 +47,16 @@ class PeacefulRestService extends EventTarget {
     const journey = await getActiveJourney();
     const request = journey.currentDay?.pendingPeacefulRestChoices?.find(item => item.id === requestId);
     if (!request) throw new Error("That Peaceful Rest choice is no longer pending.");
+    const actor = await fromUuid(request.actorUuid);
+    const recipient = requestRecipientForActor(actor);
+    if (!recipient) throw new Error(`${request.actorName} has no active user available to choose.`);
+    request.userId = recipient.user.id;
+    request.fallbackToGM = recipient.fallbackToGM;
     request.resentAt = Date.now();
     request.resendCount = Number(request.resendCount ?? 0) + 1;
     await saveActiveJourney(journey);
     if (request.userId === game.user.id) await this.#open(request, { replace: true });
-    else game.socket.emit(SOCKET, { type: "peacefulRest.request", request });
+    else await this.#channel.executeAsUser("peacefulRest.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     this.#updated();
   }
 
@@ -71,7 +87,7 @@ class PeacefulRestService extends EventTarget {
         const journey = await getActiveJourney();
         const pending = journey.currentDay?.pendingPeacefulRestChoices?.find(item => item.id === request.id);
         if (pending) await this.#record(journey, pending, action, { resolvedBy: game.user.id });
-      } else game.socket.emit(SOCKET, { type: "peacefulRest.result", requestId: request.id, choice: action, resolvedBy: game.user.id });
+      } else await this.#channel.executeAsGM("peacefulRest.result", { requestId: request.id, choice: action, resolvedBy: game.user.id }, { context: { journeyId: request.journeyId, requestId: request.id } });
       return action;
     } }));
     const dialog = new foundry.applications.api.DialogV2({ window: { title: "Morelord Journeys — Peaceful Rest", icon: "fa-solid fa-bed" }, content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> receives a Peaceful Rest benefit. Choose one; Journeys records but does not apply it.</p>`, modal: false, buttons });
@@ -85,7 +101,7 @@ class PeacefulRestService extends EventTarget {
     journey.currentDay.peacefulRestChoices.push({ actorUuid: request.actorUuid, actorName: request.actorName, choice, label: CHOICES[choice], appliedAutomatically: false, automatic, resolvedBy, recordedAt: Date.now() });
     journey.currentDay.pendingPeacefulRestChoices = (journey.currentDay.pendingPeacefulRestChoices ?? []).filter(item => item.id !== request.id);
     await saveActiveJourney(journey);
-    game.socket.emit(SOCKET, { type: "peacefulRest.resolved", requestId: request.id });
+    if (request.userId !== game.user.id) await this.#channel.executeAsUser("peacefulRest.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     this.#updated();
   }
   #updated() { this.dispatchEvent(new Event("updated")); }

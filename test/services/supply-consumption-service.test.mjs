@@ -55,3 +55,16 @@ test("traveler supplies are allocated from self, then group, then another travel
     ["a", "other"]
   ]);
 });
+
+test("manual supply outcomes record shortages without inventory allocations", () => {
+  const service = new SupplyConsumptionService();
+  const plan = service.planManualOutcomes({
+    travelers: [{ actorUuid: "a" }, { actorUuid: "b" }, { actorUuid: "c" }],
+    fedActorUuids: ["a", "c"],
+    wateredActorUuids: ["a", "b", "c"]
+  });
+  assert.equal(plan.resolutionMode, "manual");
+  assert.deepEqual(plan.allocations, []);
+  assert.deepEqual(plan.shortageActorUuids, { food: ["b"], water: [] });
+  assert.deepEqual(plan.shortages, { food: 1, water: 0 });
+});

@@ -14,11 +14,10 @@ test("Craftworks integration is unavailable when the module is absent", () => {
   delete globalThis.game;
 });
 
-test("Craftworks integration delegates to the public Gather API", async () => {
+test("Craftworks integration launches the main public application", async () => {
   let opened = 0;
   const api = {
-    openGather: async () => { opened += 1; },
-    gather: { getSceneGatherRecords: () => ({ actor1: {}, actor2: {} }) }
+    open: async () => { opened += 1; }
   };
   globalThis.game = {
     modules: new Map([["morelord-craftworks", { active: true, api }]]),
@@ -30,7 +29,7 @@ test("Craftworks integration delegates to the public Gather API", async () => {
   assert.equal(integration.isAvailable(), true);
   await integration.open();
   assert.equal(opened, 1);
-  assert.equal(integration.snapshot().gatherRecordCount, 2);
+  assert.equal(integration.snapshot().sceneName, "Forest");
 
   delete globalThis.canvas;
   delete globalThis.game;

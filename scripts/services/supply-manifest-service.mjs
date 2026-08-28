@@ -90,27 +90,55 @@ export class SupplyManifestService {
     };
   }
 
-  async refillTravelerContainers(travelerUuids = []) {
+  async refillWaterContainers(actorUuids = []) {
     const refilled = [];
-    for (const actorUuid of travelerUuids) {
+    for (const actorUuid of new Set(actorUuids.filter(Boolean))) {
       const actor = await fromUuid(actorUuid);
       if (!actor) continue;
       const actorItems = Array.from(actor.items ?? []);
       for (const item of actorItems) {
         const pints = SupplyManifestService.waterContainerPints(item);
         if (!pints) continue;
-        const containerKeys = new Set([String(item.id ?? item._id ?? ""), String(item.uuid ?? "")]);
-        const containedWater = actorItems.filter(candidate => containerKeys.has(String(candidate.system?.container ?? "")) && this.#category(candidate)?.id === "water");
+        const containerKeys = new Set([item.id ?? item._id, item.uuid].filter(Boolean).map(String));
+        const containedWater = actorItems.filter(candidate => {
+          const container = candidate.system?.container;
+          return candidate !== item && container && containerKeys.has(String(container)) && this.#category(candidate)?.id === "water";
+        });
         if (containedWater.length) {
           for (const [index, water] of containedWater.entries()) {
             const wrapped = water.system?.quantity && typeof water.system.quantity === "object";
             await water.update({ [wrapped ? "system.quantity.value" : "system.quantity"]: index === 0 ? pints : 0 });
           }
-        } else await item.update({ "flags.morelord-journeys.waterUnits": pints, "flags.morelord-journeys.waterState": "full" });
+        }
+        await item.update({ "flags.morelord-journeys.waterUnits": pints, "flags.morelord-journeys.waterState": "full" });
         refilled.push({ actorUuid, actorName: actor.name, itemUuid: item.uuid, itemName: item.name, pints });
       }
     }
     return refilled;
+  }
+
+  async addRations(amountsByActorUuid = {}) {
+    const added = [];
+    for (const [actorUuid, rawAmount] of Object.entries(amountsByActorUuid)) {
+      const amount = Math.max(0, Number(rawAmount) || 0);
+      if (!amount) continue;
+      const actor = await fromUuid(actorUuid);
+      if (!actor) continue;
+      const ration = Array.from(actor.items ?? []).find(item => /\bration(s)?\b/i.test(item.name ?? ""));
+      if (ration) {
+        const wrapped = ration.system?.quantity && typeof ration.system.quantity === "object";
+        const current = Number(wrapped ? ration.system.quantity.value : ration.system?.quantity) || 0;
+        const quantityPath = wrapped ? "system.quantity.value" : "system.quantity";
+        const update = { _id: ration.id ?? ration._id, [quantityPath]: current + amount };
+        if (update._id && typeof actor.updateEmbeddedDocuments === "function") await actor.updateEmbeddedDocuments("Item", [update]);
+        else await ration.update({ [quantityPath]: current + amount });
+        added.push({ actorUuid, actorName: actor.name, itemUuid: ration.uuid, itemName: ration.name, quantity: amount });
+        continue;
+      }
+      const [created] = await actor.createEmbeddedDocuments("Item", [{ name: "Rations", type: "loot", system: { quantity: amount } }]);
+      added.push({ actorUuid, actorName: actor.name, itemUuid: created?.uuid ?? null, itemName: created?.name ?? "Rations", quantity: amount });
+    }
+    return added;
   }
 
   #category(item) {

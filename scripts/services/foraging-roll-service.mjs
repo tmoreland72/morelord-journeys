@@ -1,18 +1,23 @@
-import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { SupplyManifestService } from "./supply-manifest-service.mjs";
-
-const SOCKET = `module.${MODULE_ID}`;
+import { requestRecipientForActor } from "./client-request-routing-service.mjs";
+import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
+import { naturalD20 } from "../domain/d20-roll.mjs";
+import { foragingFoodFound, resolveForagingResults } from "../domain/foraging-rules.mjs";
 const supplies = new SupplyManifestService();
 
 class ForagingRollService extends EventTarget {
   #started = false;
   #dialogs = new Map();
+  #channel = null;
 
   start() {
     if (this.#started) return;
     this.#started = true;
-    game.socket.on(SOCKET, message => void this.#receive(message));
+    this.#channel = getMorelordSocketChannel();
+    this.#channel.on("foragingRoll.request", data => this.#receive({ type: "foragingRoll.request", ...data }));
+    this.#channel.on("foragingRoll.result", data => this.#receive({ type: "foragingRoll.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
+    this.#channel.on("foragingRoll.resolved", data => this.#receive({ type: "foragingRoll.resolved", ...data }));
   }
 
   async requestParty() {
@@ -23,10 +28,12 @@ class ForagingRollService extends EventTarget {
     for (const traveler of journey.travelers) {
       const actor = game.actors.get(traveler.actorId) ?? game.actors.find(candidate => candidate.uuid === traveler.actorUuid);
       if (!actor) continue;
-      const user = game.users.find(candidate => candidate.active && !candidate.isGM && (candidate.character?.uuid === actor.uuid || actor.testUserPermission?.(candidate, "OWNER"))) ?? game.user;
+      const recipient = requestRecipientForActor(actor);
+      if (!recipient) continue;
+      const user = recipient.user;
       requests.push({
         id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber,
-        userId: user.id, actorUuid: actor.uuid, actorName: actor.name,
+        userId: user.id, fallbackToGM: recipient.fallbackToGM, actorUuid: actor.uuid, actorName: actor.name,
         dc: journey.routeSnapshot.resourcesDC,
         rollMode: journey.currentDay?.pace === "slow" || journey.currentDay?.pace === "stopped" ? "advantage" : journey.currentDay?.pace === "fast" ? "disadvantage" : "normal",
         requestedAt: Date.now()
@@ -38,7 +45,7 @@ class ForagingRollService extends EventTarget {
     await saveActiveJourney(journey);
     for (const request of requests) {
       if (request.userId === game.user.id) await this.#open(request);
-      else game.socket.emit(SOCKET, { type: "foragingRoll.request", request });
+      else await this.#channel.executeAsUser("foragingRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     }
     this.#updated();
   }
@@ -48,6 +55,11 @@ class ForagingRollService extends EventTarget {
     const journey = await getActiveJourney();
     const request = journey?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === requestId);
     if (!request) throw new Error("That foraging request is no longer pending.");
+    const actor = await fromUuid(request.actorUuid);
+    const recipient = requestRecipientForActor(actor);
+    if (!recipient) throw new Error(`${request.actorName} has no active user available to make the roll.`);
+    request.userId = recipient.user.id;
+    request.fallbackToGM = recipient.fallbackToGM;
     await this.#record(journey, request, { total: null, succeeded, automatic: true, resolvedBy: game.user.id });
   }
 
@@ -60,7 +72,7 @@ class ForagingRollService extends EventTarget {
     request.resendCount = Number(request.resendCount ?? 0) + 1;
     await saveActiveJourney(journey);
     if (request.userId === game.user.id) await this.#open(request, { replace: true });
-    else game.socket.emit(SOCKET, { type: "foragingRoll.request", request });
+    else await this.#channel.executeAsUser("foragingRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     this.#updated();
   }
 
@@ -97,12 +109,14 @@ class ForagingRollService extends EventTarget {
         if (!native) return;
         const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
         const total = Number(roll?.total ?? native?.total);
-        const result = { total, succeeded: total >= request.dc, automatic: false, resolvedBy: game.user.id };
+        const natural = naturalD20(roll);
+        const succeeded = total >= request.dc;
+        const result = { total, natural, succeeded, foodFound: foragingFoodFound({ succeeded, total, natural }), automatic: false, resolvedBy: game.user.id };
         if (game.user.isGM) {
           const current = await getActiveJourney();
           const pending = current?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === request.id);
           if (pending) await this.#record(current, pending, result);
-        } else game.socket.emit(SOCKET, { type: "foragingRoll.result", requestId: request.id, result });
+        } else await this.#channel.executeAsGM("foragingRoll.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
         return total;
       }}]
     });
@@ -113,28 +127,33 @@ class ForagingRollService extends EventTarget {
   async #record(journey, request, result) {
     journey.currentDay.foragingResults ??= [];
     journey.currentDay.foragingResults = journey.currentDay.foragingResults.filter(candidate => candidate.actorUuid !== request.actorUuid);
-    journey.currentDay.foragingResults.push({ requestId: request.id, actorUuid: request.actorUuid, actorName: request.actorName, dc: request.dc, ...result, resolvedAt: Date.now() });
+    const foodFound = result.foodFound ?? foragingFoodFound(result);
+    journey.currentDay.foragingResults.push({ requestId: request.id, actorUuid: request.actorUuid, actorName: request.actorName, dc: request.dc, ...result, foodFound, resolvedAt: Date.now() });
     journey.currentDay.pendingForagingRolls = (journey.currentDay.pendingForagingRolls ?? []).filter(candidate => candidate.id !== request.id);
     const successes = journey.currentDay.foragingResults.filter(candidate => candidate.succeeded);
-    const partySize = journey.travelers.length;
     journey.currentDay.foragingResolution = {
-      successfulActorUuids: successes.map(candidate => candidate.actorUuid),
-      failedActorUuids: journey.travelers.filter(traveler => !successes.some(candidate => candidate.actorUuid === traveler.actorUuid)).map(traveler => traveler.actorUuid),
-      foodRequired: partySize - successes.length,
-      waterRequired: successes.length ? 0 : partySize * 4,
-      waterSourceFound: successes.length > 0,
+      ...resolveForagingResults(journey.travelers, journey.currentDay.foragingResults),
       resourcesDC: journey.routeSnapshot.resourcesDC,
       resolvedAt: Date.now()
     };
     if (journey.currentDay.pendingForagingRolls.length === 0) {
+      const travelerUuids = journey.travelers.map(traveler => traveler.actorUuid);
+      const partyActorUuid = journey.partyActorUuid
+        ?? journey.supplies?.partyActorUuid
+        ?? supplies.findPartyActor(travelerUuids)?.uuid
+        ?? null;
+      journey.currentDay.foragingResolution.refilledWaterContainers = successes.length
+        ? await supplies.refillWaterContainers([...travelerUuids, partyActorUuid])
+        : [];
+      journey.currentDay.foragingResolution.excessRationsAdded = await supplies.addRations(journey.currentDay.foragingResolution.excessFoodByActorUuid);
       journey.supplies = await supplies.build({
-        travelerUuids: journey.travelers.map(traveler => traveler.actorUuid),
-        partyActorUuid: journey.partyActorUuid
+        travelerUuids,
+        partyActorUuid
       });
       journey.currentDay.supplyResolution = null;
     }
     await saveActiveJourney(journey);
-    game.socket.emit(SOCKET, { type: "foragingRoll.resolved", requestId: request.id });
+    if (request.userId !== game.user.id) await this.#channel.executeAsUser("foragingRoll.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     this.#updated();
   }
 

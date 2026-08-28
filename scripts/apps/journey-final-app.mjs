@@ -1,21 +1,27 @@
 import { resolveEncounterRoll } from "../domain/encounter-rules.mjs";
+import { assignedWatchIndexes, CAMP_WATCH_COUNT } from "../domain/camp-watch-rules.mjs";
 import { nightEncountersEnabled } from "../core/journey-settings.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
 import { JourneyV14Application as BaseJourneyApplication } from "./journey-v14-app.mjs";
+import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 
 export class JourneyFinalApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = { actions: { rollNightEncounter: this.rollNightEncounter } };
 
   static async rollNightEncounter(event) {
     event.preventDefault();
+    const rollButton = event.target.closest("[data-action='rollNightEncounter']");
+    if (rollButton) rollButton.disabled = true;
     try {
       const journey = await getActiveJourney();
       if (!nightEncountersEnabled()) throw new Error("Night Encounters are disabled in Journeys Settings.");
-      const watches = (journey.currentDay?.campWatches ?? []).filter(watch => watch.actorUuid);
-      if (!watches.length) throw new Error("Assign at least one watch before rolling the night encounter.");
+      if (journey.currentDay?.nightEncounterCheck) throw new Error("The night encounter has already been rolled.");
+      if (this.element.querySelector("select[name^='watchAction']")) journey.currentDay.campWatches = readCampAssignments(this.element, journey);
+      const assignments = journey.currentDay?.campWatches ?? [];
+      const watches = assignments.filter(watch => watch.actorUuid && assignedWatchIndexes(watch).length);
       const fireRequired = new Set(["Craft", "Cook", "Prepare"]);
-      if (!journey.currentDay?.campfire && watches.some(watch => fireRequired.has(watch.action))) throw new Error("Craft, Cook, and Prepare require a campfire. Change those actions or light a fire.");
+      if (!journey.currentDay?.campfire && assignments.some(watch => fireRequired.has(watch.action))) throw new Error("Craft, Cook, and Prepare require a campfire. Change those actions or light a fire.");
       const anyTent = journey.currentDay?.campSleepPlan?.entries?.some(entry => entry.equipment?.tent)
         || (journey.supplies?.items ?? []).some(item => item.category === "tent" && item.sourceType !== "group" && Number(item.availableQuantity ?? 0) > 0);
       const setupQuality = journey.currentDay?.campfire ? "excellent" : anyTent ? "ordinary" : "poor";
@@ -33,13 +39,14 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
       result.routeDanger = Number(journey.routeSnapshot.danger ?? 0);
       result.stoppedDangerReduction = journey.currentDay?.pace === "stopped" ? -1 : 0;
       if (["minor", "nightAttack"].includes(result.outcome)) {
-        const watchRoll = await new Roll(`1d${watches.length}`).evaluate();
-        const selected = watches[Number(watchRoll.total) - 1];
-        Object.assign(result, { watchRoll: Number(watchRoll.total), watchIndex: selected.index, watcherActorUuid: selected.actorUuid, watcherActorName: selected.actorName, campAction: selected.action });
-        if (result.outcome === "nightAttack") {
+        const watchRoll = await new Roll(`1d${CAMP_WATCH_COUNT}`).evaluate();
+        const watchIndex = Number(watchRoll.total) - 1;
+        const selected = watches.find(entry => assignedWatchIndexes(entry).includes(watchIndex));
+        Object.assign(result, { watchRoll: Number(watchRoll.total), watchIndex, watcherActorUuid: selected?.actorUuid ?? null, watcherActorName: selected?.actorName ?? "Unwatched", campAction: selected?.action ?? null, unwatched: !selected });
+        if (result.outcome === "nightAttack" && selected) {
           journey.currentDay.sleepInterruptions ??= [];
           journey.currentDay.sleepInterruptions = journey.currentDay.sleepInterruptions.filter(item => item.actorUuid !== selected.actorUuid);
-          journey.currentDay.sleepInterruptions.push({ actorUuid: selected.actorUuid, actorName: selected.actorName, watchIndex: selected.index, reason: "combat", suggestedHours: 1, hours: 1, recordedAt: Date.now() });
+          journey.currentDay.sleepInterruptions.push({ actorUuid: selected.actorUuid, actorName: selected.actorName, watchIndex, reason: "combat", suggestedHours: 1, hours: 1, recordedAt: Date.now() });
         }
       }
       journey.currentDay.nightEncounterCheck = { ...result, setupQuality, campfire: Boolean(journey.currentDay?.campfire), pendingSleepConfirmation: true, rolledAt: Date.now() };
@@ -54,6 +61,6 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
         } else await campPerceptionRollService.request({ watchIndex: result.watchIndex, actorUuid: result.watcherActorUuid, action: result.campAction });
       }
       await this.render({ force: true });
-    } catch (error) { ui.notifications.error(error.message); }
+    } catch (error) { if (rollButton) rollButton.disabled = false; ui.notifications.error(error.message); }
   }
 }

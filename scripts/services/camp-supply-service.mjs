@@ -1,5 +1,5 @@
 export class CampSupplyService {
-  buildSleepPlan({ travelers = [], supplies = {}, assignments = {}, extremeWeather = false, coldWeather = false, peacefulNight = false } = {}) {
+  buildSleepPlan({ travelers = [], supplies = {}, assignments = {}, extremeWeather = false, coldWeather = false, peacefulNight = false, baseDC = 10 } = {}) {
     const usage = { tent: 0, bedroll: 0, blanket: 0 };
     const entries = travelers.map(traveler => {
       const selected = assignments[traveler.actorUuid] ?? {};
@@ -21,9 +21,11 @@ export class CampSupplyService {
       return {
         actorUuid: traveler.actorUuid,
         actorName: traveler.name,
+        requiredSleepHours: Math.max(1, Number(traveler.longRestHours ?? 6)),
+        requiredSleepHoursSource: traveler.longRestHoursSource ?? "Standard Long Rest sleep requirement",
         equipment: { tent: Boolean(selected.tent), bedroll: Boolean(selected.bedroll), blanket: Boolean(selected.blanket) },
-        dc: Math.max(0, 10 + modifiers.reduce((sum, modifier) => sum + modifier.value, 0)),
-        baseDC: 10,
+        dc: Math.max(0, Number(baseDC) + modifiers.reduce((sum, modifier) => sum + modifier.value, 0)),
+        baseDC: Number(baseDC),
         modifiers,
         owned
       };

@@ -18,11 +18,6 @@
   </section>
 
   <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-bed"></i> Sleep Deprivation</h3><p>By default Journeys uses Xanathar-style escalating Constitution saves when a character fails to complete a Long Rest.</p></div></div>
-    <label class="ml-journeys-setting-row"><span><strong>Do not add Exhaustion level for lack of sleep</strong><small>The character still receives no Long Rest benefits, but Journeys skips the deprivation save and Exhaustion.</small></span><input type="checkbox" name="suppressSleepDeprivationExhaustion" {{#if settings.suppressSleepDeprivationExhaustion}}checked{{/if}}></label>
-  </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
     <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-list-check"></i> Travel Phases</h3><p>Disabled phases are visibly skipped and logged. Pace defaults to Normal and Navigation defaults to success when disabled.</p></div></div>
     <div class="ml-journeys-settings__grid">
       <label class="ml-journeys-setting-row"><span><strong>Weather</strong></span><input type="checkbox" name="phase-weather" {{#if settings.phases.weather}}checked{{/if}}></label>
@@ -39,11 +34,36 @@
   </section>
 
   <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-dice"></i> Encounter Checks</h3><p>Control how journey encounter checks are rolled and shown.</p></div></div>
-    <div class="ml-journeys-settings__grid">
-      <label class="ml-journeys-setting-row"><span><strong>Encounter Check Method</strong><small>The GM or one active party owner rolls the day's d100 check; Danger modifies the result.</small></span><select name="encounterRollMode"><option value="gm" {{#if (eq settings.encounterRollMode "gm")}}selected{{/if}}>GM rolls d100</option><option value="players" {{#if (eq settings.encounterRollMode "players")}}selected{{/if}}>Player rolls d100</option></select></label>
-      <label class="ml-journeys-setting-row"><span><strong>Player Encounter Roll Visibility</strong><small>Foundry visibility used for encounter checks rolled by players.</small></span><select name="playerEncounterVisibility"><option value="publicroll" {{#if (eq settings.playerEncounterVisibility "publicroll")}}selected{{/if}}>Public Roll — visible to everyone</option><option value="gmroll" {{#if (eq settings.playerEncounterVisibility "gmroll")}}selected{{/if}}>Private GM Roll — roller and GM</option><option value="blindroll" {{#if (eq settings.playerEncounterVisibility "blindroll")}}selected{{/if}}>Blind GM Roll — GM only</option></select></label>
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-compass"></i> Discovery DCs</h3><p>Perception DC presets offered when a new route is created. Existing journeys keep their recorded DC.</p></div></div>
+    <div class="ml-journeys-settings__grid">{{#each dcGroups.discovery}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-discovery-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-map"></i> Navigation DCs</h3><p>Survival DC presets offered for route navigation terrain and difficulty.</p></div></div>
+    <div class="ml-journeys-settings__grid">{{#each dcGroups.navigation}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-navigation-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-wheat-awn"></i> Foraging & Supply DCs</h3><p>Survival DC presets for terrain plus the escalating Constitution saves caused by hunger.</p></div></div>
+    <div class="ml-journeys-settings__grid">{{#each dcGroups.foraging}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-foraging-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}
+      <label class="ml-journeys-setting-row"><span><strong>First hunger save</strong></span><input type="number" name="dc-hungerBase" min="0" max="50" step="1" value="{{settings.dc.hungerBase}}"></label>
+      <label class="ml-journeys-setting-row"><span><strong>Hunger DC increase per day</strong></span><input type="number" name="dc-hungerIncrease" min="0" max="50" step="1" value="{{settings.dc.hungerIncrease}}"></label>
     </div>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-person-running"></i> Press On DC</h3><p>Constitution saving throw made by each traveler who presses on for an additional third of a day.</p></div></div>
+    <label class="ml-journeys-setting-row"><span><strong>Forced march save</strong></span><input type="number" name="dc-pressOn" min="0" max="50" step="1" value="{{settings.dc.pressOn}}"></label>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-bed"></i> Sleep & Shelter DCs</h3><p>Base sleep check and Xanathar-style escalating Constitution saves when a character fails to complete a Long Rest.</p></div></div>
+    <div class="ml-journeys-settings__grid">
+      <label class="ml-journeys-setting-row"><span><strong>Base sleep check</strong></span><input type="number" name="dc-sleepBase" min="0" max="50" step="1" value="{{settings.dc.sleepBase}}"></label>
+      <label class="ml-journeys-setting-row"><span><strong>First sleep-deprivation save</strong></span><input type="number" name="dc-sleepDeprivationBase" min="0" max="50" step="1" value="{{settings.dc.sleepDeprivationBase}}"></label>
+      <label class="ml-journeys-setting-row"><span><strong>Sleep-deprivation DC increase</strong></span><input type="number" name="dc-sleepDeprivationIncrease" min="0" max="50" step="1" value="{{settings.dc.sleepDeprivationIncrease}}"></label>
+    </div>
+    <label class="ml-journeys-setting-row"><span><strong>Do not add Exhaustion level for lack of sleep</strong><small>The character still receives no Long Rest benefits, but Journeys skips the deprivation save and Exhaustion.</small></span><input type="checkbox" name="suppressSleepDeprivationExhaustion" {{#if settings.suppressSleepDeprivationExhaustion}}checked{{/if}}></label>
   </section>
 
   <footer class="ml-actions ml-journeys-settings__footer"><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button></footer>

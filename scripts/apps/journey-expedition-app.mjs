@@ -2,9 +2,11 @@ import { Dnd5eJourneyAdapter } from "../adapters/dnd5e-journey-adapter.mjs";
 import { readyJourney } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
+import { validateExpeditionRoles } from "../domain/expedition-role-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { SupplyManifestService } from "../services/supply-manifest-service.mjs";
 import { JourneyApplication as BaseJourneyApplication } from "./journey-dashboard-app.mjs";
+import { bindExclusiveRoleSelects, synchronizeExclusiveRoleSelects } from "../ui/exclusive-role-controls.mjs";
 
 const dnd5e = new Dnd5eJourneyAdapter();
 const supplies = new SupplyManifestService();
@@ -86,6 +88,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     grid.append(navigatorField, observer.field, quartermaster.field);
     section.append(heading, grid);
     planner.append(section);
+    const navigator = navigatorField.querySelector("select");
 
     const synchronize = () => {
       const selectedUuids = Array.from(travelerList.querySelectorAll("input:checked"), input => input.value);
@@ -98,6 +101,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       for (const traveler of selected) {
         option(observer.select, { value: traveler.uuid, label: traveler.name, selected: traveler.uuid === priorObserver });
       }
+      synchronizeExclusiveRoleSelects(navigator, observer.select);
       if (party) option(quartermaster.select, {
         value: party.uuid,
         label: `${party.name} (shared inventory)`,
@@ -113,6 +117,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     };
     travelerList.addEventListener("change", synchronize);
     synchronize();
+    bindExclusiveRoleSelects(navigator, observer.select);
   }
 
   #renderRoles(context) {
@@ -121,7 +126,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const progress = this.element.querySelector(".journey-progress")?.closest("section");
     if (!progress) return;
     const panel = document.createElement("section");
-    panel.className = "ml-journeys-panel journey-card journey-roles-panel";
+    panel.className = "ml-card ml-stack journey-roles-panel";
     const header = document.createElement("h2");
     header.textContent = neededRole === "navigator" ? "Navigator" : "Observer";
     const grid = document.createElement("div");
@@ -132,10 +137,17 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       option(navigator.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.navigatorUuid });
       option(observer.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.observerUuid });
     }
+    const otherRoleUuid = neededRole === "navigator" ? context.journey.roles?.observerUuid : context.journey.roles?.navigatorUuid;
+    const activeSelect = neededRole === "navigator" ? navigator.select : observer.select;
+    for (const entry of activeSelect.options) entry.disabled = entry.value === otherRoleUuid;
     const active = neededRole === "navigator" ? navigator : observer;
     grid.append(active.field);
     const saveOnChange = async () => {
       const journey = await getActiveJourney();
+      validateExpeditionRoles({
+        navigatorUuid: neededRole === "navigator" ? active.select.value : journey.roles.navigatorUuid,
+        observerUuid: neededRole === "observer" ? active.select.value : journey.roles.observerUuid
+      });
       journey.roles[`${neededRole}Uuid`] = active.select.value;
       await saveActiveJourney(journey);
     };
@@ -151,7 +163,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     if (!roles) return;
     const manifest = context.journey.supplies ?? {};
     const panel = document.createElement("section");
-    panel.className = "ml-surface ml-journeys-panel journey-card journey-supply-panel";
+    panel.className = "ml-surface ml-stack journey-supply-panel";
     const header = document.createElement("div");
     header.className = "journey-progress-label";
     const title = document.createElement("h2");
@@ -203,7 +215,8 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       items.append(empty);
     }
     panel.append(header, totals, items);
-    roles.after(panel);
+    const readyForRoad = context.canBeginDay ? this.element.querySelector(".ml-empty-state") : null;
+    (readyForRoad ?? roles).after(panel);
   }
 
   static async createJourney(event) {
@@ -212,10 +225,12 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       const travelerUuids = Array.from(this.element.querySelectorAll("[name='travelerUuid']:checked"), input => input.value);
       if (!travelerUuids.length) throw new Error("Select at least one traveler.");
       const actors = (await Promise.all(travelerUuids.map(uuid => fromUuid(uuid)))).filter(Boolean);
+      const longRestHours = new Map(Array.from(this.element.querySelectorAll("[name='longRestHours']"), input => [input.dataset.actorUuid, Number(input.value)]));
       const navigatorUuid = value(this.element, "navigatorUuid");
       const observerUuid = value(this.element, "observerUuid");
       const quartermasterUuid = value(this.element, "quartermasterUuid");
       if (!navigatorUuid || !observerUuid || !quartermasterUuid) throw new Error("Assign all expedition roles.");
+      validateExpeditionRoles({ navigatorUuid, observerUuid });
 
       const route = createRoute({
         id: crypto.randomUUID(), name: value(this.element, "routeName"),
@@ -227,7 +242,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       });
       let journey = createJourney({
         id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,
-        travelers: actors.map(actor => dnd5e.snapshotTraveler(actor))
+        travelers: actors.map(actor => dnd5e.snapshotTraveler(actor, { longRestHours: longRestHours.get(actor.uuid) }))
       });
       const partyActor = supplies.findPartyActor(travelerUuids);
       journey.partyActorUuid = partyActor?.uuid ?? null;
@@ -246,9 +261,12 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   static async saveRoles(event) {
     event.preventDefault();
     const journey = await getActiveJourney();
-    journey.roles = {
+    journey.roles = validateExpeditionRoles({
       navigatorUuid: value(this.element, "activeNavigatorUuid"),
-      observerUuid: value(this.element, "activeObserverUuid"),
+      observerUuid: value(this.element, "activeObserverUuid")
+    });
+    journey.roles = {
+      ...journey.roles,
       quartermasterUuid: value(this.element, "activeQuartermasterUuid")
     };
     await saveActiveJourney(journey);

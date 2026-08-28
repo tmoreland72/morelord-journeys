@@ -1,4 +1,5 @@
 import { JourneyRoleApplication as BaseJourneyApplication } from "./journey-role-app.mjs";
+import { getDCConfiguration } from "../core/journey-settings.mjs";
 
 const HELP = Object.freeze({
   navigator: {
@@ -36,9 +37,9 @@ const HELP = Object.freeze({
   weather: { title: "Weather", content: "First roll 1d20; a 1 means extreme weather. Then roll a compatible seasonal forecast. Extreme weather costs ⅓ day, gives Navigation disadvantage, and adds 5 to sleep DCs. Clear weather cannot be selected as extreme." },
   pace: { title: "Pace", content: "Stopped = 0 thirds and advantage on forage/sleep; Slow = ⅔ day and foraging advantage; Normal = 1 day; Fast = 1⅓ days, foraging disadvantage, and -5 to the highest passive Perception." },
   encounters: { title: "Day Encounters", content: "Roll one d100. 1–40 none, 41–60 signs, 61–85 minor hazard/discovery/social, 86+ major. Danger and every applicable route, pace, and weather modifier change the total. Journeys shows the highest party passive Perception." },
-  discovery: { title: "Discovery", content: "The Observer rolls Perception against Discovery DC. Success reveals a clue. Pursuit normally costs ⅓ day, but the GM may select 0, ⅓, ⅔, or 1 day. The optional d100 produces a prompt, not a complete discovery." },
+  discovery: { title: "Discovery", content: "The Observer rolls Perception against the Discovery DC. A success reveals a clue, and the optional d100 provides a prompt rather than a complete discovery. The players decide whether to investigate. If they do, close Journeys and run the discovered location, event, dungeon, or scene normally. When the party is ready to resume traveling, reopen Journeys and record the actual elapsed time in Days and Thirds before continuing. Enter zero only when the lead was ignored or the Observer check failed; a failed check always costs no time." },
   navigation: { title: "Navigation", content: "Meet the DC to apply movement. Fail by 1–4 for Lost and no progress. Fail by 5+ for Turned Around and add one full day to the remaining journey. Extreme weather imposes disadvantage." },
-  pressOn: { title: "Press On", content: "Add ⅓ day of movement. Every traveler must make a DC 12 Constitution save; failure adds one Exhaustion. Resolve all player requests before continuing." },
+  pressOn: { title: "Press On", content: "Add ⅓ day of movement. Every traveler must make the configured Constitution save; failure adds one Exhaustion. Resolve all player requests before continuing." },
   foraging: { title: "Foraging & Supplies", content: "Success provides that traveler a full meal. Failure consumes one pooled ration. Any success finds water for everyone and refills containers; otherwise each Medium traveler consumes 4 pooled pints." },
   camp: { title: "Camp", content: "Assignments save automatically. Craft, Cook, and Prepare require fire. Fire creates excellent setup but attracts attention; no fire and no tents is poor setup. One night d100 selects an affected watch when interrupted." },
   sleep: { title: "Sleep & Shelter", content: "Each traveler uses only personally owned shelter. Record sleep hours and interruption minutes, then roll the Constitution sleep check. Six hours, less than 60 interrupted minutes, and a successful check are required for a Long Rest." }
@@ -95,12 +96,15 @@ export class JourneyContextHelpApplication extends BaseJourneyApplication {
   #attachHelpButtons() {
     for (const [fieldName, helpId] of Object.entries(FIELD_HELP)) {
       const field = this.element.querySelector(`[name='${fieldName}']`);
-      const heading = field?.closest("label")?.querySelector(":scope > span");
+      const group = field?.closest(".ml-field-group");
+      const heading = group?.querySelector(":scope > legend") ?? field?.closest("label")?.querySelector(":scope > span");
       if (!heading || heading.querySelector(".journey-help-button")) continue;
       heading.classList.add("journey-field-heading");
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "journey-help-button";
+      button.className = "ml-icon-button journey-help-button";
+      button.dataset.size = "compact";
+      button.dataset.variant = "ghost";
       button.dataset.help = helpId;
       button.setAttribute("aria-label", `About ${HELP[helpId].title}`);
       button.dataset.tooltip = `About ${HELP[helpId].title}`;
@@ -120,7 +124,9 @@ export class JourneyContextHelpApplication extends BaseJourneyApplication {
     if (phase && phaseId && !phase.querySelector(".journey-help-button")) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "journey-help-button";
+      button.className = "ml-icon-button journey-help-button";
+      button.dataset.size = "compact";
+      button.dataset.variant = "ghost";
       button.dataset.help = phaseId;
       button.setAttribute("aria-label", `Explain ${HELP[phaseId].title} outcomes`);
       button.dataset.tooltip = `Explain ${HELP[phaseId].title} outcomes`;
@@ -131,7 +137,10 @@ export class JourneyContextHelpApplication extends BaseJourneyApplication {
   }
 
   async #showHelp(helpId) {
-    const help = HELP[helpId];
+    const source = HELP[helpId];
+    const help = helpId === "pressOn" && source
+      ? { ...source, content: source.content.replace("the configured Constitution save", `a DC ${getDCConfiguration().pressOn} Constitution save`) }
+      : source;
     if (!help) return;
     await foundry.applications.api.DialogV2.prompt({
       window: { title: help.title, icon: "fa-solid fa-circle-question" },

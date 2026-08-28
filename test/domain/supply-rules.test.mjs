@@ -18,3 +18,9 @@ test("negative Constitution modifiers reduce the hunger grace period", () => {
   assert.equal(hungerThreshold(-2), 1);
   assert.equal(hungerSaveDC(2, -2), 10);
 });
+
+
+test("hunger saves accept configured starting and escalation DCs", () => {
+  assert.equal(hungerSaveDC(4, 0, { base: 8, increase: 3 }), 8);
+  assert.equal(hungerSaveDC(6, 0, { base: 8, increase: 3 }), 14);
+});

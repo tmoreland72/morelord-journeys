@@ -1,8 +1,9 @@
 import { MODULE_ID } from "../domain/constants.mjs";
 import { hungerSaveDC, hungerThreshold } from "../domain/supply-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-
-const SOCKET = `module.${MODULE_ID}`;
+import { requestRecipientForActor } from "./client-request-routing-service.mjs";
+import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
+import { getDCConfiguration } from "../core/journey-settings.mjs";
 
 async function addExhaustion(actorUuid, amount = 1) {
   const actor = await fromUuid(actorUuid);
@@ -14,11 +15,15 @@ async function addExhaustion(actorUuid, amount = 1) {
 class SupplyConsequenceService extends EventTarget {
   #started = false;
   #dialogs = new Map();
+  #channel = null;
 
   start() {
     if (this.#started) return;
     this.#started = true;
-    game.socket.on(SOCKET, message => void this.#receive(message));
+    this.#channel = getMorelordSocketChannel();
+    this.#channel.on("supplySave.request", data => this.#receive({ type: "supplySave.request", ...data }));
+    this.#channel.on("supplySave.result", data => this.#receive({ type: "supplySave.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
+    this.#channel.on("supplySave.resolved", data => this.#receive({ type: "supplySave.resolved", ...data }));
   }
 
   async begin() {
@@ -28,7 +33,7 @@ class SupplyConsequenceService extends EventTarget {
     const forage = journey?.currentDay?.foragingResolution;
     if (!supply || !forage) throw new Error("Resolve daily supplies first.");
     if (journey.currentDay?.supplyConsequences) return;
-    const foodActors = supply.shortageActorUuids?.food ?? forage.failedActorUuids.slice(0, supply.shortages.food);
+    const foodActors = supply.shortageActorUuids?.food ?? (forage.foodActorUuids ?? forage.failedActorUuids).slice(0, supply.shortages.food);
     const waterActors = supply.shortageActorUuids?.water ?? journey.travelers.slice(0, supply.shortages.water).map(traveler => traveler.actorUuid);
     for (const actorUuid of waterActors) await addExhaustion(actorUuid, 1);
     const hungerResults = [];
@@ -46,12 +51,14 @@ class SupplyConsequenceService extends EventTarget {
       await actor.setFlag(MODULE_ID, "daysWithoutFood", daysWithoutFood);
       const conModifier = Number(actor.system?.abilities?.con?.mod ?? 0);
       const threshold = hungerThreshold(conModifier);
-      const dc = hungerSaveDC(daysWithoutFood, conModifier);
+      const config = getDCConfiguration();
+      const dc = hungerSaveDC(daysWithoutFood, conModifier, { base: config.hungerBase, increase: config.hungerIncrease });
       const saveRequired = dc !== null;
       hungerResults.push({ actorUuid, actorName: actor.name, daysWithoutFood, threshold, ateFullMeal: false, saveRequired, dc, exhaustionChange: 0 });
       if (saveRequired) {
-        const user = game.users.find(candidate => candidate.active && !candidate.isGM && (candidate.character?.uuid === actor.uuid || actor.testUserPermission?.(candidate, "OWNER"))) ?? game.user;
-        requests.push({ id: crypto.randomUUID(), actorUuid, actorName: actor.name, userId: user.id, dc, daysWithoutFood, threshold });
+        const recipient = requestRecipientForActor(actor);
+        if (!recipient) continue;
+        requests.push({ id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, actorUuid, actorName: actor.name, userId: recipient.user.id, fallbackToGM: recipient.fallbackToGM, dc, daysWithoutFood, threshold });
       }
     }
     journey.currentDay.supplyConsequences = { foodActorUuids: foodActors, waterActorUuids: waterActors, hungerResults, results: [], resolved: requests.length === 0, startedAt: Date.now() };
@@ -59,7 +66,7 @@ class SupplyConsequenceService extends EventTarget {
     await saveActiveJourney(journey);
     for (const request of requests) {
       if (request.userId === game.user.id) await this.#open(request);
-      else game.socket.emit(SOCKET, { type: "supplySave.request", request });
+      else await this.#channel.executeAsUser("supplySave.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     }
     this.#updated();
   }
@@ -108,7 +115,7 @@ class SupplyConsequenceService extends EventTarget {
           const current = await getActiveJourney();
           const pending = current?.currentDay?.pendingSupplySaves?.find(candidate => candidate.id === request.id);
           if (pending) await this.#record(current, pending, result);
-        } else game.socket.emit(SOCKET, { type: "supplySave.result", requestId: request.id, result });
+        } else await this.#channel.executeAsGM("supplySave.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
         return total;
       }}]
     });
@@ -122,7 +129,7 @@ class SupplyConsequenceService extends EventTarget {
     journey.currentDay.pendingSupplySaves = journey.currentDay.pendingSupplySaves.filter(candidate => candidate.id !== request.id);
     journey.currentDay.supplyConsequences.resolved = journey.currentDay.pendingSupplySaves.length === 0;
     await saveActiveJourney(journey);
-    game.socket.emit(SOCKET, { type: "supplySave.resolved", requestId: request.id });
+    if (request.userId !== game.user.id) await this.#channel.executeAsUser("supplySave.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     this.#updated();
   }
 

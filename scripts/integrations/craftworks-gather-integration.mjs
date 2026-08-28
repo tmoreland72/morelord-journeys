@@ -10,17 +10,18 @@ export class CraftworksGatherIntegration {
   }
 
   isAvailable() {
-    return Boolean(this.api?.openGather);
+    return Boolean(this.api?.open ?? this.api?.openCraftworks ?? this.api?.openGather);
   }
 
   async open() {
     if (!this.isAvailable()) {
-      throw new Error("Morelord Craftworks Gather is not available.");
+      throw new Error("Morelord Craftworks is not available.");
     }
     if (!game.user.isGM) {
-      throw new Error("Only the GM can initiate gathering.");
+      throw new Error("Only the GM can launch Morelord Craftworks.");
     }
-    return this.api.openGather();
+    const open = this.api.open ?? this.api.openCraftworks ?? this.api.openGather;
+    return open.call(this.api);
   }
 
   snapshot() {
@@ -32,14 +33,12 @@ export class CraftworksGatherIntegration {
       };
     }
 
-    const records = this.api.gather?.getSceneGatherRecords?.() ?? {};
     return {
       available: true,
       moduleId: CRAFTWORKS_MODULE_ID,
       active: true,
       sceneId: canvas.scene?.id ?? null,
-      sceneName: canvas.scene?.name ?? null,
-      gatherRecordCount: Object.keys(records).length
+      sceneName: canvas.scene?.name ?? null
     };
   }
 }

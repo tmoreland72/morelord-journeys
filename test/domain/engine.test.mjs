@@ -62,10 +62,28 @@ test("failed navigation applies no route progress", () => {
   assert.equal(result.remainingSteps, 12);
 });
 
+test("pressing on still advances one third when navigation is lost", () => {
+  let current = beginTravelDay(readyJourney(makeJourney()));
+  for (const phase of TRAVEL_PHASES.slice(0, -1)) {
+    const result = phase === "pace" ? { pace: "normal" } : phase === "navigation" ? { outcome: "lost" } : {};
+    current = recordPhase(current, phase, result);
+    if (phase === "pressOn") current = addProgressModifier(current, { id: "press-on", label: "Pressed on", steps: 1 });
+  }
+  const completed = completeTravelDay(current);
+  assert.equal(completed.progressSteps, 1);
+  assert.equal(completed.remainingSteps, 11);
+});
+
 test("turned-around navigation adds exactly one day to distance remaining", () => {
   const result = resolveDay(readyJourney(makeJourney()), { pace: "fast", navigation: "reversed" });
   assert.equal(result.progressSteps, 0);
   assert.equal(result.remainingSteps, 15);
+});
+
+test("a navigation shortcut advances one additional third day", () => {
+  const result = resolveDay(readyJourney(makeJourney()), { pace: "normal", navigation: "shortcut" });
+  assert.equal(result.progressSteps, 4);
+  assert.equal(result.remainingSteps, 8);
 });
 
 test("arrival clamps progress to the route length", () => {

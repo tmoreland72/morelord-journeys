@@ -1,40 +1,39 @@
-import { getEncounterRollMode } from "../core/journey-settings.mjs";
-import { automaticDayEncounterModifiers, resolveEncounterRoll } from "../domain/encounter-rules.mjs";
-import { MODULE_ID } from "../domain/constants.mjs";
-import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-import { encounterRollService } from "../services/encounter-roll-service.mjs";
+import { getActiveJourney } from "../foundry/settings-repository.mjs";
 import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyCampApplication as BaseJourneyApplication } from "./journey-camp-app.mjs";
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
+import { primaryActionSelectors, setPrimaryAction } from "../ui/primary-action.mjs";
+import { createEncountersCallout } from "../ui/encounters-callout.mjs";
 
-const SOCKET = `module.${MODULE_ID}`;
 export class JourneyV14Application extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
     actions: {
       resendRoleRoll: this.resendRoleRoll,
-      requestPlayerEncounterRolls: this.requestPlayerEncounterRolls,
-      rollEncounterChecks: this.rollEncounterChecks,
       openMorelordEncounters: this.openMorelordEncounters
     }
   };
 
-  #encounterUpdated = () => { if (this.rendered) void this.render({ force: true }); };
-
-  constructor(options = {}) {
-    super(options);
-    encounterRollService.addEventListener("updated", this.#encounterUpdated);
-  }
-
-  async close(options = {}) {
-    encounterRollService.removeEventListener("updated", this.#encounterUpdated);
-    return super.close(options);
-  }
+  #primaryActionObserver = null;
 
   async _onRender(context, options) {
     await super._onRender(context, options);
     this.#moveCurrentPhaseToTop();
     this.#enforceSavedWatches(context);
     if (context.phaseIs?.encounters) this.#renderEncounterControls(context);
+    this.#watchPrimaryAction(context);
+  }
+
+  async close(options = {}) {
+    this.#primaryActionObserver?.disconnect();
+    return super.close(options);
+  }
+
+  #watchPrimaryAction(context) {
+    this.#primaryActionObserver?.disconnect();
+    const sync = () => setPrimaryAction(this.element, primaryActionSelectors(context));
+    sync();
+    this.#primaryActionObserver = new MutationObserver(sync);
+    this.#primaryActionObserver.observe(this.element, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden"] });
   }
 
   #moveCurrentPhaseToTop() {
@@ -51,26 +50,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
   #renderEncounterControls(context) {
     const panel = this.element.querySelector(".journey-encounter-check");
     if (!panel) return;
-    const mode = getEncounterRollMode();
-    const gmButton = panel.querySelector("[data-action='rollEncounterChecks']");
     const check = context.journey.currentDay?.encounterCheck;
-    if (mode === "players") {
-      gmButton?.remove();
-      if (!context.journey.currentDay?.pendingEncounterRolls?.length && !check) {
-        const request = document.createElement("button");
-        request.type = "button";
-        request.dataset.action = "requestPlayerEncounterRolls";
-        request.innerHTML = '<i class="fa-solid fa-users"></i> Request Player Encounter Rolls';
-        panel.append(request);
-      }
-      const pending = context.journey.currentDay?.pendingEncounterRolls ?? [];
-      if (pending.length) {
-        const status = document.createElement("p");
-        status.className = "journey-roll-pending";
-        status.textContent = `Waiting for ${pending.map(request => request.actorName).join(", ")}…`;
-        panel.append(status);
-      }
-    }
     if (check) {
       const label = { none: "No Encounter", signs: "Signs & Foreshadowing", minor: "Minor Encounter", major: "Major Encounter" }[check.outcome] ?? check.outcome;
       const descriptions = {
@@ -88,7 +68,9 @@ export class JourneyV14Application extends BaseJourneyApplication {
       value.textContent = `Party Passive Perception: ${check.highestPassivePerception ?? "unknown"}`;
       const help = document.createElement("button");
       help.type = "button";
-      help.className = "journey-help-button";
+      help.className = "ml-icon-button journey-help-button";
+      help.dataset.size = "compact";
+      help.dataset.variant = "ghost";
       help.setAttribute("aria-label", "Explain Party Passive Perception");
       help.dataset.tooltip = "Explain Party Passive Perception";
       help.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
@@ -103,6 +85,20 @@ export class JourneyV14Application extends BaseJourneyApplication {
       perception.append(value, help);
       summary.append(perception);
       panel.append(summary);
+      if (["minor", "major"].includes(check.outcome)) {
+        const delay = document.createElement("fieldset");
+        delay.className = "ml-field-group journey-encounter-delay";
+        delay.innerHTML = `<legend>Time Delay <button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" aria-label="Explain encounter time delay" data-tooltip="Explain encounter time delay"><i class="fa-solid fa-circle-question"></i></button></legend><div class="ml-field-group__controls"><label><span>Days</span><input name="encounterDelayDays" type="number" min="0" step="1" value="0"></label><label><span>Thirds</span><select name="encounterDelayThirds"><option value="0">0</option><option value="1">⅓</option><option value="2">⅔</option></select></label></div>`;
+        delay.querySelector("button").addEventListener("click", event => {
+          event.preventDefault();
+          void foundry.applications.api.DialogV2.prompt({
+            window: { title: "Encounter Time Delay", icon: "fa-solid fa-circle-question" },
+            content: "<div class='ml-journeys-help-content'><p>Record travel time lost while resolving this encounter. This can include a diversion, recovery, negotiation, investigation, or a longer encounter location. Use zero when the encounter causes no meaningful delay.</p></div>",
+            ok: { label: "Close" }
+          });
+        });
+        panel.append(delay);
+      }
       panel.append(createOutcomeDetails({ cards: [{ title: "Day Encounter Calculation", rows: [
         { label: "Raw d100", value: check.raw },
         { label: `Danger ${check.danger}`, value: `${check.dangerModifier >= 0 ? "+" : ""}${check.dangerModifier}` },
@@ -112,12 +108,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
         { label: "Party Passive Perception", value: check.highestPassivePerception }
       ] }] }));
       if (["minor", "major"].includes(check.outcome)) {
-        const open = document.createElement("button");
-        open.type = "button";
-        open.dataset.action = "openMorelordEncounters";
-        open.className = "journey-open-encounters journey-emphasis-button";
-        open.innerHTML = '<i class="fa-solid fa-hydra"></i> Open Morelord Encounters';
-        panel.append(open);
+        panel.append(createEncountersCallout());
       }
       const input = this.element.querySelector("[name='encounterCount']");
       if (input) input.value = check.encounterCount ?? 0;
@@ -181,31 +172,4 @@ export class JourneyV14Application extends BaseJourneyApplication {
     } catch (error) { ui.notifications.error(error.message); }
   }
 
-  static async requestPlayerEncounterRolls(event) {
-    event.preventDefault();
-    try {
-      const journey = await getActiveJourney();
-      const modifiers = automaticDayEncounterModifiers(journey);
-      await encounterRollService.requestPlayers({ modifiers }); await this.render({ force: true });
-    }
-    catch (error) { ui.notifications.error(error.message); }
-  }
-
-  static async rollEncounterChecks(event) {
-    event.preventDefault();
-    try {
-      const journey = await getActiveJourney();
-      if (journey.currentDay?.pace === "stopped") throw new Error("Stopped travel does not make a daytime encounter check.");
-      const roll = await new Roll("1d100").evaluate();
-      const actors = (await Promise.all(journey.travelers.map(traveler => fromUuid(traveler.actorUuid)))).filter(Boolean);
-      const passive = actors.map(actor => Number(actor.system?.skills?.prc?.passive ?? 10 + Number(actor.system?.skills?.prc?.total ?? 0)));
-      const pacePenalty = journey.currentDay?.pace === "fast" ? -5 : 0;
-      const modifiers = automaticDayEncounterModifiers(journey);
-      const result = resolveEncounterRoll({ raw: Number(roll.total), danger: journey.routeSnapshot.danger, modifiers });
-      journey.currentDay.encounterCheck = { ...result, mode: "gm", highestPassivePerception: (passive.length ? Math.max(...passive) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
-      await saveActiveJourney(journey);
-      await roll.toMessage({ flavor: `Morelord Journeys daytime encounter — ${result.outcome} (${result.modified})` });
-      await this.render({ force: true });
-    } catch (error) { ui.notifications.error(error.message); }
-  }
 }

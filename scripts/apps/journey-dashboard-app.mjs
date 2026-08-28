@@ -47,7 +47,7 @@ export class JourneyApplication extends BaseJourneyApplication {
   }
 
   #renderPartyPlanner(travelers) {
-    const ratings = this.element.querySelector(".journey-grid.ratings")?.previousElementSibling;
+    const ratings = this.element.querySelector(".ml-grid.ratings")?.previousElementSibling;
     if (!ratings) return;
     const section = document.createElement("section");
     section.className = "journey-party-planner";
@@ -67,20 +67,38 @@ export class JourneyApplication extends BaseJourneyApplication {
     list.className = "ml-grid ml-journeys-traveler-list";
     list.dataset.columns = "2";
     for (const traveler of travelers) {
-      const label = document.createElement("label");
-      label.className = "ml-choice-card ml-journeys-traveler";
+      const card = document.createElement("div");
+      card.className = "ml-choice-card ml-journeys-traveler";
       const input = document.createElement("input");
       input.type = "checkbox";
       input.name = "travelerUuid";
       input.value = traveler.uuid;
       input.checked = traveler.hasPlayerOwner;
+      input.setAttribute("aria-label", `Include ${traveler.name} in the expedition`);
       const image = document.createElement("img");
       image.src = traveler.img;
       image.alt = "";
-      const name = document.createElement("span");
+      const name = document.createElement("strong");
+      name.className = "journey-traveler-name";
       name.textContent = traveler.name;
-      label.append(input, image, name);
-      list.append(label);
+      const rest = document.createElement("span");
+      rest.className = "journey-traveler-rest-hours";
+      const restLabel = document.createElement("span");
+      restLabel.textContent = "Long Rest hours";
+      const restInput = document.createElement("input");
+      restInput.type = "number";
+      restInput.name = "longRestHours";
+      restInput.dataset.actorUuid = traveler.uuid;
+      restInput.min = "1";
+      restInput.max = "24";
+      restInput.step = "0.5";
+      restInput.value = traveler.longRestHours;
+      restInput.setAttribute("aria-label", `Long Rest hours required for ${traveler.name}`);
+      const restSource = document.createElement("small");
+      restSource.textContent = traveler.longRestHoursSource;
+      rest.append(restLabel, restInput, restSource);
+      card.append(input, image, name, rest);
+      list.append(card);
     }
     section.append(list);
 
@@ -114,32 +132,31 @@ export class JourneyApplication extends BaseJourneyApplication {
     const notesLabel = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!notesLabel) return;
     const panel = document.createElement("div");
-    panel.className = "ml-journeys-panel journey-card journey-craftworks-integration";
+    panel.className = "ml-callout journey-action-callout journey-craftworks-integration";
+    panel.dataset.tone = "success";
     const copy = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = context.craftworksGather.available ? "Morelord Craftworks available" : "Manual foraging";
+    title.textContent = "Optional Exploration Activities";
     const description = document.createElement("p");
-    description.textContent = context.craftworksGather.available
-      ? "Use Craftworks Gather for this foraging phase. Gather uses the current active scene."
-      : "Record the party's foraging results below. Enable Morelord Craftworks to use Gather.";
+    description.textContent = "This is a good opportunity for characters to gather materials, search the surrounding area, investigate local features, or perform other exploration activities. These activities are separate from food-and-water foraging checks and can be supported by Morelord Craftworks.";
     copy.append(title, description);
     panel.append(copy);
     if (context.craftworksGather.available) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.action = "openCraftworksGather";
-      button.classList.add("journey-emphasis-button");
-      button.textContent = "Open Morelord Craftworks - Gather";
+      button.classList.add("ml-button");
+      button.textContent = "Launch Morelord Craftworks";
       panel.append(button);
     }
     notesLabel.before(panel);
   }
 
   #renderNavigator(context) {
-    const outcome = this.element.querySelector("[name='navigationOutcome']")?.closest("label");
+    const outcome = this.element.querySelector("[data-navigation-result]");
     if (!outcome) return;
     const panel = document.createElement("div");
-    panel.className = "ml-journeys-panel journey-card journey-navigator-panel";
+    panel.className = "ml-card ml-grid journey-navigator-panel";
     const name = document.createElement("strong");
     name.textContent = context.navigator ? `Navigator: ${context.navigator.name}` : "No navigator assigned";
     const detail = document.createElement("p");
@@ -153,7 +170,8 @@ export class JourneyApplication extends BaseJourneyApplication {
     panel.append(name);
     if (prior) {
       const result = document.createElement("p");
-      result.className = `journey-roll-result ${prior.outcome}`;
+      result.className = "ml-status journey-roll-result";
+      result.dataset.tone = prior.outcome === "success" ? "success" : "danger";
       result.textContent = `Navigation: ${prior.outcome}.`;
       panel.append(result, createOutcomeDetails({ cards: [{ title: "Navigation Check", rows: [
         { label: "Character", value: prior.actorName },
@@ -161,8 +179,6 @@ export class JourneyApplication extends BaseJourneyApplication {
         { label: "Roll", value: prior.total ?? "Automatic success" },
         { label: "Outcome", value: prior.outcome }
       ] }] }), button);
-      const select = this.element.querySelector("[name='navigationOutcome']");
-      if (select) select.value = prior.outcome;
     } else panel.append(detail, button);
     outcome.before(panel);
   }
@@ -210,8 +226,6 @@ export class JourneyApplication extends BaseJourneyApplication {
     event.preventDefault();
     try {
       await craftworksGather.open();
-      const notes = this.element.querySelector("[name='foragingNotes']");
-      if (notes && !notes.value.trim()) notes.value = "Foraging handled through Morelord Craftworks Gather.";
     } catch (error) {
       console.error("Morelord Journeys | Unable to open Craftworks Gather.", error);
       ui.notifications.error(error.message);
@@ -224,7 +238,7 @@ export class JourneyApplication extends BaseJourneyApplication {
       const journey = await getActiveJourney();
       const result = await dnd5e.rollNavigation(journey);
       if (result.cancelled) return;
-      journey.currentDay.gmNavigationRoll = { actorUuid: result.actorUuid, actorName: result.actorName, dc: result.dc, total: result.total, outcome: result.outcome, rolledAt: Date.now() };
+      journey.currentDay.gmNavigationRoll = { actorUuid: result.actorUuid, actorName: result.actorName, dc: result.dc, total: result.total, natural: result.natural, outcome: result.outcome, rolledAt: Date.now() };
       await saveActiveJourney(journey);
       await this.render({ force: true });
     } catch (error) {

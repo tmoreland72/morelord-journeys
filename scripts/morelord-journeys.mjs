@@ -6,7 +6,6 @@ import * as engine from "./domain/engine.mjs";
 import { createJourney, validateJourney } from "./domain/journey.mjs";
 import { createRoute, validateRoute } from "./domain/route.mjs";
 import { clearActiveJourney, getActiveJourney, registerSettings, saveActiveJourney } from "./foundry/settings-repository.mjs";
-import { encounterRollService } from "./services/encounter-roll-service.mjs";
 import { campPerceptionRollService } from "./services/camp-perception-roll-service.mjs";
 import { foragingRollService } from "./services/foraging-roll-service.mjs";
 import { forcedMarchRollService } from "./services/forced-march-roll-service.mjs";
@@ -14,6 +13,7 @@ import { peacefulRestService } from "./services/peaceful-rest-service.mjs";
 import { roleRollService } from "./services/role-roll-service.mjs";
 import { supplyConsequenceService } from "./services/supply-consequence-service.mjs";
 import { supplySyncService } from "./services/supply-sync-service.mjs";
+import { sleepRollService } from "./services/sleep-roll-service.mjs";
 import { SupplyManifestService } from "./services/supply-manifest-service.mjs";
 
 Hooks.once("init", () => { registerSettings(); registerJourneySettings(); });
@@ -25,11 +25,11 @@ Hooks.on("getSceneControlButtons", controls => {
 });
 Hooks.once("ready", async () => {
   roleRollService.start();
-  encounterRollService.start();
   campPerceptionRollService.start();
   foragingRollService.start();
   forcedMarchRollService.start();
   peacefulRestService.start();
+  sleepRollService.start();
   supplyConsequenceService.start();
   supplySyncService.start();
   const coreAccess = new MorelordCoreAccessService();
@@ -53,7 +53,7 @@ Hooks.once("ready", async () => {
     journeyApp = new JourneyApplication();
     return journeyApp.render({ force: true });
   };
-  const api = Object.freeze({ open, createJourney, createRoute, validateJourney, validateRoute, engine: Object.freeze({ ...engine }), repository: Object.freeze({ clearActiveJourney, getActiveJourney, saveActiveJourney }), applications: Object.freeze({ JourneyApplication }), coreAccess, roleRolls: roleRollService, encounterRolls: encounterRollService, campPerceptionRolls: campPerceptionRollService, foragingRolls: foragingRollService, forcedMarchRolls: forcedMarchRollService, supplyConsequences: supplyConsequenceService, getAccess: () => coreAccess.snapshot(), refreshEntitlements: options => coreAccess.refresh(options) });
+  const api = Object.freeze({ open, createJourney, createRoute, validateJourney, validateRoute, engine: Object.freeze({ ...engine }), repository: Object.freeze({ clearActiveJourney, getActiveJourney, saveActiveJourney }), applications: Object.freeze({ JourneyApplication }), coreAccess, roleRolls: roleRollService, campPerceptionRolls: campPerceptionRollService, foragingRolls: foragingRollService, forcedMarchRolls: forcedMarchRollService, supplyConsequences: supplyConsequenceService, getAccess: () => coreAccess.snapshot(), refreshEntitlements: options => coreAccess.refresh(options) });
   game.modules.get(MODULE_ID).api = api;
   globalThis.MorelordJourneys = api;
   console.info(`${MODULE_ID} | Ready for Foundry v14 · ${coreAccess.snapshot().tier}`);

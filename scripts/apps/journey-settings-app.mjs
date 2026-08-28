@@ -1,10 +1,6 @@
 import { MODULE_ID } from "../domain/constants.mjs";
-import { NIGHT_ENCOUNTERS_SETTING, PHASE_SETTING_KEYS, SLEEP_AND_SHELTER_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
+import { DC_CONFIGURATION_SETTING, getDCConfiguration, NIGHT_ENCOUNTERS_SETTING, PHASE_SETTING_KEYS, SLEEP_AND_SHELTER_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
 import { EntitlementService } from "../services/entitlement-service.mjs";
-const SETTINGS = Object.freeze({
-  ENCOUNTER_ROLL_MODE: "encounterRollMode",
-  PLAYER_ENCOUNTER_VISIBILITY: "playerEncounterVisibility"
-});
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export class JourneySettingsApplication extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -22,15 +18,20 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const access = EntitlementService.status();
+    const dc = getDCConfiguration();
     return {
       ...context,
       settings: {
-        encounterRollMode: game.settings.get(MODULE_ID, SETTINGS.ENCOUNTER_ROLL_MODE),
-        playerEncounterVisibility: game.settings.get(MODULE_ID, SETTINGS.PLAYER_ENCOUNTER_VISIBILITY),
         phases: Object.fromEntries(Object.entries(PHASE_SETTING_KEYS).map(([phase, key]) => [phase, game.settings.get(MODULE_ID, key)]))
         , suppressSleepDeprivationExhaustion: game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING),
         enableNightEncounters: game.settings.get(MODULE_ID, NIGHT_ENCOUNTERS_SETTING),
-        enableSleepAndShelter: game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING)
+        enableSleepAndShelter: game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING),
+        dc
+      },
+      dcGroups: {
+        discovery: ["Very likely", "Likely", "Possible", "Unlikely", "Very unlikely"].map((label, index) => ({ label, index, value: dc.discovery[index] })),
+        navigation: ["Simple", "Routine", "Normal", "Challenging", "Very challenging", "Extreme"].map((label, index) => ({ label, index, value: dc.navigation[index] })),
+        foraging: ["Lush forest or meadow", "Productive woodland or grassland", "Typical mixed wilderness", "Traveled or heavily settled land", "Desert, tundra, or sparse badlands", "Barren or extreme environment"].map((label, index) => ({ label, index, value: dc.foraging[index] }))
       },
       access: {
         ...access,
@@ -60,25 +61,29 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     event.preventDefault();
     target.disabled = true;
     try {
-      const values = {
-        [SETTINGS.ENCOUNTER_ROLL_MODE]: this.element.querySelector(`[name="${SETTINGS.ENCOUNTER_ROLL_MODE}"]`)?.value,
-        [SETTINGS.PLAYER_ENCOUNTER_VISIBILITY]: this.element.querySelector(`[name="${SETTINGS.PLAYER_ENCOUNTER_VISIBILITY}"]`)?.value
-      };
-      const allowed = {
-        [SETTINGS.ENCOUNTER_ROLL_MODE]: new Set(["gm", "players"]),
-        [SETTINGS.PLAYER_ENCOUNTER_VISIBILITY]: new Set(["publicroll", "gmroll", "blindroll"])
-      };
-      if (Object.entries(values).some(([key, value]) => !allowed[key].has(value))) {
-        ui.notifications.error("One or more Journeys settings are invalid.");
-        return;
-      }
-      for (const [key, value] of Object.entries(values)) await game.settings.set(MODULE_ID, key, value);
       for (const [phase, key] of Object.entries(PHASE_SETTING_KEYS)) {
         await game.settings.set(MODULE_ID, key, Boolean(this.element.querySelector(`[name="phase-${phase}"]`)?.checked));
       }
       await game.settings.set(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING, Boolean(this.element.querySelector('[name="suppressSleepDeprivationExhaustion"]')?.checked));
       await game.settings.set(MODULE_ID, NIGHT_ENCOUNTERS_SETTING, Boolean(this.element.querySelector('[name="enableNightEncounters"]')?.checked));
       await game.settings.set(MODULE_ID, SLEEP_AND_SHELTER_SETTING, Boolean(this.element.querySelector('[name="enableSleepAndShelter"]')?.checked));
+      const priorDC = getDCConfiguration();
+      const readDC = (name, fallback) => {
+        const value = Number(this.element.querySelector(`[name="${name}"]`)?.value);
+        return Number.isInteger(value) && value >= 0 && value <= 50 ? value : fallback;
+      };
+      const dc = {
+        discovery: priorDC.discovery.map((value, index) => readDC(`dc-discovery-${index}`, value)),
+        navigation: priorDC.navigation.map((value, index) => readDC(`dc-navigation-${index}`, value)),
+        foraging: priorDC.foraging.map((value, index) => readDC(`dc-foraging-${index}`, value)),
+        pressOn: readDC("dc-pressOn", priorDC.pressOn),
+        hungerBase: readDC("dc-hungerBase", priorDC.hungerBase),
+        hungerIncrease: readDC("dc-hungerIncrease", priorDC.hungerIncrease),
+        sleepBase: readDC("dc-sleepBase", priorDC.sleepBase),
+        sleepDeprivationBase: readDC("dc-sleepDeprivationBase", priorDC.sleepDeprivationBase),
+        sleepDeprivationIncrease: readDC("dc-sleepDeprivationIncrease", priorDC.sleepDeprivationIncrease)
+      };
+      await game.settings.set(MODULE_ID, DC_CONFIGURATION_SETTING, dc);
       ui.notifications.info("Morelord Journeys settings saved.");
       await this.close();
     } finally {

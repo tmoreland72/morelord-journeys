@@ -1,4 +1,5 @@
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
+import { validateExpeditionRoles } from "../domain/expedition-role-rules.mjs";
 import { JourneyRoleRefinementApplication as BaseJourneyApplication } from "./journey-role-refinement-app.mjs";
 
 const value = (element, name) => element.querySelector(`[name="${name}"]`)?.value ?? "";
@@ -11,10 +12,10 @@ export class JourneyRoleApplication extends BaseJourneyApplication {
   static async saveRoles(event) {
     event.preventDefault();
     const journey = await getActiveJourney();
-    journey.roles = {
+    journey.roles = validateExpeditionRoles({
       navigatorUuid: value(this.element, "activeNavigatorUuid"),
       observerUuid: value(this.element, "activeObserverUuid")
-    };
+    });
     await saveActiveJourney(journey);
     ui.notifications.info("Expedition roles updated.");
     await this.render({ force: true });

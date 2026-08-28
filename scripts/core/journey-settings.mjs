@@ -1,12 +1,21 @@
 import { JourneySettingsApplication } from "../apps/journey-settings-app.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 
-export const ENCOUNTER_DIE_SETTING = "encounterDie";
-export const ENCOUNTER_ROLL_MODE_SETTING = "encounterRollMode";
-export const PLAYER_ENCOUNTER_VISIBILITY_SETTING = "playerEncounterVisibility";
 export const SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING = "suppressSleepDeprivationExhaustion";
 export const NIGHT_ENCOUNTERS_SETTING = "enableNightEncounters";
 export const SLEEP_AND_SHELTER_SETTING = "enableSleepAndShelter";
+export const DC_CONFIGURATION_SETTING = "dcConfiguration";
+export const DEFAULT_DC_CONFIGURATION = Object.freeze({
+  discovery: Object.freeze([5, 10, 15, 20, 25]),
+  navigation: Object.freeze([5, 10, 15, 20, 25, 30]),
+  foraging: Object.freeze([5, 10, 15, 20, 25, 30]),
+  pressOn: 12,
+  hungerBase: 10,
+  hungerIncrease: 5,
+  sleepBase: 10,
+  sleepDeprivationBase: 10,
+  sleepDeprivationIncrease: 5
+});
 export const PHASE_SETTING_KEYS = Object.freeze({
   weather: "phaseWeather", pace: "phasePace", encounters: "phaseEncounters",
   discovery: "phaseDiscovery", navigation: "phaseNavigation", pressOn: "phasePressOn",
@@ -18,26 +27,6 @@ export function registerJourneySettings() {
     name: "Journeys Settings", label: "Configure Journeys",
     hint: "Manage Morelord Core access, subscription status, and Journeys configuration.",
     icon: "fa-solid fa-person-hiking", type: JourneySettingsApplication, restricted: true
-  });
-  game.settings.register(MODULE_ID, ENCOUNTER_DIE_SETTING, {
-    name: "Encounter Check Die", hint: "The die used for encounter checks. A 1 creates a complication and the maximum result creates a boon.",
-    scope: "world", config: false, type: String,
-    choices: { d4: "d4 — Frequent events", d6: "d6", d8: "d8 — Default", d10: "d10", d12: "d12", d20: "d20 — Rare events" }, default: "d8", restricted: true
-  });
-  game.settings.register(MODULE_ID, ENCOUNTER_ROLL_MODE_SETTING, {
-    name: "Encounter Check Method", hint: "The GM or one active party owner rolls the day's d100 encounter check.",
-    scope: "world", config: false, type: String, choices: { gm: "GM rolls d100", players: "Player rolls d100" }, default: "gm", restricted: true
-  });
-  game.settings.register(MODULE_ID, PLAYER_ENCOUNTER_VISIBILITY_SETTING, {
-    name: "Player Encounter Roll Visibility",
-    hint: "Use Foundry's standard visibility for encounter checks rolled by players.",
-    scope: "world", config: false, type: String,
-    choices: {
-      publicroll: "Public Roll — visible to everyone",
-      gmroll: "Private GM Roll — visible to the roller and GM",
-      blindroll: "Blind GM Roll — visible only to the GM"
-    },
-    default: "gmroll", restricted: true
   });
   for (const [phase, key] of Object.entries(PHASE_SETTING_KEYS)) {
     game.settings.register(MODULE_ID, key, {
@@ -58,14 +47,26 @@ export function registerJourneySettings() {
     name: "Enable Sleep and Shelter", hint: "Resolve shelter, sleep, Long Rest, and sleep-deprivation outcomes during Camp.",
     scope: "world", config: false, type: Boolean, default: true, restricted: true
   });
+  game.settings.register(MODULE_ID, DC_CONFIGURATION_SETTING, {
+    name: "Journey Difficulty Classes",
+    hint: "World-level DCs used by Journeys. Route preset changes apply to newly created journeys.",
+    scope: "world", config: false, type: Object, default: DEFAULT_DC_CONFIGURATION, restricted: true
+  });
 }
 
-export const getEncounterDie = () => game.settings.get(MODULE_ID, ENCOUNTER_DIE_SETTING) ?? "d8";
-export const getEncounterRollMode = () => game.settings.get(MODULE_ID, ENCOUNTER_ROLL_MODE_SETTING) ?? "gm";
-export const getPlayerEncounterVisibility = () => game.settings.get(MODULE_ID, PLAYER_ENCOUNTER_VISIBILITY_SETTING) ?? "gmroll";
 export const isPhaseEnabled = phase => phase === "sleep"
   ? sleepAndShelterEnabled()
   : !(phase in PHASE_SETTING_KEYS) || game.settings.get(MODULE_ID, PHASE_SETTING_KEYS[phase]) !== false;
 export const suppressSleepDeprivationExhaustion = () => Boolean(game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING));
 export const nightEncountersEnabled = () => game.settings.get(MODULE_ID, NIGHT_ENCOUNTERS_SETTING) !== false;
 export const sleepAndShelterEnabled = () => game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING) !== false;
+export function getDCConfiguration() {
+  const saved = game.settings.get(MODULE_ID, DC_CONFIGURATION_SETTING) ?? {};
+  return {
+    ...DEFAULT_DC_CONFIGURATION,
+    ...saved,
+    discovery: DEFAULT_DC_CONFIGURATION.discovery.map((value, index) => Number(saved.discovery?.[index] ?? value)),
+    navigation: DEFAULT_DC_CONFIGURATION.navigation.map((value, index) => Number(saved.navigation?.[index] ?? value)),
+    foraging: DEFAULT_DC_CONFIGURATION.foraging.map((value, index) => Number(saved.foraging?.[index] ?? value))
+  };
+}

@@ -1,10 +1,12 @@
 import { nightEncountersEnabled } from "../core/journey-settings.mjs";
-import { MODULE_ID } from "../domain/constants.mjs";
+import { assignedWatchIndexes, CAMP_WATCH_COUNT, normalizeCampAssignments, watchCoverage } from "../domain/camp-watch-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
+import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyActionApplication as BaseJourneyApplication } from "./journey-action-fix-app.mjs";
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
+import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
+import { createEncountersCallout } from "../ui/encounters-callout.mjs";
 
-const SOCKET = `module.${MODULE_ID}`;
 const CAMP_ACTIONS = ["Take a Watch", "Craft", "Cook", "Prepare", "Slumber", "Task"];
 
 function option(value, label, selected) {
@@ -45,67 +47,87 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     const notes = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!notes) return;
     const saved = context.journey.currentDay?.campWatches ?? [];
+    const assignments = normalizeCampAssignments(context.journey.travelers, saved);
     const panel = document.createElement("section");
-    panel.className = "ml-journeys-panel journey-card journey-camp-planner";
-    panel.innerHTML = `<header><h3>Watch Order & Camp Actions</h3><p>Assignments save automatically. Anyone not assigned to Take a Watch receives the same rest treatment as Slumber.</p></header><div><label class="journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="journey-help-button" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
+    panel.className = "ml-card ml-stack journey-camp-planner";
+    panel.innerHTML = `<header><h3>Watch Order & Camp Actions</h3><p>Assignments save automatically. Only Slumber counts as sleep during this two-hour camp period; every other camp action reduces available sleep by two hours.</p></header><div><label class="journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
     panel.querySelector("[data-campfire-help]").addEventListener("click", event => {
       event.preventDefault();
       void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><p>Craft, Cook, and Prepare require a fire. A fire marks excellent setup (-10) while its visibility adds +5 to the night encounter check, for a net -5. No fire and no tents marks poor setup (+10).</p></div>", ok: { label: "Close" } });
     });
     const watches = document.createElement("div");
     watches.className = "journey-watch-list";
-    for (let index = 0; index < 4; index += 1) {
-      const prior = saved[index] ?? {};
+    const nightEncounter = context.journey.currentDay?.nightEncounterCheck;
+    const nightOutcomeLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[nightEncounter?.outcome] ?? null;
+    for (let index = 0; index < assignments.length; index += 1) {
+      const prior = assignments[index];
       const row = document.createElement("div");
       row.className = "journey-watch-row";
-      row.dataset.watchIndex = String(index);
+      row.dataset.assignmentIndex = String(index);
+      row.dataset.actorUuid = prior.actorUuid;
       const heading = document.createElement("strong");
-      heading.textContent = `Watch ${index + 1}`;
-      const member = document.createElement("select");
-      member.name = `watchMember${index}`;
-      member.append(option("", "Unassigned", prior.actorUuid ?? ""));
-      for (const traveler of context.journey.travelers) member.append(option(traveler.actorUuid, traveler.name, prior.actorUuid));
+      heading.textContent = prior.actorName;
       const action = document.createElement("select");
       action.name = `watchAction${index}`;
       for (const name of CAMP_ACTIONS) action.append(option(name, name, prior.action ?? "Take a Watch"));
+      const period = document.createElement("select");
+      period.name = `watchPeriod${index}`;
+      period.setAttribute("aria-label", `Watch period for ${prior.actorName}`);
+      for (let watchIndex = 0; watchIndex < CAMP_WATCH_COUNT; watchIndex += 1) period.append(option(String(watchIndex), `Watch ${watchIndex + 1}`, String(prior.watchIndex)));
+      period.hidden = action.value !== "Take a Watch";
+      const additionalPeriod = document.createElement("select");
+      additionalPeriod.name = `additionalWatchPeriod${index}`;
+      additionalPeriod.dataset.additionalWatchAvailable = String(Number(context.journey.travelers[index]?.longRestHours ?? 6) <= 4);
+      additionalPeriod.setAttribute("aria-label", `Additional watch period for ${prior.actorName}`);
+      additionalPeriod.append(option("", "No additional watch", ""));
+      for (let watchIndex = 0; watchIndex < CAMP_WATCH_COUNT; watchIndex += 1) additionalPeriod.append(option(String(watchIndex), `Also take Watch ${watchIndex + 1}`, String(prior.watchIndexes?.[1] ?? "")));
+      additionalPeriod.hidden = action.value !== "Take a Watch" || additionalPeriod.dataset.additionalWatchAvailable !== "true";
       const result = document.createElement("span");
       result.className = "journey-watch-result";
-      const perception = context.journey.currentDay?.campPerceptionResults?.find(entry => entry.watchIndex === index);
-      const pendingPerception = context.journey.currentDay?.pendingCampPerceptionRolls?.some(entry => entry.watchIndex === index);
-      result.textContent = perception
-        ? `Perception ${perception.total} · ${prior.encounterRoll?.encounterCount ?? 0} encounter(s)`
-        : pendingPerception ? "Waiting for Perception…"
-          : prior.encounterRoll ? `${prior.encounterRoll.encounterCount} encounter(s) · Perception not requested` : "Not rolled";
-      row.append(heading, member, action, result);
-      if (Number(prior.encounterRoll?.encounterCount ?? 0) > 0) {
-        const open = document.createElement("button");
-        open.type = "button";
-        open.dataset.action = "openMorelordEncounters";
-        open.className = "journey-emphasis-button";
-        open.innerHTML = '<i class="fa-solid fa-hydra"></i> Open Encounters';
-        row.append(open);
-      }
+      const perception = context.journey.currentDay?.campPerceptionResults?.find(entry => entry.actorUuid === prior.actorUuid);
+      const pendingPerception = context.journey.currentDay?.pendingCampPerceptionRolls?.some(entry => entry.actorUuid === prior.actorUuid);
+      const selectedWatch = assignedWatchIndexes(prior).includes(Number(nightEncounter?.watchIndex));
+      result.textContent = selectedWatch && perception
+        ? `Perception ${perception.total} · ${nightOutcomeLabel}`
+        : selectedWatch && pendingPerception ? `Waiting for Perception · ${nightOutcomeLabel}`
+          : selectedWatch ? `${nightOutcomeLabel} · Perception not requested`
+            : nightEncounter && ["minor", "nightAttack"].includes(nightEncounter.outcome) ? "Not the affected watch"
+              : nightOutcomeLabel ?? "Night encounter not rolled";
+      row.append(heading, action, period, additionalPeriod, result);
       watches.append(row);
     }
     panel.append(watches);
-    if (nightEncountersEnabled()) {
+    const coverage = document.createElement("div");
+    coverage.className = "journey-watch-coverage";
+    coverage.innerHTML = `<h4>Watch Coverage</h4>${watchCoverage(assignments).map((watcher, watchIndex) => {
+      return `<div><strong>Watch ${watchIndex + 1}</strong><span class="${watcher ? "" : "is-unwatched"}">${foundry.utils.escapeHTML(watcher?.actorName ?? "Unwatched")}</span></div>`;
+    }).join("")}`;
+    panel.append(coverage);
+    const validation = document.createElement("p");
+    validation.className = "ml-text journey-camp-validation";
+    validation.dataset.tone = "danger";
+    validation.hidden = true;
+    panel.append(validation);
+    if (nightEncountersEnabled() && !nightEncounter) {
       const rollNight = document.createElement("button");
       rollNight.type = "button";
       rollNight.dataset.action = "rollNightEncounter";
       rollNight.textContent = "Roll Night Encounter";
       const nightHelp = document.createElement("button");
       nightHelp.type = "button";
-      nightHelp.className = "journey-help-button";
+      nightHelp.className = "ml-icon-button journey-help-button";
+      nightHelp.dataset.size = "compact";
+      nightHelp.dataset.variant = "ghost";
       nightHelp.dataset.action = "showNightEncounterOutcomes";
       nightHelp.setAttribute("aria-label", "Explain night encounter outcomes");
       nightHelp.dataset.tooltip = "Explain night encounter outcomes";
       nightHelp.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
       const nightControls = document.createElement("div");
-      nightControls.className = "journey-inline-actions journey-night-controls";
+      nightControls.className = "ml-cluster journey-night-controls";
       nightControls.append(rollNight, nightHelp);
       panel.append(nightControls);
     }
-    const night = context.journey.currentDay?.nightEncounterCheck;
+    const night = nightEncounter;
     if (night) {
       const label = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[night.outcome] ?? night.outcome;
       const descriptions = {
@@ -125,31 +147,43 @@ export class JourneyCampApplication extends BaseJourneyApplication {
         { label: "Final result", value: night.modified },
         { label: "Outcome", value: label },
         { label: "Affected watch roll", value: night.watchRoll },
-        { label: "Affected watch", value: Number.isInteger(night.watchIndex) ? `Watch ${night.watchIndex + 1}` : null }
+        { label: "Affected watch", value: Number.isInteger(night.watchIndex) ? `Watch ${night.watchIndex + 1}` : null },
+        { label: "Watch coverage", value: Number.isInteger(night.watchIndex) ? night.unwatched ? "Unwatched — no Perception check is requested" : night.watcherActorName : null }
       ] }] }));
       if (["minor", "nightAttack"].includes(night.outcome)) {
-        const open = document.createElement("button");
-        open.type = "button";
-        open.dataset.action = "openMorelordEncounters";
-        open.className = "journey-open-encounters journey-emphasis-button";
-        open.innerHTML = '<i class="fa-solid fa-hydra"></i> Open Morelord Encounters';
-        panel.append(open);
+        panel.append(createEncountersCallout());
       }
     }
     notes.before(panel);
+    const syncValidity = () => {
+      let message = "";
+      try { readCampAssignments(this.element, context.journey); }
+      catch (error) { message = error.message; }
+      validation.hidden = !message;
+      validation.textContent = message ? `${message} Resolve the watch assignments before rolling or continuing.` : "";
+      const rollNight = panel.querySelector("[data-action='rollNightEncounter']");
+      if (rollNight) rollNight.disabled = Boolean(message);
+      notes.disabled = Boolean(message);
+      if (message) {
+        const tooltip = "Resolve the invalid watch assignments first.";
+        if (rollNight) rollNight.dataset.tooltip = tooltip;
+        notes.dataset.tooltip = tooltip;
+      } else {
+        if (rollNight) delete rollNight.dataset.tooltip;
+        delete notes.dataset.tooltip;
+      }
+    };
+    panel.addEventListener("change", event => {
+      if (event.target.matches("select[name^='watchAction'], select[name^='watchPeriod'], select[name^='additionalWatchPeriod']")) syncValidity();
+    });
+    syncValidity();
   }
 
   static async resendRoleRoll(event) {
     event.preventDefault();
     try {
-      const journey = await getActiveJourney();
-      const request = journey?.currentDay?.pendingRoleRoll;
-      if (!request) throw new Error("There is no pending role check to resend.");
-      request.resentAt = Date.now();
-      request.resendCount = (request.resendCount ?? 0) + 1;
-      await saveActiveJourney(journey);
-      game.socket.emit(SOCKET, { type: "roleRoll.request", request });
-      ui.notifications.info(`Roll request sent again to ${request.actorName}.`);
+      await roleRollService.resend();
+      ui.notifications.info("The roll request was sent again.");
       await this.render({ force: true });
     } catch (error) {
       ui.notifications.error(error.message);
@@ -160,12 +194,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     event.preventDefault();
     try {
       const journey = await getActiveJourney();
-      journey.currentDay.campWatches = Array.from({ length: 4 }, (_, index) => {
-        const actorUuid = this.element.querySelector(`[name='watchMember${index}']`)?.value ?? "";
-        const traveler = journey.travelers.find(entry => entry.actorUuid === actorUuid);
-        const prior = journey.currentDay.campWatches?.[index];
-        return { index, actorUuid, actorName: traveler?.name ?? "Unassigned", action: this.element.querySelector(`[name='watchAction${index}']`)?.value ?? "Take a Watch", encounterRoll: prior?.encounterRoll ?? null };
-      });
+      journey.currentDay.campWatches = readCampAssignments(this.element, journey);
       journey.currentDay.campfire = Boolean(this.element.querySelector("[name='campfire']")?.checked);
       journey.currentDay.campSetupTotal = Number(this.element.querySelector("[name='campSetupTotal']")?.value ?? 10);
       await saveActiveJourney(journey);

@@ -1,4 +1,20 @@
 export class SupplyConsumptionService {
+  planManualOutcomes({ travelers = [], fedActorUuids = [], wateredActorUuids = [] } = {}) {
+    const travelerUuids = travelers.map(traveler => traveler.actorUuid);
+    const fed = new Set(fedActorUuids);
+    const watered = new Set(wateredActorUuids);
+    const foodShortages = travelerUuids.filter(uuid => !fed.has(uuid));
+    const waterShortages = travelerUuids.filter(uuid => !watered.has(uuid));
+    return {
+      resolutionMode: "manual",
+      requirements: { food: travelerUuids.length, water: travelerUuids.length * 4 },
+      allocations: [],
+      shortages: { food: foodShortages.length, water: waterShortages.length },
+      shortageActorUuids: { food: foodShortages, water: waterShortages },
+      manual: { foodActorUuids: travelerUuids.filter(uuid => fed.has(uuid)), waterActorUuids: travelerUuids.filter(uuid => watered.has(uuid)) }
+    };
+  }
+
   planForTravelers(manifest, { travelers = [], foodActorUuids = [], waterActorUuids = [] } = {}) {
     const names = new Map(travelers.map(traveler => [traveler.actorUuid, traveler.name]));
     const available = new Map((manifest?.items ?? []).map(item => [item.itemUuid, Number(item.availableQuantity ?? 0)]));

@@ -2,6 +2,7 @@ import { Dnd5eJourneyAdapter } from "../adapters/dnd5e-journey-adapter.mjs";
 import { readyJourney } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
+import { validateExpeditionRoles } from "../domain/expedition-role-rules.mjs";
 import { saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { SupplyManifestService } from "../services/supply-manifest-service.mjs";
 import { JourneyExpeditionApplication as BaseJourneyApplication } from "./journey-expedition-app.mjs";
@@ -89,6 +90,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
       const navigatorUuid = value(this.element, "navigatorUuid");
       const observerUuid = value(this.element, "observerUuid");
       if (!navigatorUuid || !observerUuid) throw new Error("Assign a Navigator and Observer.");
+      validateExpeditionRoles({ navigatorUuid, observerUuid });
 
       const route = createRoute({
         id: crypto.randomUUID(), name: value(this.element, "routeName"),

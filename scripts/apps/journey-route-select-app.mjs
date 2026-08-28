@@ -6,6 +6,8 @@ import {
   NAVIGATION_OPTIONS,
   RESOURCE_OPTIONS
 } from "../domain/route-options.mjs";
+import { routeOptionsWithDCs } from "../domain/route-options.mjs";
+import { getDCConfiguration } from "../core/journey-settings.mjs";
 import { JourneyContextHelpApplication as BaseJourneyApplication } from "./journey-context-help-app.mjs";
 
 function replaceWithSelect(element, name, options) {
@@ -31,8 +33,9 @@ export class JourneyRouteSelectApplication extends BaseJourneyApplication {
     replaceWithSelect(this.element, "lengthDays", LENGTH_OPTIONS);
     replaceWithSelect(this.element, "lengthThirds", LENGTH_THIRD_OPTIONS);
     replaceWithSelect(this.element, "danger", DANGER_OPTIONS);
-    replaceWithSelect(this.element, "discoveryDC", DISCOVERY_OPTIONS);
-    replaceWithSelect(this.element, "resourcesDC", RESOURCE_OPTIONS);
-    replaceWithSelect(this.element, "navigationDC", NAVIGATION_OPTIONS);
+    const dc = getDCConfiguration();
+    replaceWithSelect(this.element, "discoveryDC", routeOptionsWithDCs(DISCOVERY_OPTIONS, dc.discovery));
+    replaceWithSelect(this.element, "resourcesDC", routeOptionsWithDCs(RESOURCE_OPTIONS, dc.foraging));
+    replaceWithSelect(this.element, "navigationDC", routeOptionsWithDCs(NAVIGATION_OPTIONS, dc.navigation));
   }
 }

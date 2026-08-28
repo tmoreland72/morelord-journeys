@@ -6,7 +6,8 @@ import {
   LENGTH_OPTIONS,
   LENGTH_THIRD_OPTIONS,
   NAVIGATION_OPTIONS,
-  RESOURCE_OPTIONS
+  RESOURCE_OPTIONS,
+  routeOptionsWithDCs
 } from "../../scripts/domain/route-options.mjs";
 
 test("route option sets expose ordered numeric values", () => {
@@ -16,6 +17,12 @@ test("route option sets expose ordered numeric values", () => {
   assert.deepEqual(DISCOVERY_OPTIONS.map(option => option.value), [5, 10, 15, 20, 25]);
   assert.deepEqual(RESOURCE_OPTIONS.map(option => option.value), [5, 10, 15, 20, 25, 30]);
   assert.deepEqual(NAVIGATION_OPTIONS.map(option => option.value), [5, 10, 15, 20, 25, 30]);
+});
+
+test("route option labels and values use configured DCs", () => {
+  const configured = routeOptionsWithDCs(NAVIGATION_OPTIONS, [2, 7, 12, 17, 22, 27]);
+  assert.deepEqual(configured.map(option => option.value), [2, 7, 12, 17, 22, 27]);
+  assert.equal(configured[3].label, "Challenging — DC 17");
 });
 
 test("resource options describe terrain and discovery options describe likelihood", () => {

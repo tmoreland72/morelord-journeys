@@ -1,39 +1,8 @@
-.ml-journeys-window .journey-grid.ratings {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  column-gap: 24px;
-  row-gap: 16px;
-}
-
 .ml-journeys-window .journey-field-heading {
   display: flex !important;
   align-items: center;
   justify-content: flex-start;
   gap: 7px;
-}
-
-.ml-journeys-window .journey-help-button {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  min-height: 20px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--ml-color-accent);
-  font-size: 14px;
-  line-height: 1;
-}
-
-.ml-journeys-window .journey-help-button:hover,
-.ml-journeys-window .journey-help-button:focus-visible {
-  background: transparent;
-  color: var(--ml-color-accent);
-  text-shadow: 0 0 6px rgba(243, 154, 50, .55);
 }
 
 .ml-journeys-help-content {
@@ -43,10 +12,4 @@
 
 .ml-journeys-help-content p {
   margin: 0;
-}
-
-@media (max-width: 700px) {
-  .ml-journeys-window .journey-grid.ratings {
-    grid-template-columns: 1fr !important;
-  }
 }

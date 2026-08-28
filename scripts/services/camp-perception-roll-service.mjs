@@ -1,16 +1,19 @@
-import { MODULE_ID } from "../domain/constants.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-
-const SOCKET = `module.${MODULE_ID}`;
+import { requestRecipientForActor } from "./client-request-routing-service.mjs";
+import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 
 class CampPerceptionRollService extends EventTarget {
   #started = false;
   #dialogs = new Map();
+  #channel = null;
 
   start() {
     if (this.#started) return;
     this.#started = true;
-    game.socket.on(SOCKET, message => void this.#receive(message));
+    this.#channel = getMorelordSocketChannel();
+    this.#channel.on("campPerception.request", data => this.#receive({ type: "campPerception.request", ...data }));
+    this.#channel.on("campPerception.result", data => this.#receive({ type: "campPerception.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
+    this.#channel.on("campPerception.resolved", data => this.#receive({ type: "campPerception.resolved", ...data }));
   }
 
   async request({ watchIndex, actorUuid, action = "Take a Watch" }) {
@@ -18,14 +21,15 @@ class CampPerceptionRollService extends EventTarget {
     const journey = await getActiveJourney();
     const actor = await fromUuid(actorUuid);
     if (!journey?.currentDay || journey.phase !== "camp" || !actor) throw new Error("The assigned watcher could not be found.");
-    const user = game.users.find(candidate => candidate.active && !candidate.isGM && (candidate.character?.uuid === actor.uuid || actor.testUserPermission?.(candidate, "OWNER"))) ?? game.user;
-    const request = { id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, watchIndex, actorUuid, actorName: actor.name, userId: user.id, action, disadvantage: action !== "Take a Watch", requestedAt: Date.now() };
+    const recipient = requestRecipientForActor(actor);
+    if (!recipient) throw new Error(`${actor.name} has no active user available to make the roll.`);
+    const request = { id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, watchIndex, actorUuid, actorName: actor.name, userId: recipient.user.id, fallbackToGM: recipient.fallbackToGM, action, disadvantage: action !== "Take a Watch", requestedAt: Date.now() };
     journey.currentDay.pendingCampPerceptionRolls ??= [];
     journey.currentDay.pendingCampPerceptionRolls = journey.currentDay.pendingCampPerceptionRolls.filter(entry => entry.watchIndex !== watchIndex);
     journey.currentDay.pendingCampPerceptionRolls.push(request);
     await saveActiveJourney(journey);
     if (request.userId === game.user.id) await this.#open(request);
-    else game.socket.emit(SOCKET, { type: "campPerception.request", request });
+    else await this.#channel.executeAsUser("campPerception.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     this.#updated();
     return request;
   }
@@ -42,7 +46,7 @@ class CampPerceptionRollService extends EventTarget {
       journey.currentDay.campPerceptionResults.push({ ...message.result, watchIndex: request.watchIndex, actorUuid: request.actorUuid, actorName: request.actorName, resolvedAt: Date.now() });
       journey.currentDay.pendingCampPerceptionRolls = pending.filter(entry => entry.id !== request.id);
       await saveActiveJourney(journey);
-      game.socket.emit(SOCKET, { type: "campPerception.resolved", requestId: request.id });
+      if (request.userId !== game.user.id) await this.#channel.executeAsUser("campPerception.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
       this.#updated();
     }
     if (message?.type === "campPerception.resolved") {
@@ -78,7 +82,7 @@ class CampPerceptionRollService extends EventTarget {
             await saveActiveJourney(journey);
             this.#updated();
           }
-        } else game.socket.emit(SOCKET, { type: "campPerception.result", requestId: request.id, result });
+        } else await this.#channel.executeAsGM("campPerception.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
         return total;
       }}]
     });

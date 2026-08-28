@@ -1,10 +1,12 @@
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
-import { isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
+import { getDCConfiguration, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
 import { addProgressModifier, beginTravelDay, completeTravelDay, readyJourney, recordPhase } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
 import { clearActiveJourney, getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { forcedMarchRollService } from "../services/forced-march-roll-service.mjs";
+import { normalizeCampAssignments, validateCampAssignments } from "../domain/camp-watch-rules.mjs";
+import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const value = (element, name) => element.querySelector(`[name="${name}"]`)?.value ?? "";
@@ -22,6 +24,12 @@ const formatSteps = steps => {
   if (!remainder) return `${sign}${days}`;
   return `${sign}${days ? days : ""}${remainder === 1 ? "⅓" : "⅔"}`;
 };
+const formatDistance = steps => {
+  const numeric = Number(steps ?? 0);
+  if (!numeric) return "0 days";
+  const absolute = formatSteps(Math.abs(numeric));
+  return `${numeric > 0 ? "+" : "-"}${absolute} ${Math.abs(numeric) === 3 ? "day" : "days"}`;
+};
 
 export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -34,6 +42,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       beginDay: this.#beginDay,
       advancePhase: this.#advancePhase,
       completeDay: this.#completeDay,
+      endJourney: this.#endJourney,
       clearJourney: this.#clearJourney,
       rollExtremeWeather: this.#rollExtremeWeather,
       rollWeatherForecast: this.#rollWeatherForecast,
@@ -51,7 +60,9 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   render(options = {}) {
     const scroller = this.element?.querySelector?.(".ml-journeys.app-shell");
-    const scrollPosition = scroller ? { top: scroller.scrollTop, left: scroller.scrollLeft } : null;
+    const resetScroll = this._resetScrollOnNextRender === true;
+    this._resetScrollOnNextRender = false;
+    const scrollPosition = scroller ? { top: resetScroll ? 0 : scroller.scrollTop, left: resetScroll ? 0 : scroller.scrollLeft } : null;
     return Promise.resolve(super.render(options)).then(result => {
       if (scrollPosition) {
         const replacement = this.element?.querySelector?.(".ml-journeys.app-shell");
@@ -102,7 +113,8 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         pending: journey.currentDay?.pendingForcedMarchRolls ?? [],
         results: journey.currentDay?.forcedMarchResults ?? []
       },
-      recentLog: journey.log.filter(entry => entry.type !== "progressModifierAdded").slice(-12).reverse().map(entry => ({
+      pressOnDC: getDCConfiguration().pressOn,
+      recentLog: journey.log.slice(-12).reverse().map(entry => ({
         ...entry,
         label: entry.type === "phaseRecorded"
           ? game.i18n.localize(`MORELORD_JOURNEYS.Phases.${entry.data.phase}`)
@@ -133,6 +145,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       }));
       await saveActiveJourney(journey);
       ui.notifications.info(game.i18n.localize("MORELORD_JOURNEYS.Notifications.Created"));
+      this._resetScrollOnNextRender = true;
       await this.render({ force: true });
     } catch (error) {
       this.#notifyError(error);
@@ -144,6 +157,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       let journey = beginTravelDay(await getActiveJourney());
       journey = JourneyApplication.#skipDisabledPhases(journey);
       await saveActiveJourney(journey);
+      this._resetScrollOnNextRender = true;
       await this.render({ force: true });
     } catch (error) {
       this.#notifyError(error);
@@ -164,8 +178,17 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         generated: source.currentDay?.generatedWeather ?? null
         };
       }
-      if (phase === "pace") result = { pace: value(this.element, "pace") || "normal" };
-      if (phase === "encounters") result = { count: Number(source.currentDay?.encounterCheck?.encounterCount ?? 0) };
+      if (phase === "pace") {
+        source.currentDay.encounterCheck = null;
+        result = { pace: value(this.element, "pace") || "normal" };
+      }
+      if (phase === "encounters") {
+        const encounter = source.currentDay?.encounterCheck;
+        const delaySteps = ["minor", "major"].includes(encounter?.outcome)
+          ? integer(this.element, "encounterDelayDays", 0) * 3 + integer(this.element, "encounterDelayThirds", 0)
+          : 0;
+        result = { count: Number(encounter?.encounterCount ?? 0), delaySteps, encounter: encounter ?? null };
+      }
       if (phase === "discovery") {
         const checkResult = source.currentDay?.roleRollResults?.discovery;
         const succeeded = checkResult?.outcome === "success";
@@ -175,17 +198,25 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       if (phase === "foraging") result = { resolution: source.currentDay?.foragingResolution ?? null };
       if (phase === "navigation") {
         const rolled = source.currentDay?.roleRollResults?.navigation;
-        result = { outcome: rolled?.outcome ?? (value(this.element, "navigationOutcome") || "success"), roll: rolled ?? null };
+        if (!rolled) throw new Error("Resolve the Navigation check before continuing.");
+        const planned = Number(source.currentDay?.baseProgressSteps ?? 0)
+          + (source.currentDay?.progressModifiers ?? []).reduce((total, modifier) => total + Number(modifier.steps ?? 0), 0);
+        const distanceSteps = rolled.outcome === "lost" ? 0 : rolled.outcome === "reversed" ? -3 : rolled.outcome === "shortcut" ? planned + 1 : planned;
+        result = { outcome: rolled.outcome, distanceSteps, roll: rolled };
       }
       if (phase === "pressOn") {
         result = { pressedOn: checked(this.element, "pressedOn"), saves: source.currentDay?.forcedMarchResults ?? [] };
         if (result.pressedOn && (source.currentDay?.pendingForcedMarchRolls?.length || result.saves.length < source.travelers.length)) {
-          throw new Error("Resolve every traveler's DC 12 forced-march save before continuing.");
+          throw new Error(`Resolve every traveler's DC ${getDCConfiguration().pressOn} forced-march save before continuing.`);
         }
       }
       if (phase === "camp") {
+        const assignments = this.element.querySelector("select[name^='watchAction']")
+          ? readCampAssignments(this.element, source)
+          : validateCampAssignments(normalizeCampAssignments(source.travelers, source.currentDay?.campWatches ?? []));
         if (nightEncountersEnabled() && !source.currentDay?.nightEncounterCheck) throw new Error("Resolve the night encounter check before continuing, or disable Night Encounters in Journeys Settings.");
-        result = { watches: source.currentDay?.campWatches ?? [], nightEncounterSkipped: !nightEncountersEnabled() };
+        source.currentDay.campWatches = assignments;
+        result = { watches: assignments, nightEncounterSkipped: !nightEncountersEnabled() };
       }
       if (phase === "sleep") {
         if ((source.currentDay?.campSleepResults?.length ?? 0) < source.travelers.length) throw new Error("Resolve every traveler's sleep check before continuing.");
@@ -195,10 +226,12 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
       let journey = recordPhase(source, phase, result);
       if (phase === "weather" && result.extreme) journey = addProgressModifier(journey, { id: "extreme-weather", label: "Extreme weather", steps: -1 });
+      if (phase === "encounters" && result.delaySteps > 0) journey = addProgressModifier(journey, { id: "encounter-delay", label: "Encounter delay", steps: -result.delaySteps });
       if (phase === "discovery" && result.pursued) journey = addProgressModifier(journey, { id: "discovery-diversion", label: "Discovery diversion", steps: -Math.max(0, result.costSteps) });
       if (phase === "pressOn" && result.pressedOn) journey = addProgressModifier(journey, { id: "press-on", label: "Pressed on", steps: 1 });
       journey = JourneyApplication.#skipDisabledPhases(journey);
       await saveActiveJourney(journey);
+      this._resetScrollOnNextRender = true;
       await this.render({ force: true });
     } catch (error) {
       this.#notifyError(error);
@@ -211,10 +244,25 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       await saveActiveJourney(journey);
       const key = journey.status === "arrived" ? "Arrived" : "DayComplete";
       ui.notifications.info(game.i18n.localize(`MORELORD_JOURNEYS.Notifications.${key}`));
+      this._resetScrollOnNextRender = true;
       await this.render({ force: true });
     } catch (error) {
       this.#notifyError(error);
     }
+  }
+
+  static async #endJourney(event) {
+    event?.preventDefault();
+    const journey = await getActiveJourney();
+    if (journey?.status !== "arrived") return this.#notifyError(new Error("Only an arrived expedition can be ended."));
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: "End Journey" },
+      content: `<p>End <strong>${foundry.utils.escapeHTML(journey.name)}</strong> and return to the journey planner?</p><p>The completed journey will no longer be shown as the active expedition.</p>`
+    });
+    if (!confirmed) return;
+    await clearActiveJourney();
+    this._resetScrollOnNextRender = true;
+    await this.render({ force: true });
   }
 
   static async #clearJourney() {
@@ -338,15 +386,18 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static #formatLogResult(entry) {
     if (entry.type === "dayCompleted") return `${formatSteps(entry.data.applied ?? 0)} day(s) applied; ${formatSteps(entry.data.total ?? 0)} traveled`;
+    if (entry.type === "progressModifierAdded") return `${entry.data.label}: ${formatDistance(entry.data.steps)}`;
     if (entry.type !== "phaseRecorded") return "";
     const result = entry.data?.result ?? {};
     const phase = entry.data?.phase;
     if (phase === "weather") return result.generated ? `${result.generated.label}${result.extreme ? " (extreme)" : ""}` : result.extreme ? "Extreme weather" : "No generated weather";
     if (phase === "pace") return result.pace ?? "";
     if (phase === "encounters") return `${result.count ?? 0} encounter(s)`;
-    if (phase === "navigation") return result.outcome ?? "";
+    if (phase === "navigation") {
+      return `${result.outcome ?? "Resolved"} — ${formatDistance(result.distanceSteps ?? 0)}`;
+    }
     if (phase === "discovery") return result.pursued ? "Discovery pursued" : "Passed by";
-    if (phase === "pressOn") return result.pressedOn ? "Pressed on" : "Made camp";
+    if (phase === "pressOn") return result.pressedOn ? `Pressed on — ${formatDistance(1)}` : "Did not press on — 0 days";
     if (phase === "foraging") return result.resolution ? `${result.resolution.foodRequired ?? 0} food, ${result.resolution.waterRequired ?? 0} water` : "Resolved";
     if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} sleep checks`;
     if (phase === "sleep") return `${result.sleep?.length ?? 0} sleep checks`;

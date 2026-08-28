@@ -3,6 +3,7 @@ import { getActiveJourney, saveActiveJourney } from "../foundry/settings-reposit
 import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyRouteSelectApplication as BaseJourneyApplication } from "./journey-route-select-app.mjs";
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
+import { navigationOutcomeLabel } from "../domain/navigation-rules.mjs";
 
 function button(action, label, icon = null) {
   const element = document.createElement("button");
@@ -50,10 +51,23 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
   }
 
   #renderRoleCheck(context) {
+    const timeHelp = this.element.querySelector("[data-discovery-time-help]");
+    if (timeHelp && timeHelp.dataset.bound !== "true") {
+      timeHelp.dataset.bound = "true";
+      timeHelp.addEventListener("click", event => {
+        event.preventDefault();
+        void foundry.applications.api.DialogV2.prompt({
+          window: { title: "Discovery Time Cost", icon: "fa-solid fa-circle-question" },
+          content: "<div class='ml-journeys-help-content'><p>If the party investigates a Discovery, close Journeys and run the location, event, dungeon, or scene normally. When travel resumes, reopen Journeys and record the actual elapsed Days and Thirds. Use zero when the lead was ignored or the Observer failed the check.</p></div>",
+          ok: { label: "Close" }
+        });
+      });
+    }
     this.element.querySelector(".journey-navigator-panel")?.remove();
     const phase = context.journey.phase;
-    const anchorName = phase === "navigation" ? "navigationOutcome" : "discoveryCostDays";
-    const anchor = this.element.querySelector(`[name='${anchorName}']`)?.closest("label");
+    const anchor = phase === "navigation"
+      ? this.element.querySelector("[data-navigation-result]")
+      : this.element.querySelector("[name='discoveryCostDays']")?.closest("label");
     if (!anchor) return;
     const role = phase === "navigation" ? "Navigator" : "Observer";
     const skill = phase === "navigation" ? "Survival" : "Perception";
@@ -62,7 +76,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     const pending = roleRollService.getPending(context.journey);
     const result = roleRollService.getResult(context.journey, phase);
     const panel = document.createElement("div");
-    panel.className = "ml-journeys-panel journey-card journey-role-request";
+    panel.className = "ml-card ml-stack journey-role-request";
     const title = document.createElement("strong");
     title.textContent = `${role}: ${traveler?.name ?? "Not assigned"}`;
     const detail = document.createElement("p");
@@ -81,20 +95,18 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       panel.append(status, controls);
     } else if (result) {
       const status = document.createElement("p");
-      status.className = `journey-roll-result ${result.outcome}`;
-      status.textContent = `${result.actorName}: ${result.outcome}.`;
+      status.className = "ml-status journey-roll-result";
+      const outcomeLabel = phase === "navigation" ? navigationOutcomeLabel(result.outcome) : result.outcome;
+      status.dataset.tone = ["success", "shortcut"].includes(result.outcome) ? "success" : "danger";
+      status.textContent = phase === "navigation" ? outcomeLabel : `${result.actorName}: ${outcomeLabel}.`;
       panel.append(status, createOutcomeDetails({ cards: [{ title: `${skill} Check`, rows: [
         { label: "Character", value: result.actorName },
         { label: "DC", value: phase === "navigation" ? context.route.navigationDC : context.route.discoveryDC },
         { label: "Roll", value: result.automatic ? "GM resolved manually" : result.total },
-        { label: "Outcome", value: result.outcome }
+        { label: "Natural d20", value: result.automatic ? null : result.natural },
+        { label: "Outcome", value: outcomeLabel }
       ] }] }));
-      if (phase === "navigation") {
-        const outcome = this.element.querySelector("[name='navigationOutcome']");
-        outcome.value = result.outcome;
-        outcome.disabled = true;
-        outcome.dataset.tooltip = "Navigation outcome is enforced by the completed Survival check.";
-      } else {
+      if (phase !== "navigation") {
         const days = this.element.querySelector("[name='discoveryCostDays']");
         const thirds = this.element.querySelector("[name='discoveryCostThirds']");
         if (result.outcome !== "success") {
@@ -115,19 +127,19 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       costs?.before(panel);
       const lead = this.element.querySelector(".journey-discovery-lead");
       if (lead) panel.after(lead);
-    } else anchor.before(panel);
+    } else anchor.replaceWith(panel);
   }
 
   #renderEncounterCheck(context) {
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
-    const danger = Number(context.route.danger ?? 0);
-    const prior = context.journey.currentDay?.encounterCheck;
     const panel = document.createElement("div");
-    panel.className = "ml-journeys-panel journey-card journey-encounter-check";
-    const roll = button("rollEncounterChecks", "Roll Day Encounter");
-    roll.disabled = context.journey.currentDay?.pace === "stopped";
-    panel.append(roll);
+    panel.className = "ml-card ml-stack journey-encounter-check";
+    if (!context.journey.currentDay?.encounterCheck) {
+      const roll = button("rollEncounterChecks", "Roll Day Encounter");
+      roll.disabled = context.journey.currentDay?.pace === "stopped";
+      panel.append(roll);
+    }
     anchor.before(panel);
   }
 
@@ -171,6 +183,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
 
   static async rollEncounterChecks(event) {
     event.preventDefault();
+    if (!event.isTrusted) return;
     try {
       const journey = await getActiveJourney();
       if (journey.currentDay?.pace === "stopped") throw new Error("Stopped travel does not make a daytime encounter check.");

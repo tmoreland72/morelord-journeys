@@ -41,6 +41,9 @@ export function validateJourney(journey) {
   if (!Number.isInteger(journey?.remainingSteps) || journey.remainingSteps < 0) {
     issues.push("remainingSteps must be a non-negative integer");
   }
+  if (journey?.roles?.navigatorUuid && journey.roles.navigatorUuid === journey.roles.observerUuid) {
+    issues.push("Navigator and Observer must be different characters");
+  }
   try {
     validateRoute(journey?.routeSnapshot);
   } catch (error) {

@@ -5,7 +5,7 @@ import { CampSupplyService } from "../../scripts/services/camp-supply-service.mj
 test("sleep plan applies shelter and weather modifiers", () => {
   const service = new CampSupplyService();
   const plan = service.buildSleepPlan({
-    travelers: [{ actorUuid: "a", name: "A" }, { actorUuid: "b", name: "B" }],
+    travelers: [{ actorUuid: "a", name: "A", longRestHours: 4, longRestHoursSource: "Trance" }, { actorUuid: "b", name: "B" }],
     supplies: { items: [
       { category: "tent", sourceActorUuid: "a", availableQuantity: 1 },
       { category: "bedroll", sourceActorUuid: "a", availableQuantity: 1 },
@@ -18,9 +18,18 @@ test("sleep plan applies shelter and weather modifiers", () => {
     peacefulNight: true
   });
   assert.equal(plan.entries[0].dc, 2);
+  assert.equal(plan.entries[0].requiredSleepHours, 4);
+  assert.equal(plan.entries[0].requiredSleepHoursSource, "Trance");
   assert.equal(plan.entries[1].dc, 5);
   assert.deepEqual(plan.entries[0].modifiers.at(-1), { id: "peacefulNight", value: -5 });
   assert.equal(plan.usage.tent, 2);
+});
+
+test("sleep plan applies the configured base DC", () => {
+  const service = new CampSupplyService();
+  const plan = service.buildSleepPlan({ travelers: [{ actorUuid: "Actor.a", name: "A" }], baseDC: 14 });
+  assert.equal(plan.entries[0].baseDC, 14);
+  assert.equal(plan.entries[0].dc, 14);
 });
 
 test("sleep plan rejects equipment over-allocation", () => {

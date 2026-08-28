@@ -42,7 +42,7 @@ export function beginTravelDay(source) {
     progressModifiers: [],
     appliedProgressSteps: 0,
     phases: {},
-    campWatches: structuredClone(journey.campDefaults?.watches ?? []).map(watch => ({ ...watch, action: "Take a Watch", encounterRoll: null })),
+    campWatches: structuredClone(journey.campDefaults?.watches ?? []).map(watch => ({ ...watch, encounterRoll: null })),
     campSleepPlan: journey.campDefaults?.sleepPlan ? structuredClone(journey.campDefaults.sleepPlan) : null
   };
   for (const entry of journey.currentDay.campSleepPlan?.entries ?? []) {
@@ -89,7 +89,8 @@ export function completeTravelDay(source) {
   const day = journey.currentDay;
   const planned = day.baseProgressSteps + day.progressModifiers.reduce((sum, item) => sum + item.steps, 0);
   const outcome = day.phases.navigation?.outcome ?? "success";
-  const navigated = outcome === "lost" ? 0 : outcome === "reversed" ? -3 : planned;
+  const gainedDespiteLostNavigation = day.progressModifiers.filter(item => item.steps > 0).reduce((sum, item) => sum + item.steps, 0);
+  const navigated = outcome === "lost" ? gainedDespiteLostNavigation : outcome === "reversed" ? -3 : outcome === "shortcut" ? planned + 1 : planned;
   const applied = Math.min(journey.remainingSteps, navigated);
 
   day.appliedProgressSteps = applied;
