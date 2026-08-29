@@ -4,6 +4,7 @@ import { MODULE_ID } from "../domain/constants.mjs";
 export const SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING = "suppressSleepDeprivationExhaustion";
 export const NIGHT_ENCOUNTERS_SETTING = "enableNightEncounters";
 export const SLEEP_AND_SHELTER_SETTING = "enableSleepAndShelter";
+export const SKIP_DICE_ANIMATION_SETTING = "skipDiceAnimation";
 export const DC_CONFIGURATION_SETTING = "dcConfiguration";
 export const DEFAULT_DC_CONFIGURATION = Object.freeze({
   discovery: Object.freeze([5, 10, 15, 20, 25]),
@@ -47,6 +48,11 @@ export function registerJourneySettings() {
     name: "Enable Sleep and Shelter", hint: "Resolve shelter, sleep, Long Rest, and sleep-deprivation outcomes during Camp.",
     scope: "world", config: false, type: Boolean, default: true, restricted: true
   });
+  game.settings.register(MODULE_ID, SKIP_DICE_ANIMATION_SETTING, {
+    name: "Skip dice roll animation",
+    hint: "Record GM journey rolls without displaying their dice animation or chat roll card.",
+    scope: "world", config: false, type: Boolean, default: false, restricted: true
+  });
   game.settings.register(MODULE_ID, DC_CONFIGURATION_SETTING, {
     name: "Journey Difficulty Classes",
     hint: "World-level DCs used by Journeys. Route preset changes apply to newly created journeys.",
@@ -60,6 +66,7 @@ export const isPhaseEnabled = phase => phase === "sleep"
 export const suppressSleepDeprivationExhaustion = () => Boolean(game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING));
 export const nightEncountersEnabled = () => game.settings.get(MODULE_ID, NIGHT_ENCOUNTERS_SETTING) !== false;
 export const sleepAndShelterEnabled = () => game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING) !== false;
+export const skipDiceAnimation = () => Boolean(game.settings.get(MODULE_ID, SKIP_DICE_ANIMATION_SETTING));
 export function getDCConfiguration() {
   const saved = game.settings.get(MODULE_ID, DC_CONFIGURATION_SETTING) ?? {};
   return {

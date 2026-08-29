@@ -6,10 +6,48 @@
 }
 
 .ml-journeys-help-content {
+  display: grid;
+  gap: 1rem;
   max-width: 520px;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
-.ml-journeys-help-content p {
+.application.dialog:has(.ml-journeys-help-content),
+.dialog:has(.ml-journeys-help-content) {
+  max-height: 80vh;
+}
+
+.application.dialog:has(.ml-journeys-help-content) > .window-content,
+.dialog:has(.ml-journeys-help-content) > .window-content {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.ml-journeys-help-content,
+.ml-journeys-help-content * {
+  max-height: none;
+  overflow: visible;
+}
+
+.ml-journeys-help-content section,
+.ml-journeys-help-content h3,
+.ml-journeys-help-content p,
+.ml-journeys-help-content ul {
   margin: 0;
+}
+
+.ml-journeys-help-content section {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ml-journeys-help-content h3 {
+  color: var(--color-text-emphatic, inherit);
+  font-size: 0.9rem;
+}
+
+.ml-journeys-help-content ul {
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 1.25rem;
 }

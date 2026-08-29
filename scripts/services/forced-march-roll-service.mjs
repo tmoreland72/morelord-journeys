@@ -2,6 +2,9 @@ import { getActiveJourney, saveActiveJourney } from "../foundry/settings-reposit
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { getDCConfiguration } from "../core/journey-settings.mjs";
+import { adjustActorExhaustion } from "./actor-exhaustion-service.mjs";
+import { clientRollButton } from "../ui/client-roll-dialog.mjs";
+import { sendClientRollResult } from "./client-roll-result-service.mjs";
 
 class ForcedMarchRollService extends EventTarget {
   #started = false;
@@ -70,7 +73,9 @@ class ForcedMarchRollService extends EventTarget {
     if (message?.type === "forcedMarch.result" && game.user.isGM) {
       const journey = await getActiveJourney();
       const request = journey?.currentDay?.pendingForcedMarchRolls?.find(candidate => candidate.id === message.requestId);
-      if (request) await this.#record(journey, request, message.result);
+      if (!request) return { accepted: false, reason: "That forced-march save is no longer pending." };
+      await this.#record(journey, request, message.result);
+      return { accepted: true };
     }
     if (message?.type === "forcedMarch.resolved") {
       await this.#dialogs.get(message.requestId)?.close();
@@ -87,7 +92,7 @@ class ForcedMarchRollService extends EventTarget {
       window: { title: "Morelord Journeys — Forced March", icon: "fa-solid fa-person-running" },
       content: `<p><strong>${foundry.utils.escapeHTML(actor.name)}</strong> presses on for two more hours and must make a DC ${request.dc} Constitution saving throw.</p>`,
       modal: false,
-      buttons: [{ action: "roll", label: "Roll Constitution Save", default: true, callback: async () => {
+      buttons: [clientRollButton(async () => {
         if (typeof actor.rollSavingThrow !== "function") throw new Error(`${actor.name} cannot make a D&D 5e Constitution saving throw.`);
         const native = await actor.rollSavingThrow(
           { ability: "con", target: request.dc },
@@ -103,9 +108,12 @@ class ForcedMarchRollService extends EventTarget {
           const current = await getActiveJourney();
           const pending = current?.currentDay?.pendingForcedMarchRolls?.find(candidate => candidate.id === request.id);
           if (pending) await this.#record(current, pending, result);
-        } else await this.#channel.executeAsGM("forcedMarch.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
+        } else {
+          await sendClientRollResult(this.#channel, "forcedMarch.result", request, result);
+          this.#dialogs.delete(request.id);
+        }
         return total;
-      }}]
+      })]
     });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });
@@ -115,15 +123,14 @@ class ForcedMarchRollService extends EventTarget {
     if (!result.succeeded) {
       const actor = await fromUuid(request.actorUuid);
       if (actor) {
-        const current = Number(actor.system?.attributes?.exhaustion ?? 0);
-        await actor.update({ "system.attributes.exhaustion": current + 1 });
+        await adjustActorExhaustion(actor, 1);
       }
     }
     journey.currentDay.forcedMarchResults ??= [];
     journey.currentDay.forcedMarchResults.push({ actorUuid: request.actorUuid, actorName: request.actorName, dc: request.dc, ...result, exhaustionChange: result.succeeded ? 0 : 1, resolvedAt: Date.now() });
     journey.currentDay.pendingForcedMarchRolls = journey.currentDay.pendingForcedMarchRolls.filter(candidate => candidate.id !== request.id);
     await saveActiveJourney(journey);
-    if (request.userId !== game.user.id) await this.#channel.executeAsUser("forcedMarch.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    if (request.userId === game.user.id) { await this.#dialogs.get(request.id)?.close(); this.#dialogs.delete(request.id); }
     this.#updated();
   }
 

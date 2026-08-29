@@ -78,7 +78,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
         event.preventDefault();
         void foundry.applications.api.DialogV2.prompt({
           window: { title: "Party Passive Perception", icon: "fa-solid fa-circle-question" },
-          content: "<div class='ml-journeys-help-content'><p>This is the highest Passive Perception in the traveling party after pace adjustments. Use it when something attempts to remain unnoticed. For a creature encounter, compare the encounter's Stealth check against this value to determine detection and whether surprise may apply. Morelord Encounters can make the opposing Stealth check using the selected creature with the lowest Stealth modifier.</p></div>",
+        content: "<div class='ml-journeys-help-content'><section><h3>Value</h3><ul><li>Highest party Passive Perception.</li><li>Includes the travel-pace adjustment.</li></ul></section><section><h3>Use</h3><ul><li>Compare against opposing Stealth.</li><li>Use the result for detection or surprise.</li><li>Morelord Encounters can roll the lowest selected creature Stealth.</li></ul></section></div>",
           ok: { label: "Close" }
         });
       });
@@ -93,7 +93,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
           event.preventDefault();
           void foundry.applications.api.DialogV2.prompt({
             window: { title: "Encounter Time Delay", icon: "fa-solid fa-circle-question" },
-            content: "<div class='ml-journeys-help-content'><p>Record travel time lost while resolving this encounter. This can include a diversion, recovery, negotiation, investigation, or a longer encounter location. Use zero when the encounter causes no meaningful delay.</p></div>",
+        content: "<div class='ml-journeys-help-content'><section><h3>Record</h3><ul><li>Enter actual travel time lost.</li><li>Include diversions, recovery, negotiation, or investigation.</li><li>Use zero for no meaningful delay.</li></ul></section></div>",
             ok: { label: "Close" }
           });
         });

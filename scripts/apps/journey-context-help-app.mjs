@@ -1,48 +1,50 @@
 import { JourneyRoleApplication as BaseJourneyApplication } from "./journey-role-app.mjs";
 import { getDCConfiguration } from "../core/journey-settings.mjs";
 
+const sections = (...groups) => groups.map(([heading, items]) => `<section><h3>${heading}</h3><ul>${items.map(item => `<li>${item}</li>`).join("")}</ul></section>`).join("");
+
 const HELP = Object.freeze({
   navigator: {
     title: "Navigator",
-    content: "The Navigator makes the daily Survival check against the route's Navigation DC. A success applies the day's progress, a failure makes no progress, and failure by 5 or more can turn the party around and reverse progress."
+    content: sections(["Check", ["Roll Survival against the Navigation DC."]], ["Results", ["Success: apply progress.", "Natural 1: turned around; lose one day.", "Natural 20: shortcut; gain ⅓ day.", "Other failure: lost; no progress."]])
   },
   observer: {
     title: "Observer",
-    content: "The Observer uses Perception to notice discovery leads along the route. Finding a lead does not force a diversion—the party decides whether to pursue it and spend travel time."
+    content: sections(["Check", ["Roll Perception against the Discovery DC."]], ["Result", ["Success reveals a clue.", "The party chooses whether to investigate.", "Investigation time is recorded when travel resumes."]])
   },
   lengthDays: {
     title: "Length (Days)",
-    content: "Enter whole days plus 0, ⅓, or ⅔. Journeys stores the route as integer thirds, so daily modifiers never use rounded decimals. Example: 4 days + ⅔ is stored as 14 thirds."
+    content: sections(["Entry", ["Choose whole days plus 0, ⅓, or ⅔.", "Example: 4 days and ⅔ equals 14 thirds."]])
   },
   danger: {
     title: "Danger",
-    content: "One daytime d100 and one nightly d100 are possible. Danger modifies each result: 0 = -10, 1 = +0, 2 = +5, 3 = +10, 4 = +15, 5 = +20. Higher totals move toward Major Encounters or Night Attacks."
+    content: sections(["Modifier", ["Danger 0: −10", "Danger 1: +0", "Danger 2: +5", "Danger 3: +10", "Danger 4: +15", "Danger 5: +20"]], ["Effect", ["Higher totals increase major daytime encounters and night attacks."]])
   },
   discoveryDC: {
     title: "Discovery DC",
-    content: "The Perception DC the Observer must meet to notice an optional discovery lead. Lower values represent secret, uncharted, or discovery-rich routes; higher values represent familiar roads with fewer hidden opportunities."
+    content: sections(["Use", ["The Observer rolls Perception against this DC.", "Lower DCs produce more discovery leads."]])
   },
   resourcesDC: {
     title: "Resources DC",
-    content: "The difficulty of finding food and water along the route. Lower values represent abundant natural environments; higher values represent depleted, barren, or hostile terrain. Craftworks Gather is offered during this phase when available."
+    content: sections(["Use", ["Travelers roll Survival against this DC.", "Lower DCs represent abundant terrain.", "Higher DCs represent sparse or hostile terrain."]])
   },
   navigationDC: {
     title: "Navigation DC",
-    content: "The Survival DC used by the Navigator to keep the party on course. Easy roads may require little or no navigation, while uncharted or featureless terrain should use a higher value."
+    content: sections(["Use", ["The Navigator rolls Survival against this DC.", "Roads use lower DCs; uncharted terrain uses higher DCs."]])
   },
   routeTraffic: {
     title: "Route Traffic",
-    content: "Choose Road or high traffic when travelers are exposed to patrols, merchants, settlements, or other frequent traffic. Journeys then adds +5 to daytime and night encounter totals. This is independent of Danger."
+    content: sections(["High Traffic", ["Adds +5 to daytime encounter rolls.", "Adds +5 to night encounter rolls.", "Applied separately from Danger."]])
   },
-  weather: { title: "Weather", content: "First roll 1d20; a 1 means extreme weather. Then roll a compatible seasonal forecast. Extreme weather costs ⅓ day, gives Navigation disadvantage, and adds 5 to sleep DCs. Clear weather cannot be selected as extreme." },
-  pace: { title: "Pace", content: "Stopped = 0 thirds and advantage on forage/sleep; Slow = ⅔ day and foraging advantage; Normal = 1 day; Fast = 1⅓ days, foraging disadvantage, and -5 to the highest passive Perception." },
-  encounters: { title: "Day Encounters", content: "Roll one d100. 1–40 none, 41–60 signs, 61–85 minor hazard/discovery/social, 86+ major. Danger and every applicable route, pace, and weather modifier change the total. Journeys shows the highest party passive Perception." },
-  discovery: { title: "Discovery", content: "The Observer rolls Perception against the Discovery DC. A success reveals a clue, and the optional d100 provides a prompt rather than a complete discovery. The players decide whether to investigate. If they do, close Journeys and run the discovered location, event, dungeon, or scene normally. When the party is ready to resume traveling, reopen Journeys and record the actual elapsed time in Days and Thirds before continuing. Enter zero only when the lead was ignored or the Observer check failed; a failed check always costs no time." },
-  navigation: { title: "Navigation", content: "Meet the DC to apply movement. Fail by 1–4 for Lost and no progress. Fail by 5+ for Turned Around and add one full day to the remaining journey. Extreme weather imposes disadvantage." },
-  pressOn: { title: "Press On", content: "Add ⅓ day of movement. Every traveler must make the configured Constitution save; failure adds one Exhaustion. Resolve all player requests before continuing." },
-  foraging: { title: "Foraging & Supplies", content: "Success provides that traveler a full meal. Failure consumes one pooled ration. Any success finds water for everyone and refills containers; otherwise each Medium traveler consumes 4 pooled pints." },
-  camp: { title: "Camp", content: "Assignments save automatically. Craft, Cook, and Prepare require fire. Fire creates excellent setup but attracts attention; no fire and no tents is poor setup. One night d100 selects an affected watch when interrupted." },
-  sleep: { title: "Sleep & Shelter", content: "Each traveler uses only personally owned shelter. Record sleep hours and interruption minutes, then roll the Constitution sleep check. Six hours, less than 60 interrupted minutes, and a successful check are required for a Long Rest." }
+  weather: { title: "Weather", content: sections(["Extreme Check", ["Roll 1d20.", "Natural 1: use an extreme forecast.", "Any other result: use an ordinary forecast."]], ["Warm Forecast", ["Fair weather", "Rain showers", "Humid haze", "Overcast", "Strong warm winds", "Clear and hot"]], ["Cold Forecast", ["Cold and clear", "Snow flurries", "Freezing drizzle", "Overcast", "Strong cold winds", "Sleet"]], ["Warm Extreme", ["Thunderstorm", "Heat wave", "Flash flood", "Tornado", "Wildfire smoke", "Dust storm"]], ["Cold Extreme", ["Blizzard", "Ice storm", "Extreme cold", "Avalanche conditions", "Freezing fog", "Whiteout"]], ["Effects", ["Extreme weather costs ⅓ day.", "Navigation rolls with disadvantage.", "Sleep DC increases by 5.", "Clear or fair weather cannot be extreme."]]) },
+  pace: { title: "Pace", content: sections(["Options", ["Stopped: no progress; advantage on foraging and sleep.", "Slow: ⅔ day; advantage on foraging.", "Normal: 1 day.", "Fast: 1⅓ days; disadvantage on foraging; −5 passive Perception."]]) },
+  encounters: { title: "Day Encounters", content: sections(["d100 Result", ["1–40: no encounter", "41–60: signs and foreshadowing", "61–85: minor encounter", "86+: major encounter"]], ["Notes", ["Danger, route, pace, and weather modify the roll.", "Minor and major do not automatically mean combat."]]) },
+  discovery: { title: "Discovery", content: sections(["Check", ["The Observer rolls Perception.", "Success reveals a clue and enables the optional d100 lead.", "Failure costs no time."]], ["Investigating", ["Close Journeys and run the discovery.", "Reopen Journeys when travel resumes.", "Record the actual elapsed days and thirds."]]) },
+  navigation: { title: "Navigation", content: sections(["Results", ["Success: apply progress.", "Natural 1: turned around; lose one day.", "Natural 20: shortcut; gain ⅓ day.", "Other failure: lost; no progress."]], ["Weather", ["Extreme weather imposes disadvantage."]]) },
+  pressOn: { title: "Press On", content: sections(["Benefit", ["Gain ⅓ day of progress."]], ["Cost", ["Every traveler makes the configured Constitution save.", "Failure adds one Exhaustion.", "Resolve every request before continuing."]]) },
+  foraging: { title: "Foraging & Supplies", content: sections(["Food", ["Success supplies that traveler's full meal.", "20+ or natural 20 finds food for two.", "Failure consumes a pooled ration."]], ["Water", ["Any success supplies everyone and refills containers.", "Otherwise each Medium traveler needs 4 pints."]]) },
+  camp: { title: "Camp", content: sections(["Actions", ["Assignments save automatically.", "Craft, Cook, and Prepare require a fire."]], ["Camp Setup", ["Fire: excellent setup, but visible.", "No fire and no tents: poor setup."]], ["Encounter", ["One d100 determines the night result.", "Record encounter interruption hours before continuing."]]) },
+  sleep: { title: "Sleep & Shelter", content: sections(["Setup", ["Sleeping equipment must be personally owned.", "Interruption hours come from Night Encounters."]], ["Long Rest", ["Pass the sleep check.", "Meet the character's required sleep hours.", "Have less than one interrupted hour."]]) }
 });
 
 const FIELD_HELP = Object.freeze({
@@ -144,7 +146,7 @@ export class JourneyContextHelpApplication extends BaseJourneyApplication {
     if (!help) return;
     await foundry.applications.api.DialogV2.prompt({
       window: { title: help.title, icon: "fa-solid fa-circle-question" },
-      content: `<div class="ml-journeys-help-content"><p>${help.content}</p></div>`,
+      content: `<div class="ml-journeys-help-content">${help.content}</div>`,
       ok: { label: "Close", icon: "fa-solid fa-check" },
       modal: true,
       rejectClose: false

@@ -4,6 +4,7 @@ import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyRouteSelectApplication as BaseJourneyApplication } from "./journey-route-select-app.mjs";
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { navigationOutcomeLabel } from "../domain/navigation-rules.mjs";
+import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
 
 function button(action, label, icon = null) {
   const element = document.createElement("button");
@@ -58,7 +59,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
         event.preventDefault();
         void foundry.applications.api.DialogV2.prompt({
           window: { title: "Discovery Time Cost", icon: "fa-solid fa-circle-question" },
-          content: "<div class='ml-journeys-help-content'><p>If the party investigates a Discovery, close Journeys and run the location, event, dungeon, or scene normally. When travel resumes, reopen Journeys and record the actual elapsed Days and Thirds. Use zero when the lead was ignored or the Observer failed the check.</p></div>",
+      content: "<div class='ml-journeys-help-content'><section><h3>Investigating</h3><ul><li>Close Journeys.</li><li>Run the discovery.</li><li>Reopen Journeys when travel resumes.</li></ul></section><section><h3>Time Cost</h3><ul><li>Record actual elapsed days and thirds.</li><li>Use zero if ignored or the check failed.</li></ul></section></div>",
           ok: { label: "Close" }
         });
       });
@@ -195,7 +196,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       const result = resolveEncounterRoll({ raw: Number(roll.total), danger: journey.routeSnapshot.danger, modifiers });
       journey.currentDay.encounterCheck = { ...result, highestPassivePerception: (passives.length ? Math.max(...passives) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
       await saveActiveJourney(journey);
-      await roll.toMessage({ flavor: `Morelord Journeys daytime encounter — ${result.outcome} (${result.modified})` });
+      await displayJourneyRoll(roll, { flavor: `Morelord Journeys daytime encounter — ${result.outcome} (${result.modified})`, rollMode: "gmroll" });
       await this.render({ force: true });
     } catch (error) {
       console.error("Morelord Journeys | Encounter checks failed.", error);

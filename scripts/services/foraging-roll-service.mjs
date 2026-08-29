@@ -4,6 +4,8 @@ import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { naturalD20 } from "../domain/d20-roll.mjs";
 import { foragingFoodFound, resolveForagingResults } from "../domain/foraging-rules.mjs";
+import { clientRollButton } from "../ui/client-roll-dialog.mjs";
+import { sendClientRollResult } from "./client-roll-result-service.mjs";
 const supplies = new SupplyManifestService();
 
 class ForagingRollService extends EventTarget {
@@ -81,7 +83,9 @@ class ForagingRollService extends EventTarget {
     if (message?.type === "foragingRoll.result" && game.user.isGM) {
       const journey = await getActiveJourney();
       const request = journey?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === message.requestId);
-      if (request) await this.#record(journey, request, message.result);
+      if (!request) return { accepted: false, reason: "That foraging check is no longer pending." };
+      await this.#record(journey, request, message.result);
+      return { accepted: true };
     }
     if (message?.type === "foragingRoll.resolved") {
       const dialog = this.#dialogs.get(message.requestId);
@@ -100,7 +104,7 @@ class ForagingRollService extends EventTarget {
       window: { title: "Morelord Journeys — Forage", icon: "fa-solid fa-basket-shopping" },
       content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must make a Survival check against Resources DC ${request.dc}. Pace requires ${request.rollMode}.</p>`,
       modal: false,
-      buttons: [{ action: "roll", label: "Roll Survival", icon: "fa-solid fa-dice-d20", default: true, callback: async () => {
+      buttons: [clientRollButton(async () => {
         const native = await actor.rollSkill(
           { skill: "sur", target: request.dc, advantage: request.rollMode === "advantage", disadvantage: request.rollMode === "disadvantage" },
           { configure: true, title: `${request.actorName} — Foraging DC ${request.dc}` },
@@ -116,9 +120,9 @@ class ForagingRollService extends EventTarget {
           const current = await getActiveJourney();
           const pending = current?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === request.id);
           if (pending) await this.#record(current, pending, result);
-        } else await this.#channel.executeAsGM("foragingRoll.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
+        } else { await sendClientRollResult(this.#channel, "foragingRoll.result", request, result); this.#dialogs.delete(request.id); }
         return total;
-      }}]
+      })]
     });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });
@@ -153,7 +157,7 @@ class ForagingRollService extends EventTarget {
       journey.currentDay.supplyResolution = null;
     }
     await saveActiveJourney(journey);
-    if (request.userId !== game.user.id) await this.#channel.executeAsUser("foragingRoll.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    if (request.userId === game.user.id) { await this.#dialogs.get(request.id)?.close(); this.#dialogs.delete(request.id); }
     this.#updated();
   }
 

@@ -4,6 +4,7 @@ import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/more
 import { naturalD20 } from "../domain/d20-roll.mjs";
 import { navigationOutcome } from "../domain/navigation-rules.mjs";
 import { activeGM } from "./client-request-routing-service.mjs";
+import { clientRollButton } from "../ui/client-roll-dialog.mjs";
 
 export function roleRollOutcome({ phase, total, dc, natural = null, automatic = null }) {
   if (phase === "navigation") {
@@ -143,12 +144,7 @@ class RoleRollService extends EventTarget {
       window: { title: `Morelord Journeys — ${request.role === "navigator" ? "Navigator" : "Observer"}` },
       content,
       modal: false,
-      buttons: [{
-        action: "roll",
-        label: "Roll Check",
-        icon: "fa-solid fa-dice-d20",
-        default: true,
-        callback: async () => {
+      buttons: [clientRollButton(async () => {
           const native = await actor.rollSkill(
             { skill: request.skillId, target: request.dc, disadvantage: request.disadvantage },
             { configure: true, title: `${request.actorName} — DC ${request.dc}` },
@@ -175,10 +171,10 @@ class RoleRollService extends EventTarget {
             if (!gm) throw new Error("No active GM is available to receive the Navigation result.");
             const acknowledgement = await this.#channel.executeAsUser("roleRoll.result", { requestId: request.id, result }, gm.id, { context: { journeyId: request.journeyId, requestId: request.id } });
             if (acknowledgement?.accepted === false) throw new Error(acknowledgement.reason || "The GM did not accept the Navigation result.");
+            this.#dialogs.delete(request.id);
           }
           return total;
-        }
-      }]
+        })]
     });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });
@@ -197,7 +193,7 @@ class RoleRollService extends EventTarget {
     journey.currentDay.pendingRoleRoll = null;
     await saveActiveJourney(journey);
     const targetUserId = request.targetUserIds?.[0];
-    if (targetUserId && targetUserId !== game.user.id) await this.#channel.executeAsUser("roleRoll.resolved", { requestId: request.id }, targetUserId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    if (targetUserId === game.user.id) { await this.#dialogs.get(request.id)?.close(); this.#dialogs.delete(request.id); }
     this.#updated();
   }
 

@@ -129,9 +129,14 @@ export class SupplyManifestService {
         const wrapped = ration.system?.quantity && typeof ration.system.quantity === "object";
         const current = Number(wrapped ? ration.system.quantity.value : ration.system?.quantity) || 0;
         const quantityPath = wrapped ? "system.quantity.value" : "system.quantity";
-        const update = { _id: ration.id ?? ration._id, [quantityPath]: current + amount };
+        const expected = current + amount;
+        const update = { _id: ration.id ?? ration._id, [quantityPath]: expected };
         if (update._id && typeof actor.updateEmbeddedDocuments === "function") await actor.updateEmbeddedDocuments("Item", [update]);
-        else await ration.update({ [quantityPath]: current + amount });
+        else await ration.update({ [quantityPath]: expected });
+        const observed = Number(wrapped ? ration.system?.quantity?.value : ration.system?.quantity) || 0;
+        if (observed !== expected && typeof ration.update === "function") await ration.update({ [quantityPath]: expected });
+        const verified = Number(wrapped ? ration.system?.quantity?.value : ration.system?.quantity) || 0;
+        if (verified !== expected) throw new Error(`Unable to add ${amount} ration(s) to ${actor.name}; expected quantity ${expected}, found ${verified}.`);
         added.push({ actorUuid, actorName: actor.name, itemUuid: ration.uuid, itemName: ration.name, quantity: amount });
         continue;
       }

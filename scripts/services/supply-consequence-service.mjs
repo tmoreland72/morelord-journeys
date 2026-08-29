@@ -4,12 +4,14 @@ import { getActiveJourney, saveActiveJourney } from "../foundry/settings-reposit
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { getDCConfiguration } from "../core/journey-settings.mjs";
+import { adjustActorExhaustion } from "./actor-exhaustion-service.mjs";
+import { clientRollButton } from "../ui/client-roll-dialog.mjs";
+import { sendClientRollResult } from "./client-roll-result-service.mjs";
 
 async function addExhaustion(actorUuid, amount = 1) {
   const actor = await fromUuid(actorUuid);
   if (!actor) return;
-  const current = Number(actor.system?.attributes?.exhaustion ?? 0);
-  await actor.update({ "system.attributes.exhaustion": Math.max(0, current + amount) });
+  await adjustActorExhaustion(actor, amount);
 }
 
 class SupplyConsequenceService extends EventTarget {
@@ -83,7 +85,9 @@ class SupplyConsequenceService extends EventTarget {
     if (message?.type === "supplySave.result" && game.user.isGM) {
       const journey = await getActiveJourney();
       const request = journey?.currentDay?.pendingSupplySaves?.find(candidate => candidate.id === message.requestId);
-      if (request) await this.#record(journey, request, message.result);
+      if (!request) return { accepted: false, reason: "That supply save is no longer pending." };
+      await this.#record(journey, request, message.result);
+      return { accepted: true };
     }
     if (message?.type === "supplySave.resolved") {
       const dialog = this.#dialogs.get(message.requestId);
@@ -99,7 +103,7 @@ class SupplyConsequenceService extends EventTarget {
       window: { title: "Morelord Journeys — Starvation", icon: "fa-solid fa-heart-pulse" },
       content: `<p><strong>${foundry.utils.escapeHTML(actor.name)}</strong> has no food and must make a DC ${request.dc} Constitution saving throw.</p>`,
       modal: false,
-      buttons: [{ action: "roll", label: "Roll Constitution Save", default: true, callback: async () => {
+      buttons: [clientRollButton(async () => {
         if (typeof actor.rollSavingThrow !== "function") throw new Error(`${actor.name} cannot make a D&D 5e Constitution saving throw.`);
         const native = await actor.rollSavingThrow(
           { ability: "con", target: request.dc },
@@ -115,9 +119,9 @@ class SupplyConsequenceService extends EventTarget {
           const current = await getActiveJourney();
           const pending = current?.currentDay?.pendingSupplySaves?.find(candidate => candidate.id === request.id);
           if (pending) await this.#record(current, pending, result);
-        } else await this.#channel.executeAsGM("supplySave.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
+        } else { await sendClientRollResult(this.#channel, "supplySave.result", request, result); this.#dialogs.delete(request.id); }
         return total;
-      }}]
+      })]
     });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });
@@ -129,7 +133,7 @@ class SupplyConsequenceService extends EventTarget {
     journey.currentDay.pendingSupplySaves = journey.currentDay.pendingSupplySaves.filter(candidate => candidate.id !== request.id);
     journey.currentDay.supplyConsequences.resolved = journey.currentDay.pendingSupplySaves.length === 0;
     await saveActiveJourney(journey);
-    if (request.userId !== game.user.id) await this.#channel.executeAsUser("supplySave.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    if (request.userId === game.user.id) { await this.#dialogs.get(request.id)?.close(); this.#dialogs.delete(request.id); }
     this.#updated();
   }
 

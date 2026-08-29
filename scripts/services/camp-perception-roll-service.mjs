@@ -1,6 +1,8 @@
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
+import { clientRollButton } from "../ui/client-roll-dialog.mjs";
+import { sendClientRollResult } from "./client-roll-result-service.mjs";
 
 class CampPerceptionRollService extends EventTarget {
   #started = false;
@@ -40,14 +42,14 @@ class CampPerceptionRollService extends EventTarget {
       const journey = await getActiveJourney();
       const pending = journey?.currentDay?.pendingCampPerceptionRolls ?? [];
       const request = pending.find(entry => entry.id === message.requestId);
-      if (!request) return;
+      if (!request) return { accepted: false, reason: "That camp Perception check is no longer pending." };
       journey.currentDay.campPerceptionResults ??= [];
       journey.currentDay.campPerceptionResults = journey.currentDay.campPerceptionResults.filter(entry => entry.watchIndex !== request.watchIndex);
       journey.currentDay.campPerceptionResults.push({ ...message.result, watchIndex: request.watchIndex, actorUuid: request.actorUuid, actorName: request.actorName, resolvedAt: Date.now() });
       journey.currentDay.pendingCampPerceptionRolls = pending.filter(entry => entry.id !== request.id);
       await saveActiveJourney(journey);
-      if (request.userId !== game.user.id) await this.#channel.executeAsUser("campPerception.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
       this.#updated();
+      return { accepted: true };
     }
     if (message?.type === "campPerception.resolved") {
       await this.#dialogs.get(message.requestId)?.close();
@@ -63,7 +65,7 @@ class CampPerceptionRollService extends EventTarget {
       window: { title: `Morelord Journeys — Watch ${request.watchIndex + 1}`, icon: "fa-solid fa-eye" },
       content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must roll Perception for Watch ${request.watchIndex + 1}. Camp action: ${foundry.utils.escapeHTML(request.action)}.${request.disadvantage ? " Roll with disadvantage because attention is divided." : " Roll normally."}</p>`,
       modal: false,
-      buttons: [{ action: "roll", label: "Roll Perception", icon: "fa-solid fa-dice-d20", default: true, callback: async () => {
+      buttons: [clientRollButton(async () => {
         const native = await actor.rollSkill({ skill: "prc", disadvantage: request.disadvantage }, { configure: true, title: `${request.actorName} — Camp Watch Perception${request.disadvantage ? " (Disadvantage)" : ""}` }, { create: true, data: { flavor: `Morelord Journeys — Watch ${request.watchIndex + 1} Perception` } });
         if (!native) return null;
         const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
@@ -82,9 +84,9 @@ class CampPerceptionRollService extends EventTarget {
             await saveActiveJourney(journey);
             this.#updated();
           }
-        } else await this.#channel.executeAsGM("campPerception.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
+        } else { await sendClientRollResult(this.#channel, "campPerception.result", request, result); this.#dialogs.delete(request.id); }
         return total;
-      }}]
+      })]
     });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });

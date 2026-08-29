@@ -53,7 +53,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     panel.innerHTML = `<header><h3>Watch Order & Camp Actions</h3><p>Assignments save automatically. Only Slumber counts as sleep during this two-hour camp period; every other camp action reduces available sleep by two hours.</p></header><div><label class="journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
     panel.querySelector("[data-campfire-help]").addEventListener("click", event => {
       event.preventDefault();
-      void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><p>Craft, Cook, and Prepare require a fire. A fire marks excellent setup (-10) while its visibility adds +5 to the night encounter check, for a net -5. No fire and no tents marks poor setup (+10).</p></div>", ok: { label: "Close" } });
+        void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>Required For</h3><ul><li>Craft</li><li>Cook</li><li>Prepare</li></ul></section><section><h3>Night Encounter</h3><ul><li>Excellent setup: −10</li><li>Visible fire: +5</li><li>Net modifier: −5</li><li>No fire and no tents: +10</li></ul></section></div>", ok: { label: "Close" } });
     });
     const watches = document.createElement("div");
     watches.className = "journey-watch-list";
@@ -140,6 +140,13 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       summary.className = "journey-encounter-summary journey-encounter-outcome";
       summary.innerHTML = `<h4>${label}</h4><p>${descriptions[night.outcome] ?? "Resolve the result, then continue to Sleep & Shelter."}</p><p><em>Pending confirmation after Sleep & Shelter.</em></p>`;
       panel.append(summary);
+      if (["minor", "nightAttack"].includes(night.outcome)) {
+        const interruption = document.createElement("fieldset");
+        interruption.className = "ml-field-group journey-night-interruption";
+        const currentHours = Number(context.journey.currentDay?.sleepInterruptions?.[0]?.hours ?? 1);
+        interruption.innerHTML = `<legend>Sleep Interruption</legend><label><span>Hours</span><input type="number" name="nightInterruptionHours" min="0" max="8" step="0.25" value="${currentHours}"></label><small>Enter the actual time the encounter interrupted the night. This applies to every traveler.</small>`;
+        panel.append(interruption);
+      }
       panel.append(createOutcomeDetails({ cards: [{ title: "Night Encounter Calculation", rows: [
         { label: "Raw d100", value: night.raw },
         { label: `Danger ${night.danger}`, value: `${night.dangerModifier >= 0 ? "+" : ""}${night.dangerModifier}` },

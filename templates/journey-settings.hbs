@@ -52,6 +52,11 @@
   </section>
 
   <section class="ml-settings-section ml-journeys-settings__section">
+    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-dice-d20"></i> Dice Display</h3><p>Controls the visual presentation of GM journey rolls. Outcomes and audit details are still recorded.</p></div></div>
+    <label class="ml-journeys-setting-row"><span><strong>Skip dice roll animation</strong><small>Off by default. When enabled, GM journey rolls do not create a dice display or chat roll card.</small></span><input type="checkbox" name="skipDiceAnimation" {{#if settings.skipDiceAnimation}}checked{{/if}}></label>
+  </section>
+
+  <section class="ml-settings-section ml-journeys-settings__section">
     <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-person-running"></i> Press On DC</h3><p>Constitution saving throw made by each traveler who presses on for an additional third of a day.</p></div></div>
     <label class="ml-journeys-setting-row"><span><strong>Forced march save</strong></span><input type="number" name="dc-pressOn" min="0" max="50" step="1" value="{{settings.dc.pressOn}}"></label>
   </section>

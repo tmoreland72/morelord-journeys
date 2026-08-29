@@ -1,0 +1,12 @@
+{
+  "moduleId": "morelord-journeys",
+  "moduleTitle": "Morelord Journeys",
+  "productSlug": "morelord-journeys",
+  "githubOwner": "tmoreland72",
+  "githubRepo": "morelord-journeys",
+  "releaseBranch": "main",
+  "archiveName": "morelord-journeys.zip",
+  "websiteUrl": "https://morelordgaming.com",
+  "requiredPaths": ["module.json", "README.md", "scripts", "styles", "templates"],
+  "optionalPaths": ["assets", "lang", "LICENSE", "LICENSE.md", "CHANGELOG.md"]
+}

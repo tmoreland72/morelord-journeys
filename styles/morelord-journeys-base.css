@@ -13,6 +13,10 @@
 .journey-check { align-items: center; display: inline-flex!important; flex-wrap: nowrap; gap: 8px; width: max-content; max-width: 100%; }
 .journey-check input { flex: 0 0 auto; }
 .journey-check > span { white-space: nowrap; }
+.ml-journeys-module label:has(> input[type="checkbox"]),
+.ml-journeys-settings label:has(> input[type="checkbox"]) { align-items: center; display: inline-flex !important; flex-flow: row nowrap; gap: .65rem; justify-content: flex-start; }
+.ml-journeys-module label:has(> input[type="checkbox"]) > input[type="checkbox"],
+.ml-journeys-settings label:has(> input[type="checkbox"]) > input[type="checkbox"] { flex: 0 0 auto; margin: 0; order: -1; }
 .ml-journeys-window [data-action="createJourney"] { font-size: 1.08rem; font-weight: 700; margin-top: 18px; min-height: 46px; width: 100%; }
 .ml-journeys-window .journey-discovery-roll { margin: 14px 0; }
 .ml-journeys-window :is(.journey-discovery-cost,.journey-encounter-delay) { width: calc((100% - 16px) / 2); margin: 12px 0 0; }
@@ -26,3 +30,26 @@
 .ml-journeys-module .journey-action-callout p { margin: .25rem 0 0; }
 .ml-journeys-module .journey-action-callout > button { justify-self: end; width: auto; }
 @media (max-width: 700px) { .ml-journeys-module .journey-action-callout { grid-template-columns: 1fr; } .ml-journeys-module .journey-action-callout > button { justify-self: end; } }
+.journey-planner-supply-panel {
+  border-top: 1px solid var(--color-border-light-primary, rgba(255, 255, 255, 0.35));
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+}
+
+.journey-role-display {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.journey-role-display > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.journey-role-display span {
+  color: var(--color-text-subtle, #a99589);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}

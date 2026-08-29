@@ -7,6 +7,8 @@ import { clearActiveJourney, getActiveJourney, saveActiveJourney } from "../foun
 import { forcedMarchRollService } from "../services/forced-march-roll-service.mjs";
 import { normalizeCampAssignments, validateCampAssignments } from "../domain/camp-watch-rules.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
+import { phaseSkipReason } from "../domain/phase-rules.mjs";
+import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const value = (element, name) => element.querySelector(`[name="${name}"]`)?.value ?? "";
@@ -205,7 +207,8 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         result = { outcome: rolled.outcome, distanceSteps, roll: rolled };
       }
       if (phase === "pressOn") {
-        result = { pressedOn: checked(this.element, "pressedOn"), saves: source.currentDay?.forcedMarchResults ?? [] };
+        const pressedOnControl = this.element.querySelector('[name="pressedOn"]');
+        result = { pressedOn: pressedOnControl ? Boolean(pressedOnControl.checked) : source.currentDay?.pressedOn === true, saves: source.currentDay?.forcedMarchResults ?? [] };
         if (result.pressedOn && (source.currentDay?.pendingForcedMarchRolls?.length || result.saves.length < source.travelers.length)) {
           throw new Error(`Resolve every traveler's DC ${getDCConfiguration().pressOn} forced-march save before continuing.`);
         }
@@ -216,6 +219,18 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
           : validateCampAssignments(normalizeCampAssignments(source.travelers, source.currentDay?.campWatches ?? []));
         if (nightEncountersEnabled() && !source.currentDay?.nightEncounterCheck) throw new Error("Resolve the night encounter check before continuing, or disable Night Encounters in Journeys Settings.");
         source.currentDay.campWatches = assignments;
+        if (["minor", "nightAttack"].includes(source.currentDay?.nightEncounterCheck?.outcome)) {
+          const interruptionHours = Math.max(0, Number(value(this.element, "nightInterruptionHours") || 0));
+          source.currentDay.sleepInterruptions = source.travelers.map(traveler => ({
+            actorUuid: traveler.actorUuid,
+            actorName: traveler.name,
+            watchIndex: source.currentDay.nightEncounterCheck.watchIndex,
+            reason: source.currentDay.nightEncounterCheck.outcome === "nightAttack" ? "night attack" : "night encounter",
+            suggestedHours: interruptionHours,
+            hours: interruptionHours,
+            recordedAt: Date.now()
+          }));
+        }
         result = { watches: assignments, nightEncounterSkipped: !nightEncountersEnabled() };
       }
       if (phase === "sleep") {
@@ -284,6 +299,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       journey.currentDay.extremeWeatherCheck = { roll: total, extreme: total === 1, rolledAt: Date.now() };
       journey.currentDay.generatedWeather = null;
       await saveActiveJourney(journey);
+      await displayJourneyRoll(roll, { flavor: "Morelord Journeys extreme-weather check", rollMode: "gmroll" });
       await this.render({ force: true });
     } catch (error) {
       console.error("morelord-journeys | Weather generation failed", error);
@@ -301,29 +317,43 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       const extreme = season === "cold"
         ? [
             { label: "Blizzard", detail: "Heavy snow and dangerous wind.", cold: true },
-            { label: "Freezing rain", detail: "Ice coats exposed surfaces.", cold: true },
             { label: "Ice storm", detail: "Severe ice and falling debris.", cold: true },
-            { label: "Cold snap", detail: "Bitter and dangerous cold.", cold: true }
+            { label: "Extreme cold", detail: "Bitter cold makes exposure dangerous.", cold: true },
+            { label: "Avalanche conditions", detail: "Unstable snow threatens steep terrain.", cold: true },
+            { label: "Freezing fog", detail: "Ice-laden fog sharply limits visibility.", cold: true },
+            { label: "Whiteout", detail: "Snow and wind erase landmarks and the horizon.", cold: true }
           ]
         : [
-            { label: "Gale-force winds", detail: "Violent winds impede travel.", cold: false },
             { label: "Thunderstorm", detail: "Lightning and heavy rain cross the route.", cold: false },
             { label: "Flash flooding", detail: "Sudden water makes the route hazardous.", cold: false },
-            { label: "Heat wave", detail: "Dangerous heat settles over the route.", cold: false }
+            { label: "Heat wave", detail: "Dangerous heat settles over the route.", cold: false },
+            { label: "Tornado", detail: "Rotating winds threaten the route and nearby shelter.", cold: false },
+            { label: "Wildfire smoke", detail: "Dense smoke reduces visibility and air quality.", cold: false },
+            { label: "Dust storm", detail: "Blowing dust obscures the route and exposed travelers.", cold: false }
           ];
-      const ordinary = [
-        { label: "Cold and clear", detail: "Clear conditions with biting cold.", cold: true },
-        { label: "Rain or snow", detail: "Wet weather reduces visibility.", cold: season === "cold" },
-        { label: "Overcast", detail: "Cloud cover with ordinary travel.", cold: false },
-        { label: "Fair weather", detail: "Clear, comfortable traveling conditions.", cold: false },
-        { label: "Strong winds", detail: "Gusting winds cross the route.", cold: false },
-        { label: "Light precipitation", detail: "Intermittent rain or snow.", cold: season === "cold" }
-      ];
+      const ordinary = season === "cold"
+        ? [
+            { label: "Cold and clear", detail: "Clear skies accompany biting cold.", cold: true },
+            { label: "Snow flurries", detail: "Light snow falls intermittently.", cold: true },
+            { label: "Freezing drizzle", detail: "Light ice accumulates on exposed surfaces.", cold: true },
+            { label: "Overcast", detail: "Low clouds mute the winter light.", cold: true },
+            { label: "Strong cold winds", detail: "Cold gusts cross the route.", cold: true },
+            { label: "Sleet", detail: "Mixed frozen precipitation makes travel unpleasant.", cold: true }
+          ]
+        : [
+            { label: "Fair weather", detail: "Clear, comfortable traveling conditions.", cold: false },
+            { label: "Rain showers", detail: "Brief rain passes across the route.", cold: false },
+            { label: "Humid haze", detail: "Warm haze softens distant landmarks.", cold: false },
+            { label: "Overcast", detail: "Cloud cover accompanies ordinary travel.", cold: false },
+            { label: "Strong warm winds", detail: "Warm gusts cross the route.", cold: false },
+            { label: "Clear and hot", detail: "Bright sun raises the daytime temperature.", cold: false }
+          ];
       const table = forcedExtreme ? extreme : ordinary;
       const roll = await new Roll(`1d${table.length}`).evaluate();
       const weather = table[Number(roll.total) - 1];
       journey.currentDay.generatedWeather = { ...weather, extreme: forcedExtreme, season, roll: Number(roll.total), rolledAt: Date.now() };
       await saveActiveJourney(journey);
+      await displayJourneyRoll(roll, { flavor: `Morelord Journeys weather forecast — ${weather.label}`, rollMode: "gmroll" });
       await this.render({ force: true });
     } catch (error) {
       console.error("morelord-journeys | Weather forecast failed", error);
@@ -352,6 +382,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       const [maximum, category, example] = categories.find(([limit]) => total <= limit);
       journey.currentDay.discoveryLead = { roll: total, maximum, category, example, rolledAt: Date.now() };
       await saveActiveJourney(journey);
+      await displayJourneyRoll(roll, { flavor: `Morelord Journeys discovery lead — ${category}`, rollMode: "gmroll" });
       await this.render({ force: true });
     } catch (error) {
       ui.notifications.error(error.message);
@@ -361,22 +392,25 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   static async #showDiscoveryOutcomes(event) {
     event.preventDefault();
     const rows = ["01–10 Tracks or trail", "11–20 Distant sight", "21–30 Sound", "31–40 Remains or abandoned gear", "41–50 Natural feature", "51–60 Ruin or structure", "61–70 Creature activity", "71–80 Social sign", "81–90 Hazard warning", "91–100 Magical anomaly"];
-    await foundry.applications.api.DialogV2.prompt({ window: { title: "Discovery d100 Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><p>Use the roll or manually choose any category. Present a clue rather than revealing the discovery.</p><ul>${rows.map(row => `<li>${row}</li>`).join("")}</ul><p>A failed Observer check always means no lead is pursued and no time is lost.</p></div>`, ok: { label: "Close" } });
+    await foundry.applications.api.DialogV2.prompt({ window: { title: "Discovery d100 Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>Use</h3><ul><li>Roll or choose a category.</li><li>Present a clue, not the full discovery.</li><li>A failed Observer check costs no time.</li></ul></section><section><h3>d100 Results</h3><ul>${rows.map(row => `<li>${row}</li>`).join("")}</ul></section></div>`, ok: { label: "Close" } });
   }
 
   static async #showEncounterOutcomes(event) {
     event.preventDefault();
-    await foundry.applications.api.DialogV2.prompt({ window: { title: "Day Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><ul><li><strong>1–40 No encounter:</strong> travel remains quiet.</li><li><strong>41–60 Signs:</strong> tracks, smoke, abandoned gear, distant sounds, or other foreshadowing.</li><li><strong>61–85 Minor:</strong> a damaged bridge, roadside traveler, environmental hazard, useful ruin, animal threat, or brief faction scene.</li><li><strong>86+ Major:</strong> a deadly hazard, important discovery, faction confrontation, major social scene, chase, siege, or combat.</li></ul><p>Minor and Major describe narrative importance, not whether fighting occurs. Danger and the automatically determined route, pace, and weather modifiers alter the d100 total.</p></div>`, ok: { label: "Close" } });
+    await foundry.applications.api.DialogV2.prompt({ window: { title: "Day Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>d100 Results</h3><ul><li><strong>1–40:</strong> No encounter</li><li><strong>41–60:</strong> Signs or foreshadowing</li><li><strong>61–85:</strong> Minor encounter</li><li><strong>86+:</strong> Major encounter</li></ul></section><section><h3>Examples</h3><ul><li>Minor: hazard, traveler, ruin, animal, or faction scene.</li><li>Major: deadly hazard, discovery, confrontation, chase, siege, or combat.</li><li>Minor and Major measure importance—not combat.</li></ul></section></div>`, ok: { label: "Close" } });
   }
 
   static async #showNightEncounterOutcomes(event) {
     event.preventDefault();
-    await foundry.applications.api.DialogV2.prompt({ window: { title: "Night Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><ul><li><strong>1–30 Peaceful Rest:</strong> eligible characters choose a recorded rest benefit.</li><li><strong>31–60 Uneventful:</strong> the camp is undisturbed.</li><li><strong>61–85 Minor:</strong> a hazard, discovery, or social scene interrupts one watch.</li><li><strong>86+ Night Attack:</strong> danger interrupts one randomly selected watch.</li></ul><p>Danger, weather, and derived camp quality modify the roll. A fire is excellent setup but also advertises the camp.</p></div>`, ok: { label: "Close" } });
+    await foundry.applications.api.DialogV2.prompt({ window: { title: "Night Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>d100 Results</h3><ul><li><strong>1–30:</strong> Peaceful Rest</li><li><strong>31–60:</strong> Uneventful</li><li><strong>61–85:</strong> Minor encounter</li><li><strong>86+:</strong> Night Attack</li></ul></section><section><h3>Modifiers</h3><ul><li>Danger</li><li>Weather</li><li>Camp quality</li><li>Fire visibility</li></ul></section></div>`, ok: { label: "Close" } });
   }
 
   static async #requestForcedMarchRolls(event) {
     event.preventDefault();
     try {
+      const journey = await getActiveJourney();
+      journey.currentDay.pressedOn = true;
+      await saveActiveJourney(journey);
       await forcedMarchRollService.requestParty();
       await this.render({ force: true });
     } catch (error) {
@@ -398,7 +432,11 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     }
     if (phase === "discovery") return result.pursued ? "Discovery pursued" : "Passed by";
     if (phase === "pressOn") return result.pressedOn ? `Pressed on — ${formatDistance(1)}` : "Did not press on — 0 days";
-    if (phase === "foraging") return result.resolution ? `${result.resolution.foodRequired ?? 0} food, ${result.resolution.waterRequired ?? 0} water` : "Resolved";
+    if (phase === "foraging") {
+      if (!result.resolution) return "Resolved";
+      const added = (result.resolution.excessRationsAdded ?? []).reduce((total, entry) => total + Number(entry.quantity ?? 0), 0);
+      return `+${added} food added; ${result.resolution.foodRequired ?? 0} ration(s) and ${result.resolution.waterRequired ?? 0} water pint(s) still required`;
+    }
     if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} sleep checks`;
     if (phase === "sleep") return `${result.sleep?.length ?? 0} sleep checks`;
     return "Resolved";
@@ -406,9 +444,10 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static #skipDisabledPhases(source) {
     let journey = source;
-    while (journey.phase && journey.phase !== "dayComplete" && !isPhaseEnabled(journey.phase)) {
+    const skipReason = () => phaseSkipReason({ phase: journey.phase, pace: journey.currentDay?.pace, enabled: isPhaseEnabled(journey.phase) });
+    while (journey.phase && journey.phase !== "dayComplete" && skipReason()) {
       const phase = journey.phase;
-      const result = { skipped: true, reason: "Disabled by world setting" };
+      const result = { skipped: true, reason: skipReason() };
       if (phase === "pace") result.pace = "normal";
       if (phase === "navigation") result.outcome = "success";
       journey = recordPhase(journey, phase, result);

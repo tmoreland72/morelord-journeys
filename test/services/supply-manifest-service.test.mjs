@@ -174,7 +174,7 @@ test("excess forage updates owned rations through the actor inventory", async ()
     uuid: "Actor.owner",
     name: "Owner",
     items: [ration],
-    updateEmbeddedDocuments: async (type, changes) => { updates.push([type, changes]); }
+    updateEmbeddedDocuments: async (type, changes) => { updates.push([type, changes]); ration.system.quantity = changes[0]["system.quantity"]; }
   };
   globalThis.fromUuid = async () => actor;
 

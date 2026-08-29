@@ -5,12 +5,17 @@ import { getActiveJourney, saveActiveJourney } from "../foundry/settings-reposit
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { peacefulRestService } from "./peaceful-rest-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
+import { adjustActorExhaustion } from "./actor-exhaustion-service.mjs";
+import { clientRollButton } from "../ui/client-roll-dialog.mjs";
+import { sendClientRollResult } from "./client-roll-result-service.mjs";
 
 class SleepRollService extends EventTarget {
   #started = false;
   #dialogs = new Map();
+  #openingDialogs = new Set();
   #channel = null;
   #requestingParty = false;
+  #resultQueue = Promise.resolve();
 
   start() {
     if (this.#started) return;
@@ -30,7 +35,10 @@ class SleepRollService extends EventTarget {
       if (journey?.phase !== "sleep") throw new Error("The journey is not in the Sleep & Shelter phase.");
       if (journey.currentDay?.pendingSleepRolls?.length || journey.currentDay?.campSleepResults?.length) throw new Error("Sleep checks have already been requested for this travel day.");
       const requests = [];
+      const seenActors = new Set();
       for (const entry of plan?.entries ?? []) {
+        if (seenActors.has(entry.actorUuid)) continue;
+        seenActors.add(entry.actorUuid);
         const actor = await fromUuid(entry.actorUuid);
         if (!actor) continue;
         const recipient = requestRecipientForActor(actor);
@@ -40,6 +48,7 @@ class SleepRollService extends EventTarget {
       if (!requests.length) throw new Error("No active user is available to make the sleep checks.");
       journey.currentDay.pendingSleepRolls = requests;
       journey.currentDay.campSleepResults = [];
+      journey.currentDay.completedSleepRequestIds = [];
       await saveActiveJourney(journey);
       for (const request of requests) await this.#dispatch(request);
       this.#updated();
@@ -87,7 +96,8 @@ class SleepRollService extends EventTarget {
   async #receive(message) {
     if (message?.type === "sleepRoll.request" && message.request?.userId === game.user.id) return this.#open(message.request);
     if (message?.type === "sleepRoll.result" && game.user.isGM) {
-      await this.#recordResult(message.requestId, message.result);
+      const accepted = await this.#recordResult(message.requestId, message.result);
+      return accepted ? { accepted: true } : { accepted: false, reason: "That sleep check is no longer pending." };
     }
     if (message?.type === "sleepRoll.resolved") {
       await this.#dialogs.get(message.requestId)?.close();
@@ -96,16 +106,18 @@ class SleepRollService extends EventTarget {
   }
 
   async #open(request, { replace = false } = {}) {
-    if (this.#dialogs.has(request.id) && !replace) return;
-    if (replace) await this.#dialogs.get(request.id)?.close();
-    const actor = await fromUuid(request.actorUuid);
-    if (!actor) return;
-    const label = request.kind === "sleep" ? "Camp Sleep" : "Sleep Deprivation";
-    const dialog = new foundry.applications.api.DialogV2({
+    if ((this.#dialogs.has(request.id) || this.#openingDialogs.has(request.id)) && !replace) return;
+    this.#openingDialogs.add(request.id);
+    try {
+      if (replace) await this.#dialogs.get(request.id)?.close();
+      const actor = await fromUuid(request.actorUuid);
+      if (!actor) return;
+      const label = request.kind === "sleep" ? "Camp Sleep Check" : "Separate Sleep-Deprivation Save";
+      const dialog = new foundry.applications.api.DialogV2({
       window: { title: `Morelord Journeys — ${label}`, icon: "fa-solid fa-bed" },
       content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must make a DC ${request.dc} Constitution saving throw for ${label.toLowerCase()}.</p>`,
       modal: false,
-      buttons: [{ action: "roll", label: "Roll Constitution Save", icon: "fa-solid fa-dice-d20", default: true, callback: async () => {
+      buttons: [clientRollButton(async () => {
         const native = await actor.rollSavingThrow(
           { ability: "con", target: request.dc, advantage: request.advantage },
           { configure: true, title: `${request.actorName} — ${label} DC ${request.dc}` },
@@ -118,31 +130,41 @@ class SleepRollService extends EventTarget {
         const result = { total, succeeded: total >= request.dc, automatic: false, resolvedBy: game.user.id };
         if (game.user.isGM) {
           await this.#recordResult(request.id, result);
-        } else await this.#channel.executeAsGM("sleepRoll.result", { requestId: request.id, result }, { context: { journeyId: request.journeyId, requestId: request.id } });
+        } else {
+          await sendClientRollResult(this.#channel, "sleepRoll.result", request, result);
+          this.#dialogs.delete(request.id);
+        }
         return total;
-      }}]
+      })]
     });
-    this.#dialogs.set(request.id, dialog);
-    await dialog.render({ force: true });
+      this.#dialogs.set(request.id, dialog);
+      await dialog.render({ force: true });
+    } finally {
+      this.#openingDialogs.delete(request.id);
+    }
   }
 
   async #recordResult(requestId, result) {
     const operation = async () => {
       const journey = await getActiveJourney();
       const request = journey?.currentDay?.pendingSleepRolls?.find(item => item.id === requestId);
-      if (!request) return false;
+      if (!request) return Boolean(journey?.currentDay?.completedSleepRequestIds?.includes(requestId));
       await this.#accept(journey, request, result);
       return true;
     };
-    return operation();
+    const queued = this.#resultQueue.then(operation, operation);
+    this.#resultQueue = queued.catch(() => undefined);
+    return queued;
   }
 
   async #accept(journey, request, result) {
     if (request.userId === game.user.id) {
       await this.#dialogs.get(request.id)?.close();
       this.#dialogs.delete(request.id);
-    } else await this.#channel.executeAsUser("sleepRoll.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    }
     journey.currentDay.pendingSleepRolls = (journey.currentDay.pendingSleepRolls ?? []).filter(item => item.id !== request.id);
+    journey.currentDay.completedSleepRequestIds ??= [];
+    if (!journey.currentDay.completedSleepRequestIds.includes(request.id)) journey.currentDay.completedSleepRequestIds.push(request.id);
     if (request.kind === "sleep") {
       const longRestCompleted = qualifiesForLongRest({
         sleepCheckSucceeded: result.succeeded,
@@ -158,7 +180,10 @@ class SleepRollService extends EventTarget {
         const deprivation = this.#requestData({ journey, entry: request.entry, actor, recipient, kind: "deprivation", dc: sleepDeprivationDC(daysWithoutLongRest, { base: config.sleepDeprivationBase, increase: config.sleepDeprivationIncrease }), sleepResult: { ...result, advantage: request.advantage, longRestCompleted, daysWithoutLongRest } });
         journey.currentDay.pendingSleepRolls.push(deprivation);
         await saveActiveJourney(journey);
-        await this.#dispatch(deprivation);
+        setTimeout(() => void this.#dispatch(deprivation).catch(error => {
+          console.error("Morelord Journeys | Unable to dispatch sleep-deprivation save.", error);
+          ui.notifications.error(error.message);
+        }), 0);
         this.#updated();
         return;
       }
@@ -175,20 +200,18 @@ class SleepRollService extends EventTarget {
     const wasFedAndWatered = !consequences.foodActorUuids.includes(entry.actorUuid) && !consequences.waterActorUuids.includes(entry.actorUuid);
     let daysWithoutLongRest = sleepResult.longRestCompleted ? 0 : Number(sleepResult.daysWithoutLongRest ?? Number(actor.getFlag(MODULE_ID, "daysWithoutLongRest") ?? 0) + 1);
     await actor.setFlag(MODULE_ID, "daysWithoutLongRest", daysWithoutLongRest);
-    let exhaustionChange = sleepResult.longRestCompleted && wasFedAndWatered ? -1 : 0;
-    if (deprivation && !deprivation.succeeded) exhaustionChange += 1;
-    if (exhaustionChange) {
-      const current = Number(actor.system?.attributes?.exhaustion ?? 0);
-      await actor.update({ "system.attributes.exhaustion": Math.max(0, current + exhaustionChange) });
-    }
+    let requestedExhaustionChange = sleepResult.longRestCompleted && wasFedAndWatered ? -1 : 0;
+    if (deprivation && !deprivation.succeeded) requestedExhaustionChange += 1;
+    const exhaustionUpdate = await adjustActorExhaustion(actor, requestedExhaustionChange);
+    const exhaustionChange = exhaustionUpdate.change;
     const consequence = sleepResult.longRestCompleted
-      ? wasFedAndWatered ? "completed a Long Rest; Exhaustion reduced by 1" : "completed a Long Rest, but food or water shortage prevents Exhaustion recovery"
+      ? wasFedAndWatered ? exhaustionChange < 0 ? "completed a Long Rest; Exhaustion reduced by 1" : "completed a Long Rest; no Exhaustion level remained to remove" : "completed a Long Rest, but food or water shortage prevents Exhaustion recovery"
       : deprivation?.succeeded ? "did not complete a Long Rest; passed the sleep-deprivation save"
         : deprivation ? "did not complete a Long Rest; failed the sleep-deprivation save and gained 1 Exhaustion"
           : "did not complete a Long Rest; no Long Rest benefits and sleep-deprivation Exhaustion is disabled";
     journey.currentDay.campSleepResults ??= [];
     journey.currentDay.campSleepResults = journey.currentDay.campSleepResults.filter(item => item.actorUuid !== actor.uuid);
-    journey.currentDay.campSleepResults.push({ actorUuid: actor.uuid, actorName: actor.name, baseDC: entry.baseDC, modifiers: entry.modifiers, dc: entry.dc, total: sleepResult.total, advantage: sleepResult.advantage ?? request.advantage, sleepHours: entry.sleepHours, requiredSleepHours: entry.requiredSleepHours ?? 6, requiredSleepHoursSource: entry.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement", interruptionHours: entry.interruptionHours, longRestCompleted: sleepResult.longRestCompleted, daysWithoutLongRest, deprivation: deprivation ?? { suppressed: true }, fed: !consequences.foodActorUuids.includes(entry.actorUuid), watered: !consequences.waterActorUuids.includes(entry.actorUuid), succeeded: sleepResult.succeeded, exhaustionChange, consequence });
+    journey.currentDay.campSleepResults.push({ requestId: request.id, actorUuid: actor.uuid, actorName: actor.name, baseDC: entry.baseDC, modifiers: entry.modifiers, dc: entry.dc, total: sleepResult.total, advantage: sleepResult.advantage ?? request.advantage, sleepHours: entry.sleepHours, requiredSleepHours: entry.requiredSleepHours ?? 6, requiredSleepHoursSource: entry.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement", interruptionHours: entry.interruptionHours, interruptionSources: entry.interruptionSources ?? [], longRestCompleted: sleepResult.longRestCompleted, daysWithoutLongRest, deprivation: deprivation ?? { suppressed: true }, fed: !consequences.foodActorUuids.includes(entry.actorUuid), watered: !consequences.waterActorUuids.includes(entry.actorUuid), succeeded: sleepResult.succeeded, exhaustionChange, consequence });
     await saveActiveJourney(journey);
     if (!journey.currentDay.pendingSleepRolls.length) await this.#completeParty(journey);
     this.#updated();
@@ -206,7 +229,10 @@ class SleepRollService extends EventTarget {
       journey.currentDay.nightEncounterCheck.sleepConfirmedAt = Date.now();
     }
     await saveActiveJourney(journey);
-    if (journey.currentDay.peacefulRestEligible.length) await peacefulRestService.requestEligible();
+    if (journey.currentDay.peacefulRestEligible.length) setTimeout(() => void peacefulRestService.requestEligible().catch(error => {
+      console.error("Morelord Journeys | Unable to offer Peaceful Rest choices.", error);
+      ui.notifications.error(error.message);
+    }), 0);
   }
 
   #updated() { this.dispatchEvent(new Event("updated")); }

@@ -5,6 +5,8 @@ import { getActiveJourney, saveActiveJourney } from "../foundry/settings-reposit
 import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
 import { JourneyV14Application as BaseJourneyApplication } from "./journey-v14-app.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
+import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
+import { createNightEncounterInterruptions } from "../domain/night-interruption-rules.mjs";
 
 export class JourneyFinalApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = { actions: { rollNightEncounter: this.rollNightEncounter } };
@@ -43,15 +45,13 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
         const watchIndex = Number(watchRoll.total) - 1;
         const selected = watches.find(entry => assignedWatchIndexes(entry).includes(watchIndex));
         Object.assign(result, { watchRoll: Number(watchRoll.total), watchIndex, watcherActorUuid: selected?.actorUuid ?? null, watcherActorName: selected?.actorName ?? "Unwatched", campAction: selected?.action ?? null, unwatched: !selected });
-        if (result.outcome === "nightAttack" && selected) {
-          journey.currentDay.sleepInterruptions ??= [];
-          journey.currentDay.sleepInterruptions = journey.currentDay.sleepInterruptions.filter(item => item.actorUuid !== selected.actorUuid);
-          journey.currentDay.sleepInterruptions.push({ actorUuid: selected.actorUuid, actorName: selected.actorName, watchIndex, reason: "combat", suggestedHours: 1, hours: 1, recordedAt: Date.now() });
-        }
+        const travelerIds = new Set((journey.travelers ?? []).map(traveler => traveler.actorUuid));
+        journey.currentDay.sleepInterruptions = (journey.currentDay.sleepInterruptions ?? []).filter(item => !travelerIds.has(item.actorUuid));
+        journey.currentDay.sleepInterruptions.push(...createNightEncounterInterruptions(journey.travelers, { outcome: result.outcome, watchIndex }));
       }
       journey.currentDay.nightEncounterCheck = { ...result, setupQuality, campfire: Boolean(journey.currentDay?.campfire), pendingSleepConfirmation: true, rolledAt: Date.now() };
       await saveActiveJourney(journey);
-      await roll.toMessage({ flavor: `Morelord Journeys night encounter — ${result.outcome} (${result.modified})`, rollMode: "gmroll" });
+      await displayJourneyRoll(roll, { flavor: `Morelord Journeys night encounter — ${result.outcome} (${result.modified})`, rollMode: "gmroll" });
       if (result.watcherActorUuid) {
         if (result.campAction === "Slumber") {
           const current = await getActiveJourney();

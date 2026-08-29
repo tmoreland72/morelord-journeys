@@ -38,7 +38,6 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
     actions: {
       createJourney: this.createJourney,
-      saveRoles: this.saveRoles,
       refreshSupplies: this.refreshSupplies
     }
   };
@@ -64,7 +63,11 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
 
   async _onRender(context, options) {
     await super._onRender(context, options);
-    if (!context.hasJourney) this.#augmentPartyPlanner(context.availableTravelers);
+    if (!context.hasJourney) {
+      this.#augmentPartyPlanner(context.availableTravelers);
+      await this.#renderPlannerSupplyManifest();
+      this.element.querySelector(".ml-journeys-traveler-list")?.addEventListener("change", () => void this.#renderPlannerSupplyManifest());
+    }
     else {
       this.#renderRoles(context);
       if (context.canBeginDay || context.phaseIs?.foraging) this.#renderSupplyManifest(context);
@@ -128,42 +131,37 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const panel = document.createElement("section");
     panel.className = "ml-card ml-stack journey-roles-panel";
     const header = document.createElement("h2");
-    header.textContent = neededRole === "navigator" ? "Navigator" : "Observer";
-    const grid = document.createElement("div");
-    grid.className = "journey-role-grid";
-    const navigator = selectField("activeNavigatorUuid", "Navigator");
-    const observer = selectField("activeObserverUuid", "Observer");
-    for (const traveler of context.journey.travelers) {
-      option(navigator.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.navigatorUuid });
-      option(observer.select, { value: traveler.actorUuid, label: traveler.name, selected: traveler.actorUuid === context.journey.roles?.observerUuid });
-    }
-    const otherRoleUuid = neededRole === "navigator" ? context.journey.roles?.observerUuid : context.journey.roles?.navigatorUuid;
-    const activeSelect = neededRole === "navigator" ? navigator.select : observer.select;
-    for (const entry of activeSelect.options) entry.disabled = entry.value === otherRoleUuid;
-    const active = neededRole === "navigator" ? navigator : observer;
-    grid.append(active.field);
-    const saveOnChange = async () => {
-      const journey = await getActiveJourney();
-      validateExpeditionRoles({
-        navigatorUuid: neededRole === "navigator" ? active.select.value : journey.roles.navigatorUuid,
-        observerUuid: neededRole === "observer" ? active.select.value : journey.roles.observerUuid
-      });
-      journey.roles[`${neededRole}Uuid`] = active.select.value;
-      await saveActiveJourney(journey);
-    };
-    active.select.addEventListener("change", saveOnChange);
+    header.textContent = "Expedition Roles";
+    const display = document.createElement("div");
+    display.className = "journey-role-display";
+    const roleRows = ["navigator", "observer", "quartermaster"].map(role => {
+      const actorUuid = context.journey.roles?.[`${role}Uuid`];
+      const traveler = context.journey.travelers.find(candidate => candidate.actorUuid === actorUuid);
+      const name = traveler?.name ?? (actorUuid === context.journey.partyActorUuid ? context.quartermaster?.name : null) ?? "Not assigned";
+      return `<div><span>${role[0].toUpperCase()}${role.slice(1)}</span><strong>${foundry.utils.escapeHTML(name)}</strong></div>`;
+    }).join("");
+    display.innerHTML = roleRows;
     const hint = document.createElement("small");
-    hint.textContent = "Role changes are remembered automatically.";
-    panel.append(header, grid, hint);
+    hint.textContent = "Expedition roles are assigned while planning the journey.";
+    panel.append(header, display, hint);
     progress.after(panel);
   }
 
-  #renderSupplyManifest(context) {
-    const roles = this.element.querySelector(".journey-roles-panel") ?? this.element.querySelector(".journey-progress")?.closest("section");
+  async #renderPlannerSupplyManifest() {
+    const travelerUuids = Array.from(this.element.querySelectorAll("[name='travelerUuid']:checked"), input => input.value);
+    const partyActor = supplies.findPartyActor(travelerUuids);
+    const manifest = await supplies.build({ travelerUuids, partyActorUuid: partyActor?.uuid ?? null });
+    this.element.querySelector("[data-planner-supply-manifest]")?.remove();
+    this.#renderSupplyManifest({ manifest }, { anchor: this.element.querySelector(".journey-expedition-roles"), planner: true });
+  }
+
+  #renderSupplyManifest(context, { anchor = null, planner = false } = {}) {
+    const roles = anchor ?? this.element.querySelector(".journey-roles-panel") ?? this.element.querySelector(".journey-progress")?.closest("section");
     if (!roles) return;
-    const manifest = context.journey.supplies ?? {};
+    const manifest = context.manifest ?? context.journey?.supplies ?? {};
     const panel = document.createElement("section");
     panel.className = "ml-surface ml-stack journey-supply-panel";
+    if (planner) { panel.dataset.plannerSupplyManifest = ""; panel.classList.add("journey-planner-supply-panel"); }
     const header = document.createElement("div");
     header.className = "journey-progress-label";
     const title = document.createElement("h2");
@@ -173,14 +171,17 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     sourceText.textContent = (manifest.sources ?? []).map(source => `${source.actorName}${source.sourceType === "group" ? " (group inventory)" : ""}`).join(" · ");
     const heading = document.createElement("div");
     heading.append(title, sourceText);
-    const refresh = document.createElement("button");
-    refresh.type = "button";
-    refresh.className = "ml-icon-button ml-journeys-icon-button";
-    refresh.dataset.action = "refreshSupplies";
-    refresh.dataset.tooltip = "Refresh from inventories";
-    refresh.setAttribute("aria-label", refresh.dataset.tooltip);
-    refresh.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i>';
-    header.append(heading, refresh);
+    header.append(heading);
+    if (!planner) {
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "ml-icon-button ml-journeys-icon-button";
+      refresh.dataset.action = "refreshSupplies";
+      refresh.dataset.tooltip = "Refresh from inventories";
+      refresh.setAttribute("aria-label", refresh.dataset.tooltip);
+      refresh.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i>';
+      header.append(refresh);
+    }
 
     const totals = document.createElement("div");
     totals.className = "journey-supply-totals";
@@ -256,22 +257,6 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       console.error("Morelord Journeys | Unable to create journey.", error);
       ui.notifications.error(error.message);
     }
-  }
-
-  static async saveRoles(event) {
-    event.preventDefault();
-    const journey = await getActiveJourney();
-    journey.roles = validateExpeditionRoles({
-      navigatorUuid: value(this.element, "activeNavigatorUuid"),
-      observerUuid: value(this.element, "activeObserverUuid")
-    });
-    journey.roles = {
-      ...journey.roles,
-      quartermasterUuid: value(this.element, "activeQuartermasterUuid")
-    };
-    await saveActiveJourney(journey);
-    ui.notifications.info("Expedition roles updated.");
-    await this.render({ force: true });
   }
 
   static async refreshSupplies(event) {
