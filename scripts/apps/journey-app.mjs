@@ -9,6 +9,7 @@ import { normalizeCampAssignments, validateCampAssignments } from "../domain/cam
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { phaseSkipReason } from "../domain/phase-rules.mjs";
 import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
+import { createDayCompletionPayload } from "../domain/travel-context.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const value = (element, name) => element.querySelector(`[name="${name}"]`)?.value ?? "";
@@ -255,8 +256,17 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static async #completeDay() {
     try {
-      const journey = completeTravelDay(await getActiveJourney());
+      const source = await getActiveJourney();
+      const completedDay = structuredClone(source.currentDay);
+      const journey = completeTravelDay(source);
+      completedDay.appliedProgressSteps = journey.progressSteps - source.progressSteps;
       await saveActiveJourney(journey);
+      const locationApi = game.modules.get("morelord-core")?.api?.locations
+        ?? globalThis.MorelordCore?.locations;
+      const payload = createDayCompletionPayload(journey, completedDay, {
+        locationResolver: id => locationApi?.get?.(id) ?? null
+      });
+      Hooks.callAll("morelordJourneys.dayComplete", payload);
       const key = journey.status === "arrived" ? "Arrived" : "DayComplete";
       ui.notifications.info(game.i18n.localize(`MORELORD_JOURNEYS.Notifications.${key}`));
       this._resetScrollOnNextRender = true;

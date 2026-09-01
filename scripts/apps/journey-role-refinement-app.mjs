@@ -102,6 +102,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
       });
       let journey = createJourney({
         id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,
+        activityHoursPerDay: integer(this.element, "activityHoursPerDay", 2),
         travelers: actors.map(actor => ({
           ...dnd5e.snapshotTraveler(actor),
           survivalBonus: bonus(actor, "sur"),

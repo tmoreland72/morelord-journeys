@@ -41,6 +41,9 @@ export function beginTravelDay(source) {
     baseProgressSteps: null,
     progressModifiers: [],
     appliedProgressSteps: 0,
+    locationId: journey.currentLocationId ?? null,
+    activityHours: Math.max(0, Math.min(24, Number(journey.activityHoursPerDay ?? 2))),
+    temporaryCapabilities: structuredClone(journey.temporaryCapabilities ?? []),
     phases: {},
     campWatches: structuredClone(journey.campDefaults?.watches ?? []).map(watch => ({ ...watch, encounterRoll: null })),
     campSleepPlan: journey.campDefaults?.sleepPlan ? structuredClone(journey.campDefaults.sleepPlan) : null

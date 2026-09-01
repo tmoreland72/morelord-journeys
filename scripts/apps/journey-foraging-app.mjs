@@ -15,6 +15,7 @@ import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { longRestFailureReasons } from "../domain/sleep-rules.mjs";
 import { availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
+import { updateJourneyTravelContext } from "../domain/travel-context.mjs";
 
 const CAMP_ACTION_HELP = Object.freeze({
   "Take a Watch": "Remain alert during this watch and make any required Perception checks normally.",
@@ -28,6 +29,19 @@ const SLEEP_MODIFIER_LABELS = Object.freeze({ tent: "Tent", bedroll: "Bedroll", 
 const supplyConsumption = new SupplyConsumptionService();
 const supplyManifest = new SupplyManifestService();
 const campSupplies = new CampSupplyService();
+
+function readTravelContextForm(app) {
+  const locationId = String(app.element.querySelector("[name='travelLocationId']")?.value ?? "") || null;
+  const activityHours = Math.max(0, Math.min(24, Number(app.element.querySelector("[name='travelActivityHours']")?.value ?? 2)));
+  const rows = Array.from(app.element.querySelectorAll("[data-temporary-capability-row]"));
+  const temporaryCapabilities = rows.map(row => ({
+    type: String(row.querySelector("[data-capability-type]")?.value ?? "").trim(),
+    tier: String(row.querySelector("[data-capability-tier]")?.value ?? "common").trim(),
+    specialty: String(row.querySelector("[data-capability-specialty]")?.value ?? "").trim() || null,
+    source: "journey"
+  })).filter(capability => capability.type);
+  return { locationId, activityHours, temporaryCapabilities };
+}
 
 function selectedShelter(row) {
   const selected = new Set(String(row?.querySelector("[data-shelter-select]")?.value ?? "").split("+").filter(Boolean));
@@ -58,6 +72,10 @@ function describeInterruptionSources(result, currentDay) {
 
 export class JourneyForagingApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = { actions: {
+    manageLocations: this.manageLocations,
+    saveTravelContext: this.saveTravelContext,
+    addTemporaryCapability: this.addTemporaryCapability,
+    removeTemporaryCapability: this.removeTemporaryCapability,
     requestForagingRolls: this.requestForagingRolls,
     autoForagingSuccess: this.autoForagingSuccess,
     autoForagingFailure: this.autoForagingFailure,
@@ -79,6 +97,103 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     autoForcedMarchFailure: this.autoForcedMarchFailure,
     setWaterState: this.setWaterState
   } };
+
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
+    const locationApi = game.modules.get("morelord-core")?.api?.locations
+      ?? globalThis.MorelordCore?.locations;
+    const currentLocationId = context.journey?.currentDay?.locationId
+      ?? context.journey?.currentLocationId
+      ?? "";
+    const temporaryCapabilities = context.journey?.currentDay?.temporaryCapabilities
+      ?? context.journey?.temporaryCapabilities
+      ?? [];
+    return {
+      ...context,
+      canManageLocations: game.user.isGM,
+      travelLocations: [
+        { id: "", name: "On the Road", selected: !currentLocationId },
+        ...(locationApi?.list?.() ?? []).map(location => ({
+          id: location.id,
+          name: location.name,
+          selected: location.id === currentLocationId
+        }))
+      ],
+      travelActivityHours: context.journey?.currentDay?.activityHours
+        ?? context.journey?.activityHoursPerDay
+        ?? 2,
+      temporaryCapabilities: temporaryCapabilities.map((capability, index) => ({
+        ...capability,
+        index,
+        typeOptions: (locationApi?.listCapabilities?.() ?? []).map(type => ({
+          id: type.id,
+          name: type.name,
+          selected: type.id === capability.type
+        })),
+        tierOptions: (locationApi?.capabilityTiers ?? []).map(tier => ({
+          id: tier,
+          name: tier === "veryRare" ? "Very Rare" : tier.charAt(0).toUpperCase() + tier.slice(1),
+          selected: tier === capability.tier
+        }))
+      })),
+      hasTemporaryCapabilities: temporaryCapabilities.length > 0
+    };
+  }
+
+  static async saveTravelContext(event) {
+    event.preventDefault();
+    if (!game.user.isGM) return;
+    try {
+      const existing = await getActiveJourney();
+      if (!existing) return;
+      const { locationId, activityHours, temporaryCapabilities } = readTravelContextForm(this);
+      const journey = updateJourneyTravelContext(existing, { locationId, activityHours, temporaryCapabilities });
+      await saveActiveJourney(journey);
+      Hooks.callAll("morelordJourneys.contextChanged", { locationId, activityHours, temporaryCapabilities });
+      ui.notifications.info("Journey travel context saved.");
+      await this.render({ force: true });
+    } catch (error) {
+      ui.notifications.error(`Could not save travel context: ${error.message}`);
+    }
+  }
+
+  static async addTemporaryCapability(event) {
+    event.preventDefault();
+    const existing = await getActiveJourney();
+    if (!existing || !game.user.isGM) return;
+    const context = readTravelContextForm(this);
+    const locationApi = game.modules.get("morelord-core")?.api?.locations
+      ?? globalThis.MorelordCore?.locations;
+    context.temporaryCapabilities.push({
+      type: locationApi?.listCapabilities?.()[0]?.id ?? "marketplace",
+      tier: "common",
+      specialty: null,
+      source: "journey"
+    });
+    await saveActiveJourney(updateJourneyTravelContext(existing, context));
+    await this.render({ force: true });
+  }
+
+  static async removeTemporaryCapability(event, target) {
+    event.preventDefault();
+    const existing = await getActiveJourney();
+    if (!existing || !game.user.isGM) return;
+    const context = readTravelContextForm(this);
+    context.temporaryCapabilities.splice(Number(target.dataset.index), 1);
+    await saveActiveJourney(updateJourneyTravelContext(existing, context));
+    await this.render({ force: true });
+  }
+
+  static manageLocations(event) {
+    event.preventDefault();
+    const locations = game.modules.get("morelord-core")?.api?.locations
+      ?? globalThis.MorelordCore?.locations;
+    if (typeof locations?.open !== "function") {
+      ui.notifications.warn("Morelord Locations is unavailable. Update and enable Morelord Core.");
+      return;
+    }
+    return locations.open();
+  }
 
   #foragingUpdated = () => { if (this.rendered) void this.render({ force: true }); };
   #supplyUpdated = () => { if (this.rendered) void this.render({ force: true }); };

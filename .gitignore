@@ -4,3 +4,4 @@ node_modules/
 dist/
 *.log
 .release-runner-*.ps1
+.env
