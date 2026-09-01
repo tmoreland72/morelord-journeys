@@ -3,26 +3,59 @@
   "type": "module",
   "title": "Morelord Journeys",
   "description": "A structured exploration and travel workflow for Foundry Virtual Tabletop.",
-  "version": "0.2.1",
-  "authors": [{ "name": "Morelord Gaming" }],
-  "compatibility": { "minimum": "14", "verified": "14.365", "maximum": "14" },
-  "esmodules": ["scripts/morelord-journeys.mjs"],
-  "styles": ["styles/morelord-journeys.css"],
-  "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }],
+  "version": "0.3.0",
+  "authors": [
+    {
+      "name": "Morelord Gaming"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14.365",
+    "maximum": "14"
+  },
+  "esmodules": [
+    "scripts/morelord-journeys.mjs"
+  ],
+  "styles": [
+    "styles/morelord-journeys.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
   "relationships": {
-    "systems": [{ "id": "dnd5e", "type": "system", "compatibility": { "minimum": "5.3" } }],
-    "requires": [{
-      "id": "morelord-core", "type": "module",
-      "compatibility": { "minimum": "0.2.1" },
-      "manifest": "https://raw.githubusercontent.com/tmoreland72/morelord-core/main/module.json"
-    }],
-    "recommends": [{
-      "id": "morelord-encounters",
-      "type": "module"
-    }]
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "5.3"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "morelord-core",
+        "type": "module",
+        "compatibility": {
+          "minimum": "0.2.1"
+        },
+        "manifest": "https://raw.githubusercontent.com/tmoreland72/morelord-core/main/module.json"
+      }
+    ],
+    "recommends": [
+      {
+        "id": "morelord-encounters",
+        "type": "module"
+      }
+    ]
   },
   "socket": true,
-  "download": "https://github.com/tmoreland72/morelord-journeys/releases/download/v0.2.1/morelord-journeys.zip",
+  "download": "https://github.com/tmoreland72/morelord-journeys/releases/download/v0.3.0/morelord-journeys.zip",
   "url": "https://github.com/tmoreland72/morelord-journeys",
   "manifest": "https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json"
 }
