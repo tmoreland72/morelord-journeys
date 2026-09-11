@@ -3,7 +3,7 @@
   "type": "module",
   "title": "Morelord Journeys",
   "description": "A structured exploration and travel workflow for Foundry Virtual Tabletop.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "authors": [
     {
       "name": "Morelord Gaming"
@@ -55,7 +55,7 @@
     ]
   },
   "socket": true,
-  "download": "https://github.com/tmoreland72/morelord-journeys/releases/download/v0.3.1/morelord-journeys.zip",
+  "download": "https://github.com/tmoreland72/morelord-journeys/releases/download/v0.3.2/morelord-journeys.zip",
   "url": "https://github.com/tmoreland72/morelord-journeys",
   "manifest": "https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json"
 }
