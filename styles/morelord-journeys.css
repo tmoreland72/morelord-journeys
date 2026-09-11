@@ -8,20 +8,3 @@
 @import url("./journey-v14.css");
 @import url("./journey-settings.css");
 @import url("./journey-foraging.css");
-/* Journey-owned layout for shared capability controls. */
-.journey-temporary-capabilities-heading { align-items: flex-start; justify-content: space-between; }
-.journey-temporary-capabilities-heading h3,
-.journey-temporary-capabilities-heading p { margin-block: 0; }
-.journey-temporary-capability {
-  display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) minmax(150px, .8fr) minmax(180px, 1fr) auto;
-  gap: var(--ml-space-2);
-  align-items: end;
-}
-.journey-temporary-capability > label { display: grid; gap: var(--ml-space-1); min-width: 0; }
-.journey-temporary-capability > label > span { font-weight: var(--ml-font-weight-bold); }
-
-@media (max-width: 760px) {
-  .journey-temporary-capability { grid-template-columns: 1fr 1fr; }
-  .journey-temporary-capability > button { justify-self: end; }
-}

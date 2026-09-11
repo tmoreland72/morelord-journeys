@@ -1,5 +1,6 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
-import { getDCConfiguration, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
+import { getDCConfiguration, readJourneySteps, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
 import { addProgressModifier, beginTravelDay, completeTravelDay, readyJourney, recordPhase } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
@@ -41,6 +42,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     position: { width: 720, height: "auto" },
     window: { title: "MORELORD_JOURNEYS.Name", icon: "fa-solid fa-compass" },
     actions: {
+      openDocumentation: this.openDocumentation,
       createJourney: this.#createJourney,
       beginDay: this.#beginDay,
       advancePhase: this.#advancePhase,
@@ -60,6 +62,21 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   static PARTS = {
     content: { template: "modules/morelord-journeys/templates/journey-app.hbs" }
   };
+
+  static openDocumentation() {
+    const documentation = game.modules.get("morelord-core")?.api?.ui?.documentation;
+    if (!documentation) return;
+    documentation.register({
+      id: "morelord-journeys", title: "Morelord Journeys", icon: "fa-solid fa-compass",
+      subtitle: "Define a route and begin a stateful expedition.",
+      sections: [
+        { id: "planning", title: "Plan a Journey", icon: "fa-solid fa-route", introduction: "Choose the journey steps, name the expedition and route, set its origin and destination, and specify the route length in days and thirds. Set danger, discovery, resources, navigation, and traffic ratings before creating the journey." },
+        { id: "travel", title: "Travel and Camp", icon: "fa-solid fa-person-hiking", introduction: "Follow the active journey's phases to resolve each travel day. Record travel progress and encounters, then arrange camp, watches, foraging, and rest using the enabled steps. Disabled steps are skipped and logged." },
+        { id: "defaults", title: "Saved Defaults", icon: "fa-solid fa-bookmark", introduction: "Use Save as Default on the planner to remember your preferred setup for future journeys." }
+      ]
+    });
+    return documentation.open("morelord-journeys");
+  }
 
   render(options = {}) {
     const scroller = this.element?.querySelector?.(".ml-journeys.app-shell");
@@ -113,8 +130,8 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       discoveryLead: journey.currentDay?.discoveryLead ?? null,
       discoveryCheckSucceeded: journey.currentDay?.roleRollResults?.discovery?.outcome === "success",
       forcedMarch: {
-        pending: journey.currentDay?.pendingForcedMarchRolls ?? [],
-        results: journey.currentDay?.forcedMarchResults ?? []
+        pending: (journey.currentDay?.pendingForcedMarchRolls ?? []).map(entry => ({ ...entry, identityHtml: actorIdentity({ ...journey.travelers.find(traveler => traveler.actorUuid === entry.actorUuid), ...entry }) })),
+        results: (journey.currentDay?.forcedMarchResults ?? []).map(entry => ({ ...entry, identityHtml: actorIdentity({ ...journey.travelers.find(traveler => traveler.actorUuid === entry.actorUuid), ...entry }) }))
       },
       pressOnDC: getDCConfiguration().pressOn,
       recentLog: journey.log.slice(-12).reverse().map(entry => ({
@@ -144,7 +161,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       const journey = readyJourney(createJourney({
         id: crypto.randomUUID(),
         name: value(this.element, "journeyName"),
-        route
+        route, steps: readJourneySteps(this.element)
       }));
       await saveActiveJourney(journey);
       ui.notifications.info(game.i18n.localize("MORELORD_JOURNEYS.Notifications.Created"));
@@ -218,7 +235,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         const assignments = this.element.querySelector("select[name^='watchAction']")
           ? readCampAssignments(this.element, source)
           : validateCampAssignments(normalizeCampAssignments(source.travelers, source.currentDay?.campWatches ?? []));
-        if (nightEncountersEnabled() && !source.currentDay?.nightEncounterCheck) throw new Error("Resolve the night encounter check before continuing, or disable Night Encounters in Journeys Settings.");
+        if (nightEncountersEnabled(source) && !source.currentDay?.nightEncounterCheck) throw new Error("Resolve the night encounter check before continuing, or disable Night Encounters for this journey.");
         source.currentDay.campWatches = assignments;
         if (["minor", "nightAttack"].includes(source.currentDay?.nightEncounterCheck?.outcome)) {
           const interruptionHours = Math.max(0, Number(value(this.element, "nightInterruptionHours") || 0));
@@ -232,7 +249,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
             recordedAt: Date.now()
           }));
         }
-        result = { watches: assignments, nightEncounterSkipped: !nightEncountersEnabled() };
+        result = { watches: assignments, nightEncounterSkipped: !nightEncountersEnabled(source) };
       }
       if (phase === "sleep") {
         if ((source.currentDay?.campSleepResults?.length ?? 0) < source.travelers.length) throw new Error("Resolve every traveler's sleep check before continuing.");
@@ -454,7 +471,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static #skipDisabledPhases(source) {
     let journey = source;
-    const skipReason = () => phaseSkipReason({ phase: journey.phase, pace: journey.currentDay?.pace, enabled: isPhaseEnabled(journey.phase) });
+    const skipReason = () => phaseSkipReason({ phase: journey.phase, pace: journey.currentDay?.pace, enabled: isPhaseEnabled(journey.phase, journey) });
     while (journey.phase && journey.phase !== "dayComplete" && skipReason()) {
       const phase = journey.phase;
       const result = { skipped: true, reason: skipReason() };

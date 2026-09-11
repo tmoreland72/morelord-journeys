@@ -1,4 +1,5 @@
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { SupplyManifestService } from "./supply-manifest-service.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
@@ -30,7 +31,7 @@ class ForagingRollService extends EventTarget {
     for (const traveler of journey.travelers) {
       const actor = game.actors.get(traveler.actorId) ?? game.actors.find(candidate => candidate.uuid === traveler.actorUuid);
       if (!actor) continue;
-      const recipient = requestRecipientForActor(actor);
+      const recipient = journey.routeSnapshot.resourcesDC === 0 ? { user: game.user, fallbackToGM: false } : requestRecipientForActor(actor);
       if (!recipient) continue;
       const user = recipient.user;
       requests.push({
@@ -46,7 +47,8 @@ class ForagingRollService extends EventTarget {
     journey.currentDay.foragingResults = [];
     await saveActiveJourney(journey);
     for (const request of requests) {
-      if (request.userId === game.user.id) await this.#open(request);
+      if (request.dc === 0) await this.#record(journey, request, { total: null, succeeded: true, automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
+      else if (request.userId === game.user.id) await this.#open(request);
       else await this.#channel.executeAsUser("foragingRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     }
     this.#updated();
@@ -101,8 +103,9 @@ class ForagingRollService extends EventTarget {
     if (!actor) return;
     ui.notifications.info(`${request.actorName} has a pending foraging check.`);
     const dialog = new foundry.applications.api.DialogV2({
+      classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: "Morelord Journeys — Forage", icon: "fa-solid fa-basket-shopping" },
-      content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must make a Survival check against Resources DC ${request.dc}. Pace requires ${request.rollMode}.</p>`,
+      content: `<p>${actorIdentity(request)} must make a Survival check against Resources DC ${request.dc}. Pace requires ${request.rollMode}.</p>`,
       modal: false,
       buttons: [clientRollButton(async () => {
         const native = await actor.rollSkill(

@@ -1,3 +1,4 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { Dnd5eJourneyAdapter } from "../adapters/dnd5e-journey-adapter.mjs";
 import { createJourney } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
@@ -47,16 +48,18 @@ export class JourneyApplication extends BaseJourneyApplication {
   }
 
   #renderPartyPlanner(travelers) {
-    const ratings = this.element.querySelector(".ml-grid.ratings")?.previousElementSibling;
+    const ratings = this.element.querySelector(".journey-route-ratings");
     if (!ratings) return;
     const section = document.createElement("section");
-    section.className = "journey-party-planner";
-    const heading = document.createElement("h2");
-    heading.textContent = "Expedition Party";
+    section.className = "ml-surface ml-stack journey-party-planner";
+    const heading = document.createElement("div");
+    heading.className = "ml-section-heading";
+    heading.innerHTML = "<h2>Expedition Party</h2>";
     section.append(heading);
 
     if (!travelers.length) {
       const empty = document.createElement("p");
+      empty.className = "ml-empty-message";
       empty.textContent = "No D&D 5e character actors are available.";
       section.append(empty);
       ratings.before(section);
@@ -158,7 +161,7 @@ export class JourneyApplication extends BaseJourneyApplication {
     const panel = document.createElement("div");
     panel.className = "ml-card ml-grid journey-navigator-panel";
     const name = document.createElement("strong");
-    name.textContent = context.navigator ? `Navigator: ${context.navigator.name}` : "No navigator assigned";
+    name.innerHTML = context.navigator ? `Navigator: ${actorIdentity(context.navigator)}` : "No navigator assigned";
     const detail = document.createElement("p");
     detail.textContent = `Survival check · DC ${context.route.navigationDC ?? "automatic"}`;
     const button = document.createElement("button");
@@ -174,7 +177,7 @@ export class JourneyApplication extends BaseJourneyApplication {
       result.dataset.tone = prior.outcome === "success" ? "success" : "danger";
       result.textContent = `Navigation: ${prior.outcome}.`;
       panel.append(result, createOutcomeDetails({ cards: [{ title: "Navigation Check", rows: [
-        { label: "Character", value: prior.actorName },
+        { label: "Character", value: prior.actorName, actor: prior },
         { label: "DC", value: prior.dc ?? "Automatic" },
         { label: "Roll", value: prior.total ?? "Automatic success" },
         { label: "Outcome", value: prior.outcome }

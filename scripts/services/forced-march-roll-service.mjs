@@ -1,3 +1,4 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
@@ -29,7 +30,7 @@ class ForcedMarchRollService extends EventTarget {
     for (const traveler of journey.travelers) {
       const actor = await fromUuid(traveler.actorUuid);
       if (!actor) continue;
-      const recipient = requestRecipientForActor(actor);
+      const recipient = getDCConfiguration().pressOn === 0 ? { user: game.user, fallbackToGM: false } : requestRecipientForActor(actor);
       if (!recipient) continue;
       requests.push({ id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, actorUuid: actor.uuid, actorName: actor.name, userId: recipient.user.id, fallbackToGM: recipient.fallbackToGM, dc: getDCConfiguration().pressOn });
     }
@@ -37,7 +38,8 @@ class ForcedMarchRollService extends EventTarget {
     journey.currentDay.forcedMarchResults = [];
     await saveActiveJourney(journey);
     for (const request of requests) {
-      if (request.userId === game.user.id) await this.#open(request);
+      if (request.dc === 0) await this.#record(journey, request, { total: null, succeeded: true, automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
+      else if (request.userId === game.user.id) await this.#open(request);
       else await this.#channel.executeAsUser("forcedMarch.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     }
     this.#updated();
@@ -89,8 +91,9 @@ class ForcedMarchRollService extends EventTarget {
     const actor = await fromUuid(request.actorUuid);
     if (!actor) return;
     const dialog = new foundry.applications.api.DialogV2({
+      classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: "Morelord Journeys — Forced March", icon: "fa-solid fa-person-running" },
-      content: `<p><strong>${foundry.utils.escapeHTML(actor.name)}</strong> presses on for two more hours and must make a DC ${request.dc} Constitution saving throw.</p>`,
+      content: `<p>${actorIdentity(actor)} presses on for two more hours and must make a DC ${request.dc} Constitution saving throw.</p>`,
       modal: false,
       buttons: [clientRollButton(async () => {
         if (typeof actor.rollSavingThrow !== "function") throw new Error(`${actor.name} cannot make a D&D 5e Constitution saving throw.`);

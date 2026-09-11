@@ -17,6 +17,7 @@ export const DEFAULT_DC_CONFIGURATION = Object.freeze({
   sleepDeprivationBase: 10,
   sleepDeprivationIncrease: 5
 });
+export const JOURNEY_PLANNER_DEFAULTS_SETTING = "journeyPlannerDefaults";
 export const PHASE_SETTING_KEYS = Object.freeze({
   weather: "phaseWeather", pace: "phasePace", encounters: "phaseEncounters",
   discovery: "phaseDiscovery", navigation: "phaseNavigation", pressOn: "phasePressOn",
@@ -24,6 +25,10 @@ export const PHASE_SETTING_KEYS = Object.freeze({
 });
 
 export function registerJourneySettings() {
+  game.settings.register(MODULE_ID, JOURNEY_PLANNER_DEFAULTS_SETTING, {
+    name: "Journey creation defaults", scope: "world", config: false,
+    type: Object, default: {}, restricted: true
+  });
   game.settings.registerMenu(MODULE_ID, "configure", {
     name: "Journeys Settings", label: "Configure Journeys",
     hint: "Manage Morelord Core access, subscription status, and Journeys configuration.",
@@ -60,12 +65,19 @@ export function registerJourneySettings() {
   });
 }
 
-export const isPhaseEnabled = phase => phase === "sleep"
-  ? sleepAndShelterEnabled()
-  : !(phase in PHASE_SETTING_KEYS) || game.settings.get(MODULE_ID, PHASE_SETTING_KEYS[phase]) !== false;
+export const JOURNEY_STEP_KEYS = Object.freeze({ ...PHASE_SETTING_KEYS, nightEncounters: NIGHT_ENCOUNTERS_SETTING, sleep: SLEEP_AND_SHELTER_SETTING });
+export function getJourneyStepDefaults() {
+  const fields = game.settings.get(MODULE_ID, JOURNEY_PLANNER_DEFAULTS_SETTING)?.fields ?? {};
+  return Object.fromEntries(Object.entries(JOURNEY_STEP_KEYS).map(([step, key]) => [step, fields[`step-${step}`] ?? game.settings.get(MODULE_ID, key) !== false]));
+}
+export function readJourneySteps(element) {
+  const defaults = getJourneyStepDefaults();
+  return Object.fromEntries(Object.keys(JOURNEY_STEP_KEYS).map(step => [step, element.querySelector(`[name="step-${step}"]`)?.checked ?? defaults[step]]));
+}
+export const isPhaseEnabled = (phase, journey) => journey?.steps?.[phase] ?? (!(phase in JOURNEY_STEP_KEYS) || game.settings.get(MODULE_ID, JOURNEY_STEP_KEYS[phase]) !== false);
 export const suppressSleepDeprivationExhaustion = () => Boolean(game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING));
-export const nightEncountersEnabled = () => game.settings.get(MODULE_ID, NIGHT_ENCOUNTERS_SETTING) !== false;
-export const sleepAndShelterEnabled = () => game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING) !== false;
+export const nightEncountersEnabled = journey => isPhaseEnabled("nightEncounters", journey);
+export const sleepAndShelterEnabled = journey => isPhaseEnabled("sleep", journey);
 export const skipDiceAnimation = () => Boolean(game.settings.get(MODULE_ID, SKIP_DICE_ANIMATION_SETTING));
 export function getDCConfiguration() {
   const saved = game.settings.get(MODULE_ID, DC_CONFIGURATION_SETTING) ?? {};

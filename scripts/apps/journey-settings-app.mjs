@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../domain/constants.mjs";
-import { DC_CONFIGURATION_SETTING, getDCConfiguration, NIGHT_ENCOUNTERS_SETTING, PHASE_SETTING_KEYS, SKIP_DICE_ANIMATION_SETTING, SLEEP_AND_SHELTER_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
+import { DC_CONFIGURATION_SETTING, getDCConfiguration, SKIP_DICE_ANIMATION_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
 import { EntitlementService } from "../services/entitlement-service.mjs";
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -22,10 +22,7 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     return {
       ...context,
       settings: {
-        phases: Object.fromEntries(Object.entries(PHASE_SETTING_KEYS).map(([phase, key]) => [phase, game.settings.get(MODULE_ID, key)]))
-        , suppressSleepDeprivationExhaustion: game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING),
-        enableNightEncounters: game.settings.get(MODULE_ID, NIGHT_ENCOUNTERS_SETTING),
-        enableSleepAndShelter: game.settings.get(MODULE_ID, SLEEP_AND_SHELTER_SETTING),
+        suppressSleepDeprivationExhaustion: game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING),
         skipDiceAnimation: game.settings.get(MODULE_ID, SKIP_DICE_ANIMATION_SETTING),
         dc
       },
@@ -62,12 +59,8 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     event.preventDefault();
     target.disabled = true;
     try {
-      for (const [phase, key] of Object.entries(PHASE_SETTING_KEYS)) {
-        await game.settings.set(MODULE_ID, key, Boolean(this.element.querySelector(`[name="phase-${phase}"]`)?.checked));
-      }
       await game.settings.set(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING, Boolean(this.element.querySelector('[name="suppressSleepDeprivationExhaustion"]')?.checked));
-      await game.settings.set(MODULE_ID, NIGHT_ENCOUNTERS_SETTING, Boolean(this.element.querySelector('[name="enableNightEncounters"]')?.checked));
-      await game.settings.set(MODULE_ID, SLEEP_AND_SHELTER_SETTING, Boolean(this.element.querySelector('[name="enableSleepAndShelter"]')?.checked));
+      await game.settings.set(MODULE_ID, Boolean(this.element.querySelector('[name="enableSleepAndShelter"]')?.checked));
       await game.settings.set(MODULE_ID, SKIP_DICE_ANIMATION_SETTING, Boolean(this.element.querySelector('[name="skipDiceAnimation"]')?.checked));
       const priorDC = getDCConfiguration();
       const readDC = (name, fallback) => {

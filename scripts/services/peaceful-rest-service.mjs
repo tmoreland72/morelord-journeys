@@ -1,3 +1,4 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
@@ -90,7 +91,8 @@ class PeacefulRestService extends EventTarget {
       } else await this.#channel.executeAsGM("peacefulRest.result", { requestId: request.id, choice: action, resolvedBy: game.user.id }, { context: { journeyId: request.journeyId, requestId: request.id } });
       return action;
     } }));
-    const dialog = new foundry.applications.api.DialogV2({ window: { title: "Morelord Journeys — Peaceful Rest", icon: "fa-solid fa-bed" }, content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> receives a Peaceful Rest benefit. Choose one; Journeys records but does not apply it.</p>`, modal: false, buttons });
+    const dialog = new foundry.applications.api.DialogV2({
+      classes: ["ml-window", "ml-journeys-dialog"], window: { title: "Morelord Journeys — Peaceful Rest", icon: "fa-solid fa-bed" }, content: `<p>${actorIdentity(request)} receives a Peaceful Rest benefit. Choose one; Journeys records but does not apply it.</p>`, modal: false, buttons });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });
   }

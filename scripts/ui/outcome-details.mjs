@@ -1,3 +1,4 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 export function createOutcomeDetails({ title = "Outcome Details", cards = [] } = {}) {
   const details = document.createElement("details");
   details.className = "ml-details journey-outcome-details";
@@ -10,7 +11,8 @@ export function createOutcomeDetails({ title = "Outcome Details", cards = [] } =
     article.className = "ml-audit-card";
     if (card.title) {
       const heading = document.createElement("strong");
-      heading.textContent = card.title;
+      if (card.actor) heading.innerHTML = actorIdentity(card.actor);
+      else heading.textContent = card.title;
       article.append(heading);
     }
     const list = document.createElement("dl");
@@ -21,7 +23,8 @@ export function createOutcomeDetails({ title = "Outcome Details", cards = [] } =
       const term = document.createElement("dt");
       term.textContent = row.label;
       const value = document.createElement("dd");
-      value.textContent = String(row.value);
+      if (row.actor) value.innerHTML = actorIdentity(row.actor);
+      else value.textContent = String(row.value);
       wrapper.append(term, value);
       list.append(wrapper);
     }

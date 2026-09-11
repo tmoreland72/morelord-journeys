@@ -1,4 +1,5 @@
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { naturalD20 } from "../domain/d20-roll.mjs";
@@ -40,7 +41,7 @@ class RoleRollService extends EventTarget {
     const skillId = phase === "navigation" ? "sur" : "prc";
     const recipient = requestRecipientForActor(actor);
     const targetUserIds = recipient ? [recipient.user.id] : [];
-    if (!targetUserIds.length) throw new Error(`${actor.name} has no active owner available to make the roll.`);
+    if (dc !== 0 && !targetUserIds.length) throw new Error(`${actor.name} has no active owner available to make the roll.`);
     const request = {
       id: crypto.randomUUID(),
       journeyId: journey.id,
@@ -53,9 +54,13 @@ class RoleRollService extends EventTarget {
       dc,
       disadvantage: phase === "navigation" && Boolean(journey.currentDay?.phases?.weather?.extreme),
       targetUserIds,
-      fallbackToGM: recipient.fallbackToGM,
+      fallbackToGM: recipient?.fallbackToGM ?? false,
       requestedAt: Date.now()
     };
+    if (dc === 0) {
+      await this.#saveResult(journey, request, { total: null, outcome: "success", automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
+      return request;
+    }
     journey.currentDay.pendingRoleRoll = request;
     await saveActiveJourney(journey);
     if (request.targetUserIds.includes(game.user.id)) await this.#openClientRoll(request);
@@ -138,9 +143,10 @@ class RoleRollService extends EventTarget {
     ui.notifications.info(`${request.actorName} has a pending ${request.role} check.`);
     const content = document.createElement("div");
     const text = document.createElement("p");
-    text.textContent = `${request.actorName} must make a ${request.skillId === "sur" ? "Survival" : "Perception"} check against DC ${request.dc}.${request.disadvantage ? " Extreme weather imposes disadvantage." : ""}`;
+    text.innerHTML = `${actorIdentity(request)} must make a ${request.skillId === "sur" ? "Survival" : "Perception"} check against DC ${request.dc}.${request.disadvantage ? " Extreme weather imposes disadvantage." : ""}`;
     content.append(text);
     const dialog = new foundry.applications.api.DialogV2({
+      classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: `Morelord Journeys — ${request.role === "navigator" ? "Navigator" : "Observer"}` },
       content,
       modal: false,

@@ -1,5 +1,5 @@
 function activeUsers(users) {
-  return Array.from(users ?? []).filter(user => user?.active);
+  return Array.from(globalThis.MorelordCore?.users?.list(users) ?? users ?? []).filter(user => user?.active);
 }
 
 export function activeGM({ users = globalThis.game?.users } = {}) {
@@ -7,6 +7,7 @@ export function activeGM({ users = globalThis.game?.users } = {}) {
 }
 
 export function activePlayerForActor(actor, { users = globalThis.game?.users } = {}) {
+  if (globalThis.MorelordCore?.users) return globalThis.MorelordCore.users.activePlayerForActor(actor, { users });
   if (!actor) return null;
   const players = activeUsers(users).filter(user => !user.isGM);
   return players.find(user => user.character?.uuid === actor.uuid)
@@ -20,7 +21,7 @@ export function requestRecipientForActor(actor, {
 } = {}) {
   const player = activePlayerForActor(actor, { users });
   if (player) return { user: player, fallbackToGM: false };
-  const gm = requestingUser?.active && requestingUser.isGM
+  const gm = requestingUser?.active && requestingUser.isGM && !globalThis.MorelordCore?.users?.isIgnored(requestingUser)
     ? requestingUser
     : activeUsers(users).find(user => user.isGM) ?? null;
   return gm ? { user: gm, fallbackToGM: true } : null;

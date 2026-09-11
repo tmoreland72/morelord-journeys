@@ -1,3 +1,4 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
@@ -62,8 +63,9 @@ class CampPerceptionRollService extends EventTarget {
     const actor = await fromUuid(request.actorUuid);
     if (!actor) return;
     const dialog = new foundry.applications.api.DialogV2({
+      classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: `Morelord Journeys — Watch ${request.watchIndex + 1}`, icon: "fa-solid fa-eye" },
-      content: `<p><strong>${foundry.utils.escapeHTML(request.actorName)}</strong> must roll Perception for Watch ${request.watchIndex + 1}. Camp action: ${foundry.utils.escapeHTML(request.action)}.${request.disadvantage ? " Roll with disadvantage because attention is divided." : " Roll normally."}</p>`,
+      content: `<p>${actorIdentity(request)} must roll Perception for Watch ${request.watchIndex + 1}. Camp action: ${foundry.utils.escapeHTML(request.action)}.${request.disadvantage ? " Roll with disadvantage because attention is divided." : " Roll normally."}</p>`,
       modal: false,
       buttons: [clientRollButton(async () => {
         const native = await actor.rollSkill({ skill: "prc", disadvantage: request.disadvantage }, { configure: true, title: `${request.actorName} — Camp Watch Perception${request.disadvantage ? " (Disadvantage)" : ""}` }, { create: true, data: { flavor: `Morelord Journeys — Watch ${request.watchIndex + 1} Perception` } });

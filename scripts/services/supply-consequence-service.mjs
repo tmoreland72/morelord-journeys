@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../domain/constants.mjs";
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { hungerSaveDC, hungerThreshold } from "../domain/supply-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
@@ -58,7 +59,7 @@ class SupplyConsequenceService extends EventTarget {
       const saveRequired = dc !== null;
       hungerResults.push({ actorUuid, actorName: actor.name, daysWithoutFood, threshold, ateFullMeal: false, saveRequired, dc, exhaustionChange: 0 });
       if (saveRequired) {
-        const recipient = requestRecipientForActor(actor);
+        const recipient = dc === 0 ? { user: game.user, fallbackToGM: false } : requestRecipientForActor(actor);
         if (!recipient) continue;
         requests.push({ id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, actorUuid, actorName: actor.name, userId: recipient.user.id, fallbackToGM: recipient.fallbackToGM, dc, daysWithoutFood, threshold });
       }
@@ -67,7 +68,8 @@ class SupplyConsequenceService extends EventTarget {
     journey.currentDay.pendingSupplySaves = requests;
     await saveActiveJourney(journey);
     for (const request of requests) {
-      if (request.userId === game.user.id) await this.#open(request);
+      if (request.dc === 0) await this.#record(journey, request, { total: null, succeeded: true, automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
+      else if (request.userId === game.user.id) await this.#open(request);
       else await this.#channel.executeAsUser("supplySave.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
     }
     this.#updated();
@@ -100,8 +102,9 @@ class SupplyConsequenceService extends EventTarget {
     const actor = await fromUuid(request.actorUuid);
     if (!actor) return;
     const dialog = new foundry.applications.api.DialogV2({
+      classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: "Morelord Journeys — Starvation", icon: "fa-solid fa-heart-pulse" },
-      content: `<p><strong>${foundry.utils.escapeHTML(actor.name)}</strong> has no food and must make a DC ${request.dc} Constitution saving throw.</p>`,
+      content: `<p>${actorIdentity(actor)} has no food and must make a DC ${request.dc} Constitution saving throw.</p>`,
       modal: false,
       buttons: [clientRollButton(async () => {
         if (typeof actor.rollSavingThrow !== "function") throw new Error(`${actor.name} cannot make a D&D 5e Constitution saving throw.`);

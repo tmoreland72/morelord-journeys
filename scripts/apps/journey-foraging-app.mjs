@@ -1,3 +1,4 @@
+import { actorIdentity, decorateActorSelect } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { foragingRollService } from "../services/foraging-roll-service.mjs";
 import { SupplyConsumptionService } from "../services/supply-consumption-service.mjs";
@@ -15,33 +16,13 @@ import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { longRestFailureReasons } from "../domain/sleep-rules.mjs";
 import { availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
-import { updateJourneyTravelContext } from "../domain/travel-context.mjs";
 
-const CAMP_ACTION_HELP = Object.freeze({
-  "Take a Watch": "Remain alert during this watch and make any required Perception checks normally.",
-  Craft: "Make 2 hours of crafting progress. Requires the related tools and usually a campfire; Perception checks are at disadvantage.",
-  Cook: "Requires a campfire. On a successful verbal resolution, remove one Exhaustion from up to two characters. Perception checks are at disadvantage.",
-  Prepare: "Prepare one ability and gain a d6 Preparation die that decreases after each use until depleted.",
-  Slumber: "Sleep instead of watching. Automatically fail Perception checks and qualify for Peaceful Rest choices when enough sleep is completed.",
-  Task: "Replace the Camp Action with 2 hours of progress on another suitable task; Perception checks are usually at disadvantage."
-});
 const SLEEP_MODIFIER_LABELS = Object.freeze({ tent: "Tent", bedroll: "Bedroll", blanket: "Blanket in cold weather", extremeWeather: "Extreme weather", peacefulNight: "Peaceful night" });
 const supplyConsumption = new SupplyConsumptionService();
 const supplyManifest = new SupplyManifestService();
 const campSupplies = new CampSupplyService();
 
-function readTravelContextForm(app) {
-  const locationId = String(app.element.querySelector("[name='travelLocationId']")?.value ?? "") || null;
-  const activityHours = Math.max(0, Math.min(24, Number(app.element.querySelector("[name='travelActivityHours']")?.value ?? 2)));
-  const rows = Array.from(app.element.querySelectorAll("[data-temporary-capability-row]"));
-  const temporaryCapabilities = rows.map(row => ({
-    type: String(row.querySelector("[data-capability-type]")?.value ?? "").trim(),
-    tier: String(row.querySelector("[data-capability-tier]")?.value ?? "common").trim(),
-    specialty: String(row.querySelector("[data-capability-specialty]")?.value ?? "").trim() || null,
-    source: "journey"
-  })).filter(capability => capability.type);
-  return { locationId, activityHours, temporaryCapabilities };
-}
+
 
 function selectedShelter(row) {
   const selected = new Set(String(row?.querySelector("[data-shelter-select]")?.value ?? "").split("+").filter(Boolean));
@@ -72,10 +53,6 @@ function describeInterruptionSources(result, currentDay) {
 
 export class JourneyForagingApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = { actions: {
-    manageLocations: this.manageLocations,
-    saveTravelContext: this.saveTravelContext,
-    addTemporaryCapability: this.addTemporaryCapability,
-    removeTemporaryCapability: this.removeTemporaryCapability,
     requestForagingRolls: this.requestForagingRolls,
     autoForagingSuccess: this.autoForagingSuccess,
     autoForagingFailure: this.autoForagingFailure,
@@ -97,103 +74,6 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     autoForcedMarchFailure: this.autoForcedMarchFailure,
     setWaterState: this.setWaterState
   } };
-
-  async _prepareContext(options) {
-    const context = await super._prepareContext(options);
-    const locationApi = game.modules.get("morelord-core")?.api?.locations
-      ?? globalThis.MorelordCore?.locations;
-    const currentLocationId = context.journey?.currentDay?.locationId
-      ?? context.journey?.currentLocationId
-      ?? "";
-    const temporaryCapabilities = context.journey?.currentDay?.temporaryCapabilities
-      ?? context.journey?.temporaryCapabilities
-      ?? [];
-    return {
-      ...context,
-      canManageLocations: game.user.isGM,
-      travelLocations: [
-        { id: "", name: "On the Road", selected: !currentLocationId },
-        ...(locationApi?.list?.() ?? []).map(location => ({
-          id: location.id,
-          name: location.name,
-          selected: location.id === currentLocationId
-        }))
-      ],
-      travelActivityHours: context.journey?.currentDay?.activityHours
-        ?? context.journey?.activityHoursPerDay
-        ?? 2,
-      temporaryCapabilities: temporaryCapabilities.map((capability, index) => ({
-        ...capability,
-        index,
-        typeOptions: (locationApi?.listCapabilities?.() ?? []).map(type => ({
-          id: type.id,
-          name: type.name,
-          selected: type.id === capability.type
-        })),
-        tierOptions: (locationApi?.capabilityTiers ?? []).map(tier => ({
-          id: tier,
-          name: tier === "veryRare" ? "Very Rare" : tier.charAt(0).toUpperCase() + tier.slice(1),
-          selected: tier === capability.tier
-        }))
-      })),
-      hasTemporaryCapabilities: temporaryCapabilities.length > 0
-    };
-  }
-
-  static async saveTravelContext(event) {
-    event.preventDefault();
-    if (!game.user.isGM) return;
-    try {
-      const existing = await getActiveJourney();
-      if (!existing) return;
-      const { locationId, activityHours, temporaryCapabilities } = readTravelContextForm(this);
-      const journey = updateJourneyTravelContext(existing, { locationId, activityHours, temporaryCapabilities });
-      await saveActiveJourney(journey);
-      Hooks.callAll("morelordJourneys.contextChanged", { locationId, activityHours, temporaryCapabilities });
-      ui.notifications.info("Journey travel context saved.");
-      await this.render({ force: true });
-    } catch (error) {
-      ui.notifications.error(`Could not save travel context: ${error.message}`);
-    }
-  }
-
-  static async addTemporaryCapability(event) {
-    event.preventDefault();
-    const existing = await getActiveJourney();
-    if (!existing || !game.user.isGM) return;
-    const context = readTravelContextForm(this);
-    const locationApi = game.modules.get("morelord-core")?.api?.locations
-      ?? globalThis.MorelordCore?.locations;
-    context.temporaryCapabilities.push({
-      type: locationApi?.listCapabilities?.()[0]?.id ?? "marketplace",
-      tier: "common",
-      specialty: null,
-      source: "journey"
-    });
-    await saveActiveJourney(updateJourneyTravelContext(existing, context));
-    await this.render({ force: true });
-  }
-
-  static async removeTemporaryCapability(event, target) {
-    event.preventDefault();
-    const existing = await getActiveJourney();
-    if (!existing || !game.user.isGM) return;
-    const context = readTravelContextForm(this);
-    context.temporaryCapabilities.splice(Number(target.dataset.index), 1);
-    await saveActiveJourney(updateJourneyTravelContext(existing, context));
-    await this.render({ force: true });
-  }
-
-  static manageLocations(event) {
-    event.preventDefault();
-    const locations = game.modules.get("morelord-core")?.api?.locations
-      ?? globalThis.MorelordCore?.locations;
-    if (typeof locations?.open !== "function") {
-      ui.notifications.warn("Morelord Locations is unavailable. Update and enable Morelord Core.");
-      return;
-    }
-    return locations.open();
-  }
 
   #foragingUpdated = () => { if (this.rendered) void this.render({ force: true }); };
   #supplyUpdated = () => { if (this.rendered) void this.render({ force: true }); };
@@ -272,7 +152,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
   #enhanceCampActions() {
     const panel = this.element.querySelector(".journey-camp-planner");
     panel?.addEventListener("change", async event => {
-      if (!event.target.matches("select[name^='watchAction'], select[name^='watchPeriod'], select[name^='additionalWatchPeriod'], [name='campfire']")) return;
+      if (!event.target.matches("select[name^='watchAction'], input[name^='campWatch'], [name='campfire']")) return;
       const journey = await getActiveJourney();
       try { journey.currentDay.campWatches = readCampAssignments(this.element, journey); }
       catch { return; }
@@ -282,22 +162,6 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       await saveActiveJourney(journey);
     });
     if (!panel) return;
-    for (const row of panel.querySelectorAll(".journey-watch-row")) {
-      const select = row.querySelector("select[name^='watchAction']");
-      if (!select) continue;
-      const period = row.querySelector("select[name^='watchPeriod']");
-      const help = document.createElement("small");
-      help.className = "journey-camp-action-help";
-      const update = () => {
-        help.textContent = CAMP_ACTION_HELP[select.value] ?? "";
-        if (period) period.hidden = select.value !== "Take a Watch";
-        const additionalPeriod = row.querySelector("select[name^='additionalWatchPeriod']");
-        if (additionalPeriod) additionalPeriod.hidden = select.value !== "Take a Watch" || additionalPeriod.dataset.additionalWatchAvailable !== "true";
-      };
-      select.addEventListener("change", update);
-      update();
-      row.append(help);
-    }
     const campfire = panel.querySelector("[name='campfire']");
     const fireActions = new Set(["Craft", "Cook", "Prepare"]);
     const syncFireRequirements = () => {
@@ -324,10 +188,11 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     panel.querySelectorAll("select[name^='watchAction']").forEach(select => select.addEventListener("change", syncCraft));
     syncCraft();
     const cook = document.createElement("div");
-    cook.className = "journey-cook-resolution";
+    cook.className = "ml-grid ml-card journey-cook-resolution";
     const travelers = Array.from(panel.querySelectorAll(".journey-watch-row")).map(row => ({ value: row.dataset.actorUuid, label: row.querySelector("strong")?.textContent ?? "" }));
     const options = `<option value="">No recipient</option>${travelers.map(option => `<option value="${option.value}">${foundry.utils.escapeHTML(option.label)}</option>`).join("")}`;
-    cook.innerHTML = `<p>After verbally resolving a successful Cook action, select up to two recipients.</p><select name="cookRecipient1">${options}</select><select name="cookRecipient2">${options}</select><button type="button" data-action="resolveCookSuccess">Record Successful Cooking (-1 Exhaustion each)</button>`;
+    cook.innerHTML = `<p>After verbally resolving a successful Cook action, select up to two recipients.</p><label><span>First recipient</span><select name="cookRecipient1">${options}</select></label><label><span>Second recipient</span><select name="cookRecipient2">${options}</select></label><button type="button" data-action="resolveCookSuccess">Record Successful Cooking (-1 Exhaustion each)</button>`;
+    cook.querySelectorAll("select").forEach(decorateActorSelect);
     const syncCook = () => { cook.hidden = !Array.from(panel.querySelectorAll("select[name^='watchAction']")).some(select => select.value === "Cook"); };
     panel.querySelectorAll("select[name^='watchAction']").forEach(select => select.addEventListener("change", syncCook));
     syncCook();
@@ -335,18 +200,18 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
   }
 
   #renderCampSleep(context) {
-    if (!sleepAndShelterEnabled()) return;
+    if (!sleepAndShelterEnabled(context.journey)) return;
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
     anchor.disabled = true;
     anchor.dataset.tooltip = "Complete every sleep check before continuing.";
     const sleepBaseDC = getDCConfiguration().sleepBase;
     const section = document.createElement("section");
-    section.className = "journey-camp-sleep";
+    section.className = "ml-stack journey-camp-sleep";
     const night = context.journey.currentDay?.nightEncounterCheck;
     const nightLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[night?.outcome] ?? "Night result unavailable";
     section.dataset.cold = String(Boolean(context.journey.currentDay?.phases?.weather?.cold));
-    section.innerHTML = `<div class="journey-sleep-intro"><p>Weather and temperature are applied automatically from the Weather phase. Each traveler may select only sleeping equipment in their own inventory.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="journey-camp-sleep-list"></div>`;
+    section.innerHTML = `<div class="journey-sleep-intro"><p>Weather and temperature are applied automatically from the Weather phase. Each traveler may select only sleeping equipment in their own inventory.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="ml-audit-card journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="ml-stack journey-camp-sleep-list"></div>`;
     section.querySelector("[data-sleep-help]").addEventListener("click", event => {
       event.preventDefault();
       void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>Sleep Hours</h3><ul><li>Start at 8 hours.</li><li>Lose 2 hours per watch or non-Slumber action.</li><li>Interruption time comes from Night Encounters.</li></ul></section><section><h3>Long Rest</h3><ul><li>Pass the sleep check.</li><li>Meet required sleep hours.</li><li>Have less than 1 interrupted hour.</li></ul></section><section><h3>Other Effects</h3><ul><li>Peaceful Rest: −5 sleep DC.</li><li>Missing a Long Rest may require a deprivation save.</li><li>Food or water shortages prevent Exhaustion recovery.</li></ul></section></div>", ok: { label: "Close" } });
@@ -356,10 +221,10 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         const owned = Object.fromEntries(["tent", "bedroll", "blanket"].map(gear => [gear, (context.journey.supplies?.items ?? []).some(item => item.sourceActorUuid === traveler.actorUuid && item.sourceType !== "group" && item.category === gear && item.availableQuantity > 0)]));
         const options = shelterOptions(owned).map(entry => `<option value="${entry.value}">${entry.label}</option>`).join("");
         const row = document.createElement("div");
-        row.className = "journey-camp-sleep-row";
+        row.className = "ml-stack ml-card journey-camp-sleep-row";
         row.dataset.actorUuid = traveler.actorUuid;
         row.dataset.requiredSleepHours = String(traveler.longRestHours ?? 6);
-        row.innerHTML = `<header class="journey-sleep-character"><strong>${foundry.utils.escapeHTML(traveler.name)}</strong><span class="journey-sleep-dc">Sleep DC ${sleepBaseDC} · Long Rest requires ${traveler.longRestHours ?? 6}h</span></header><div class="journey-sleep-controls"><div class="journey-shelter-group"><span class="journey-control-label">Sleeping setup</span><div class="journey-shelter-choices"><select data-shelter-select aria-label="Sleeping setup for ${foundry.utils.escapeHTML(traveler.name)}">${options}</select><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-shelter-help aria-label="Explain shelter bonuses" data-tooltip="Explain shelter bonuses"><i class="fa-solid fa-circle-question"></i></button></div></div><label class="journey-sleep-hours"><span>Sleep hours</span><input type="number" data-sleep-hours min="0" max="8" step="0.5" value="8"></label><div class="journey-readonly-value"><span>Interrupted</span><strong data-interruption-display>0 hours</strong></div></div>`;
+        row.innerHTML = `<header class="journey-sleep-character"><strong>${actorIdentity(traveler)}</strong><span class="journey-sleep-dc">Sleep DC ${sleepBaseDC} · Long Rest requires ${traveler.longRestHours ?? 6}h</span></header><div class="journey-sleep-controls"><div class="journey-shelter-group"><span class="journey-control-label">Sleeping setup</span><div class="journey-shelter-choices"><select data-shelter-select aria-label="Sleeping setup for ${foundry.utils.escapeHTML(traveler.name)}">${options}</select><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-shelter-help aria-label="Explain shelter bonuses" data-tooltip="Explain shelter bonuses"><i class="fa-solid fa-circle-question"></i></button></div></div><label class="journey-sleep-hours"><span>Sleep hours</span><input type="number" data-sleep-hours min="0" max="8" step="0.5" value="8"></label><div class="journey-readonly-value"><span>Interrupted</span><strong data-interruption-display>0 hours</strong></div></div>`;
         row.querySelector("[data-shelter-help]").addEventListener("click", event => {
           event.preventDefault();
           void foundry.applications.api.DialogV2.prompt({ window: { title: "Shelter and Sleep DC", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>DC Modifiers</h3><ul><li>Owned tent: −5</li><li>Owned bedroll: −2</li><li>Owned blanket in cold weather: −1</li><li>Extreme weather: +5</li><li>Peaceful night: −5</li></ul></section><section><h3>Ownership</h3><ul><li>Sleeping equipment is never pooled.</li></ul></section></div>", ok: { label: "Close" } });
@@ -377,14 +242,14 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         const extreme = Boolean(row.closest(".journey-camp-sleep")?.dataset.extreme === "true");
         if (extreme) dc += 5;
         if (row.closest(".journey-camp-sleep")?.dataset.peaceful === "true") dc -= 5;
-        row.querySelector(".journey-sleep-dc").textContent = `Sleep DC ${Math.max(0, dc)} · Long Rest requires ${row.dataset.requiredSleepHours}h`;
+        row.querySelector(".journey-sleep-dc").textContent = `Sleep DC ${Math.max(0, dc)}${dc <= 0 ? " · No roll needed" : ""} · Long Rest requires ${row.dataset.requiredSleepHours}h`;
       }
     };
     section.querySelectorAll("input, select").forEach(input => input.addEventListener("change", recalculate));
     const roll = document.createElement("button");
     roll.type = "button";
     roll.dataset.action = "rollCampSleep";
-    roll.textContent = "Request Party Sleep Checks";
+    roll.textContent = "Resolve Party Sleep";
     section.append(roll);
     anchor.before(section);
     recalculate();
@@ -404,7 +269,8 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         const savedSetup = ["tent", "bedroll", "blanket"].filter(gear => entry.equipment?.[gear]).join("+");
         const select = row.querySelector("[data-shelter-select]");
         select.value = Array.from(select.options).some(option => option.value === savedSetup) ? savedSetup : "";
-        row.querySelector("[data-sleep-hours]").value = entry.sleepHours ?? availableCampSleepHours(active.currentDay?.campWatches, entry.actorUuid);
+        row.querySelector("[data-sleep-hours]").value = Math.min(entry.sleepHours ?? 8, availableCampSleepHours(active.currentDay?.campWatches, entry.actorUuid));
+        row.querySelector("[data-sleep-hours]").max = availableCampSleepHours(active.currentDay?.campWatches, entry.actorUuid);
         const encounterHours = (active.currentDay?.sleepInterruptions ?? [])
           .filter(item => item.actorUuid === entry.actorUuid)
           .reduce((total, item) => total + Math.max(0, Number(item.hours ?? Number(item.minutes ?? 0) / 60)), 0);
@@ -416,27 +282,27 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const sleepWasRequested = pendingSleep.length > 0 || (active.currentDay?.campSleepResults?.length ?? 0) > 0;
       roll.hidden = sleepWasRequested;
       roll.disabled = sleepWasRequested;
-      roll.textContent = pendingSleep.length > 0 ? "Sleep Checks Pending" : "Request Party Sleep Checks";
+      roll.textContent = pendingSleep.length > 0 ? "Sleep Checks Pending" : "Resolve Party Sleep";
       if (pendingSleep.length) {
         const pending = document.createElement("div");
-        pending.className = "journey-sleep-result-list";
-        pending.innerHTML = pendingSleep.map(request => `<article class="journey-sleep-result"><header><strong>${foundry.utils.escapeHTML(request.actorName)}</strong><span>${request.kind === "deprivation" ? "Sleep deprivation" : "Sleep check"} · DC ${request.dc} pending</span></header><div class="ml-cluster"><button type="button" data-action="resendSleepRoll" data-request-id="${request.id}">Resend</button><button type="button" data-action="autoSleepFailure" data-request-id="${request.id}">Fail</button><button type="button" data-action="autoSleepSuccess" data-request-id="${request.id}">Succeed</button></div></article>`).join("");
+        pending.className = "ml-stack journey-sleep-result-list";
+        pending.innerHTML = pendingSleep.map(request => `<article class="ml-audit-card journey-sleep-result"><header><strong>${actorIdentity(request)}</strong><span>${request.kind === "deprivation" ? "Sleep deprivation" : "Sleep check"} · DC ${request.dc} pending</span></header><div class="ml-cluster"><button type="button" data-action="resendSleepRoll" data-request-id="${request.id}">Resend</button><button type="button" data-action="autoSleepFailure" data-request-id="${request.id}">Fail</button><button type="button" data-action="autoSleepSuccess" data-request-id="${request.id}">Succeed</button></div></article>`).join("");
         section.append(pending);
       }
       if (active.currentDay?.campSleepResults?.length) {
         const summary = document.createElement("div");
-        summary.className = "journey-sleep-results";
-        summary.innerHTML = `<h4>Sleep Check Results</h4><div class="journey-sleep-result-list">${active.currentDay.campSleepResults.map(result => {
+        summary.className = "ml-stack journey-sleep-results";
+        summary.innerHTML = `<h4>Sleep Check Results</h4><div class="ml-stack journey-sleep-result-list">${active.currentDay.campSleepResults.map(result => {
           const state = result.longRestCompleted ? "is-success" : result.succeeded ? "is-warning" : "is-failure";
           const status = result.longRestCompleted ? "Sleep check passed · Long Rest completed" : `${result.succeeded ? "Sleep check passed" : "Sleep check failed"} · No Long Rest`;
-          return `<article class="journey-sleep-result ${state}"><header><strong>${foundry.utils.escapeHTML(result.actorName)}</strong><span>${status}</span></header><p class="journey-result-consequence">${foundry.utils.escapeHTML(result.consequence)}</p></article>`;
+          return `<article class="ml-audit-card journey-sleep-result ${state}"><header><strong>${actorIdentity(result)}</strong><span>${status}</span></header><p class="journey-result-consequence">${foundry.utils.escapeHTML(result.consequence)}</p></article>`;
         }).join("")}</div>`;
-        summary.append(createOutcomeDetails({ cards: active.currentDay.campSleepResults.map(result => ({ title: result.actorName, rows: [
-          { label: "Sleep check roll", value: result.total },
+        summary.append(createOutcomeDetails({ cards: active.currentDay.campSleepResults.map(result => ({ title: result.actorName, actor: result, rows: [
+          { label: "Sleep check roll", value: result.automaticReason === "zeroDC" ? "DC 0 — no roll needed" : result.total },
           { label: "Base DC", value: result.baseDC },
           ...(result.modifiers ?? []).map(modifier => ({ label: SLEEP_MODIFIER_LABELS[modifier.id] ?? modifier.id, value: `${modifier.value >= 0 ? "+" : ""}${modifier.value}` })),
           { label: "Final DC", value: result.dc },
-          { label: "Sleep check outcome", value: result.automatic ? `${result.succeeded ? "Success" : "Failure"} — manually set by GM` : result.succeeded ? `Success — ${result.total} meets final DC ${result.dc}` : `Failure — ${result.total} is below final DC ${result.dc}` },
+          { label: "Sleep check outcome", value: result.automaticReason === "zeroDC" ? "Automatic success — DC 0; no roll needed" : result.automatic ? `${result.succeeded ? "Success" : "Failure"} — manually set by GM` : result.succeeded ? `Success — ${result.total} meets final DC ${result.dc}` : `Failure — ${result.total} is below final DC ${result.dc}` },
           { label: "Sleep", value: `${result.sleepHours ?? 0} hours` },
           { label: "Required sleep for Long Rest", value: `${result.requiredSleepHours ?? 6} hours` },
           { label: "Requirement source", value: result.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement" },
@@ -451,8 +317,8 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const eligible = active.currentDay?.peacefulRestEligible ?? [];
       if (eligible.length) {
         const choices = document.createElement("div");
-        choices.className = "journey-peaceful-rest";
-        choices.innerHTML = `<h4>Peaceful Rest Benefits</h4><p>Players choose these benefits. Journeys records the selections but does not apply them mechanically.</p><div class="journey-peaceful-choice-list">${eligible.map(actorUuid => { const traveler = active.travelers.find(item => item.actorUuid === actorUuid); const choice = active.currentDay?.peacefulRestChoices?.find(item => item.actorUuid === actorUuid); const pending = active.currentDay?.pendingPeacefulRestChoices?.find(item => item.actorUuid === actorUuid); return `<article data-peaceful-actor="${actorUuid}"><strong>${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")}</strong>${choice ? `<span class="journey-peaceful-selection">${foundry.utils.escapeHTML(choice.label)}</span>` : pending ? `<div class="journey-peaceful-pending"><span>Awaiting player selection</span><select aria-label="Peaceful Rest benefit for ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")}"><option value="firstSaveAdvantage">Advantage on the first saving throw tomorrow</option><option value="exhaustion">Remove one additional level of Exhaustion</option><option value="inspiration">Gain Heroic Inspiration</option></select><div class="ml-cluster journey-peaceful-actions"><button type="button" data-action="resendPeacefulRest" data-request-id="${pending.id}">Resend</button><button type="button" data-action="setPeacefulRest" data-request-id="${pending.id}">GM Set</button></div></div>` : `<span>Selection not requested</span>`}</article>`; }).join("")}</div>`;
+        choices.className = "ml-stack journey-peaceful-rest";
+        choices.innerHTML = `<h4>Peaceful Rest Benefits</h4><p>Players choose these benefits. Journeys records the selections but does not apply them mechanically.</p><div class="ml-stack journey-peaceful-choice-list">${eligible.map(actorUuid => { const traveler = active.travelers.find(item => item.actorUuid === actorUuid); const choice = active.currentDay?.peacefulRestChoices?.find(item => item.actorUuid === actorUuid); const pending = active.currentDay?.pendingPeacefulRestChoices?.find(item => item.actorUuid === actorUuid); return `<article class="ml-card ml-grid" data-peaceful-actor="${actorUuid}"><strong>${actorIdentity({ ...traveler, actorUuid })}</strong>${choice ? `<span class="journey-peaceful-selection">${foundry.utils.escapeHTML(choice.label)}</span>` : pending ? `<div class="journey-peaceful-pending"><span>Awaiting player selection</span><select aria-label="Peaceful Rest benefit for ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")}"><option value="firstSaveAdvantage">Advantage on the first saving throw tomorrow</option><option value="exhaustion">Remove one additional level of Exhaustion</option><option value="inspiration">Gain Heroic Inspiration</option></select><div class="ml-cluster journey-peaceful-actions"><button type="button" data-action="resendPeacefulRest" data-request-id="${pending.id}">Resend</button><button type="button" data-action="setPeacefulRest" data-request-id="${pending.id}">GM Set</button></div></div>` : `<span>Selection not requested</span>`}</article>`; }).join("")}</div>`;
         section.append(choices);
       }
       const sleepComplete = (active.currentDay?.campSleepResults?.length ?? 0) >= active.travelers.length
@@ -480,31 +346,28 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
 
     const saved = context.journey.currentDay?.foragingResolution;
     const panel = document.createElement("section");
-    panel.className = "ml-card ml-stack journey-foraging-check";
-    panel.innerHTML = `<header><h3>Forage for Food & Water</h3><p>Each traveler makes a Survival check against Resources DC ${context.route.resourcesDC}. Players receive individual roll requests; the GM can resolve pending checks manually.</p></header>`;
+    panel.className = "ml-stack journey-foraging-check";
+    panel.innerHTML = `<header class="ml-stack" data-gap="1"><h3>Forage for Food & Water</h3><p>${context.route.resourcesDC === 0 ? "Resources DC 0: every traveler succeeds automatically; no roll is needed." : `Each traveler makes a Survival check against Resources DC ${context.route.resourcesDC}. Players receive individual roll requests; the GM can resolve pending checks manually.`}</p></header>`;
     const list = document.createElement("div");
-    list.className = "journey-forager-list";
+    list.className = "ml-stack journey-forager-list";
     const pending = context.journey.currentDay?.pendingForagingRolls ?? [];
     const results = context.journey.currentDay?.foragingResults ?? [];
     for (const traveler of context.journey.travelers) {
       const row = document.createElement("div");
-      row.className = "journey-forager-row";
-      const image = document.createElement("img");
-      image.src = traveler.img;
-      image.alt = "";
+      row.className = "ml-card ml-grid journey-forager-row";
       const name = document.createElement("strong");
       name.className = "journey-forager-name";
-      name.textContent = traveler.name;
+      name.innerHTML = actorIdentity(traveler);
       const request = pending.find(candidate => candidate.actorUuid === traveler.actorUuid);
       const result = results.find(candidate => candidate.actorUuid === traveler.actorUuid);
       const status = document.createElement("span");
       status.className = "ml-status journey-forager-status";
       if (result) status.dataset.tone = result.succeeded ? "success" : "danger";
-      status.textContent = request ? "Pending" : result ? `${result.succeeded ? "Success" : "Failure"}${result.automatic ? " · GM" : ` · ${result.total}`}` : "Not requested";
-      row.append(image, name, status);
+      status.textContent = request ? "Pending" : result ? `${result.succeeded ? "Success" : "Failure"}${result.automaticReason === "zeroDC" ? " · No roll needed" : result.automatic ? " · GM" : ` · ${result.total}`}` : context.route.resourcesDC === 0 ? "Automatic success ready" : "Not requested";
+      row.append(name, status);
       if (request) {
         const actions = document.createElement("div");
-        actions.className = "journey-forager-actions";
+        actions.className = "ml-actions journey-forager-actions";
         for (const [action, label] of [["resendForagingRoll", "Resend"], ["autoForagingFailure", "Fail"], ["autoForagingSuccess", "Succeed"]]) {
           const button = document.createElement("button");
           button.type = "button";
@@ -519,9 +382,9 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     }
     panel.append(list);
     if (results.length) {
-      panel.append(createOutcomeDetails({ cards: results.map(result => ({ title: result.actorName, rows: [
+      panel.append(createOutcomeDetails({ cards: results.map(result => ({ title: result.actorName, actor: result, rows: [
         { label: "Resources DC", value: result.dc },
-        { label: "Survival roll", value: result.automatic ? "Manually set by GM" : result.total },
+        { label: "Survival roll", value: result.automaticReason === "zeroDC" ? "DC 0 — no roll needed" : result.automatic ? "Manually set by GM" : result.total },
         { label: "Natural d20", value: result.automatic ? null : result.natural },
         { label: "Check outcome", value: result.succeeded ? "Success" : "Failure" },
         { label: "Food found", value: `${result.foodFound ?? 0} ration${Number(result.foodFound ?? 0) === 1 ? "" : "s"}` },
@@ -532,12 +395,12 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const request = document.createElement("button");
       request.type = "button";
       request.dataset.action = "requestForagingRolls";
-      request.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Request Party Foraging Rolls';
+      request.innerHTML = context.route.resourcesDC === 0 ? '<i class="fa-solid fa-check"></i> Resolve Automatic Foraging' : '<i class="fa-solid fa-paper-plane"></i> Request Party Foraging Rolls';
       panel.append(request);
     }
     if (saved) {
       const summary = document.createElement("div");
-      summary.className = "journey-foraging-summary";
+      summary.className = "ml-audit-card journey-foraging-summary";
       const excess = Object.values(saved.excessFoodByActorUuid ?? {}).reduce((total, amount) => total + Number(amount), 0);
       summary.innerHTML = `<strong>Foraging outcome:</strong> ${saved.totalFoodFound ?? saved.successfulActorUuids?.length ?? 0} food found; ${saved.foodRequired} ration(s) still required; ${saved.waterRequired} pint(s) of water required.${saved.waterSourceFound ? " A forager found water for everyone; carried water is not consumed and containers may be refilled." : ""}${excess ? ` ${excess} excess ration(s) added to the successful forager inventories.` : ""}<br><small>Expedition pool: ${context.journey.supplies?.totals?.food ?? 0} food, ${context.journey.supplies?.totals?.water ?? 0} water pints.</small>`;
       panel.append(summary);
@@ -546,7 +409,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       }
       if (context.journey.currentDay?.supplyResolution) {
         const resolution = document.createElement("div");
-        resolution.className = "journey-foraging-summary";
+        resolution.className = "ml-audit-card journey-foraging-summary";
         const applied = context.journey.currentDay.supplyResolution;
         resolution.innerHTML = `<strong>Supplies resolved${applied.resolutionMode === "manual" ? " manually without inventory changes" : " and consumed from inventory"}.</strong> Remaining shortages: ${applied.shortages.food} food, ${applied.shortages.water} water.`;
         panel.append(resolution);
@@ -574,20 +437,20 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       return;
     }
     const section = document.createElement("div");
-    section.className = "journey-supply-allocation";
+    section.className = "ml-stack journey-supply-allocation";
     section.innerHTML = `<h4>Supply Consequences</h4><p>${consequences.waterActorUuids.length} traveler(s) lacked water and gained Exhaustion automatically.</p>`;
     for (const hunger of consequences.hungerResults ?? []) {
       const row = document.createElement("p");
-      row.textContent = hunger.ateFullMeal
-        ? `${hunger.actorName} ate a full meal; hunger reset.`
-        : `${hunger.actorName}: ${hunger.daysWithoutFood} day(s) without food; ${hunger.threshold} day(s) allowed${hunger.saveRequired ? `; DC ${hunger.dc} Constitution save required` : "; no save required yet"}.`;
+      row.innerHTML = hunger.ateFullMeal
+        ? `${actorIdentity(hunger)} ate a full meal; hunger reset.`
+        : `${actorIdentity(hunger)}: ${hunger.daysWithoutFood} day(s) without food; ${hunger.threshold} day(s) allowed${hunger.saveRequired ? `; DC ${hunger.dc} Constitution save required` : "; no save required yet"}.`;
       section.append(row);
     }
     for (const request of context.journey.currentDay?.pendingSupplySaves ?? []) {
       const row = document.createElement("div");
       row.className = "journey-supply-save-row";
       const label = document.createElement("span");
-      label.textContent = `${request.actorName}: DC ${request.dc} Constitution save pending`;
+      label.innerHTML = `${actorIdentity(request)}: DC ${request.dc} Constitution save pending`;
       row.append(label);
       for (const [action, text] of [["autoSupplySaveFailure", "Fail"], ["autoSupplySaveSuccess", "Succeed"]]) {
         const button = document.createElement("button");
@@ -626,7 +489,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     plan.shortageActorUuids.food = [...new Set(plan.shortageActorUuids.food)];
     plan.shortages.food = plan.shortageActorUuids.food.length;
     const section = document.createElement("div");
-    section.className = "journey-supply-allocation";
+    section.className = "ml-stack journey-supply-allocation";
     const heading = document.createElement("h4");
     heading.textContent = "Allocate Daily Supplies";
     const explanation = document.createElement("p");
@@ -635,7 +498,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     if (availableFood > 0 && availableFood < foodNeeded.length) {
       const chooser = document.createElement("fieldset");
       chooser.className = "ml-field-group journey-food-recipient-choice";
-      chooser.innerHTML = `<legend>Who Receives Food?</legend><p>${availableFood} ration(s) are available for ${foodNeeded.length} travelers. Select up to ${availableFood}.</p>${foodNeeded.map(actorUuid => { const traveler = context.journey.travelers.find(item => item.actorUuid === actorUuid); return `<label><input type="checkbox" data-food-recipient="${actorUuid}" ${selectedFoodRecipients.includes(actorUuid) ? "checked" : ""}> ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")}</label>`; }).join("")}`;
+      chooser.innerHTML = `<legend>Who Receives Food?</legend><p>${availableFood} ration(s) are available for ${foodNeeded.length} travelers. Select up to ${availableFood}.</p>${foodNeeded.map(actorUuid => { const traveler = context.journey.travelers.find(item => item.actorUuid === actorUuid); return `<label class="ml-toggle"><input type="checkbox" data-food-recipient="${actorUuid}" ${selectedFoodRecipients.includes(actorUuid) ? "checked" : ""}> ${actorIdentity({ ...traveler, actorUuid })}</label>`; }).join("")}`;
       chooser.addEventListener("change", async event => {
         if (!event.target.matches("[data-food-recipient]")) return;
         const selected = Array.from(chooser.querySelectorAll("[data-food-recipient]:checked"), input => input.dataset.foodRecipient);
@@ -655,8 +518,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const row = document.createElement("div");
       row.className = "journey-supply-allocation-row";
       const text = document.createElement("span");
-      const source = allocation.sourceType === "group" ? `${allocation.sourceActorName} (Group inventory)` : `${allocation.sourceActorName}'s inventory`;
-      text.textContent = `${allocation.consumerActorName}: ${allocation.quantity} ${allocation.category} from ${source}`;
+      text.innerHTML = `${actorIdentity({ actorUuid: allocation.consumerActorUuid, name: allocation.consumerActorName })}: ${allocation.quantity} ${foundry.utils.escapeHTML(allocation.category)} from ${actorIdentity({ actorUuid: allocation.sourceActorUuid, name: allocation.sourceActorName })}${allocation.sourceType === "group" ? " (Group inventory)" : ""}`;
       row.append(text);
       section.append(row);
     });
@@ -669,19 +531,18 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       section.append(warning);
     }
     const shortages = document.createElement("p");
-    const shortNames = [...plan.shortageActorUuids.food, ...plan.shortageActorUuids.water]
-      .map(uuid => context.journey.travelers.find(traveler => traveler.actorUuid === uuid)?.name)
-      .filter(Boolean);
-    shortages.textContent = shortNames.length
-      ? `The current inventories cannot cover everyone. Shortages remain for: ${[...new Set(shortNames)].join(", ")}. Update a character or Group inventory and refresh the Supply Manifest, or check the manual-supply confirmations below when the party obtains supplies outside tracked inventories.`
+    const shortActors = [...new Set([...plan.shortageActorUuids.food, ...plan.shortageActorUuids.water])]
+      .map(actorUuid => actorIdentity({ ...context.journey.travelers.find(traveler => traveler.actorUuid === actorUuid), actorUuid }));
+    shortages.innerHTML = shortActors.length
+      ? `The current inventories cannot cover everyone. Shortages remain for: ${shortActors.join(", ")}. Update a character or Group inventory and refresh the Supply Manifest, or check the manual-supply confirmations below when the party obtains supplies outside tracked inventories.`
       : "Everyone who needs supplies is covered.";
     section.append(shortages);
     for (const actorUuid of new Set([...plan.shortageActorUuids.food, ...plan.shortageActorUuids.water])) {
       const traveler = context.journey.travelers.find(item => item.actorUuid === actorUuid);
       const manual = document.createElement("div");
-      manual.className = "journey-manual-supplies";
-      if (plan.shortageActorUuids.food.includes(actorUuid)) manual.innerHTML += `<label><input type="checkbox" data-manual-food="${actorUuid}"> ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")} receives a manual ration</label>`;
-      if (plan.shortageActorUuids.water.includes(actorUuid)) manual.innerHTML += `<label><input type="checkbox" data-manual-water="${actorUuid}"> ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")} receives 4 manual pints</label>`;
+      manual.className = "ml-stack journey-manual-supplies";
+      if (plan.shortageActorUuids.food.includes(actorUuid)) manual.innerHTML += `<label class="ml-toggle"><input type="checkbox" data-manual-food="${actorUuid}"> ${actorIdentity({ ...traveler, actorUuid })} receives a manual ration</label>`;
+      if (plan.shortageActorUuids.water.includes(actorUuid)) manual.innerHTML += `<label class="ml-toggle"><input type="checkbox" data-manual-water="${actorUuid}"> ${actorIdentity({ ...traveler, actorUuid })} receives 4 manual pints</label>`;
       section.append(manual);
     }
     const apply = document.createElement("button");
@@ -689,8 +550,8 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     apply.dataset.action = "consumeTravelSupplies";
     apply.innerHTML = '<i class="fa-solid fa-utensils"></i> Confirm & Consume Supplies';
     const exception = document.createElement("details");
-    exception.className = "journey-supply-exception";
-    exception.innerHTML = `<summary>Resolve an Exception</summary><div class="ml-stack"><p>Use this when supplies were handled outside tracked inventories or the proposed consumption should not be applied. Journeys will record the selected outcomes without changing inventory.</p><div class="journey-manual-outcome-list">${context.journey.travelers.map(traveler => `<div class="journey-manual-outcome-row"><strong>${foundry.utils.escapeHTML(traveler.name)}</strong><label><input type="checkbox" data-exception-food="${traveler.actorUuid}" checked> Ate a full day’s food</label><label><input type="checkbox" data-exception-water="${traveler.actorUuid}" checked> Drank the required water</label></div>`).join("")}</div><button type="button" data-action="resolveTravelSuppliesManually"><i class="fa-solid fa-clipboard-check"></i> Record Manual Supply Outcomes</button></div>`;
+    exception.className = "ml-details journey-supply-exception";
+    exception.innerHTML = `<summary>Resolve an Exception</summary><div class="ml-details__body"><p>Use this when supplies were handled outside tracked inventories or the proposed consumption should not be applied. Journeys will record the selected outcomes without changing inventory.</p><div class="ml-stack journey-manual-outcome-list">${context.journey.travelers.map(traveler => `<div class="ml-card ml-grid journey-manual-outcome-row"><strong>${actorIdentity(traveler)}</strong><label class="ml-toggle"><input type="checkbox" data-exception-food="${traveler.actorUuid}" checked> Ate a full day’s food</label><label class="ml-toggle"><input type="checkbox" data-exception-water="${traveler.actorUuid}" checked> Drank the required water</label></div>`).join("")}</div><button type="button" data-action="resolveTravelSuppliesManually"><i class="fa-solid fa-clipboard-check"></i> Record Manual Supply Outcomes</button></div>`;
     section.append(apply, exception);
     panel.append(section);
   }
@@ -817,7 +678,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       });
       for (const entry of journey.currentDay.campSleepPlan.entries) {
         const row = this.element.querySelector(`.journey-camp-sleep-row[data-actor-uuid='${entry.actorUuid}']`);
-        entry.sleepHours = Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8);
+        entry.sleepHours = Math.min(Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8), availableCampSleepHours(journey.currentDay?.campWatches, entry.actorUuid));
         const recorded = (journey.currentDay?.sleepInterruptions ?? []).filter(item => item.actorUuid === entry.actorUuid);
         entry.interruptionSources = recorded.map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null }));
         entry.interruptionHours = entry.interruptionSources.reduce((total, item) => total + item.hours, 0);
@@ -839,7 +700,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const plan = campSupplies.buildSleepPlan({ travelers: journey.travelers, supplies: journey.supplies, assignments, extremeWeather: Boolean(journey.currentDay.phases?.weather?.extreme), coldWeather: Boolean(journey.currentDay.phases?.weather?.cold), peacefulNight: journey.currentDay?.nightEncounterCheck?.outcome === "peacefulRest", baseDC: getDCConfiguration().sleepBase });
       for (const entry of plan.entries) {
         const row = this.element.querySelector(`.journey-camp-sleep-row[data-actor-uuid='${entry.actorUuid}']`);
-        entry.sleepHours = Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8);
+        entry.sleepHours = Math.min(Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8), availableCampSleepHours(journey.currentDay?.campWatches, entry.actorUuid));
         const recorded = (journey.currentDay?.sleepInterruptions ?? []).filter(item => item.actorUuid === entry.actorUuid);
         entry.interruptionSources = recorded.map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null }));
         entry.interruptionHours = entry.interruptionSources.reduce((total, item) => total + item.hours, 0);
@@ -849,7 +710,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       journey.campDefaults.sleepPlan = structuredClone(plan);
       await saveActiveJourney(journey);
       await sleepRollService.requestParty(plan);
-      ui.notifications.info("Sleep check requests sent.");
+      ui.notifications.info("Sleep resolved where no roll is needed; any remaining checks have been sent.");
       await this.render({ force: true });
     } catch (error) { if (requestButton) requestButton.disabled = false; ui.notifications.error(error.message); }
   }

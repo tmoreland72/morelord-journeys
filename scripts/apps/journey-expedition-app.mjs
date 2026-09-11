@@ -1,3 +1,7 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
+import { applyPlannerDefaults, readPlannerDefaults } from "../ui/journey-planner-defaults.mjs";
+import { getJourneyStepDefaults, JOURNEY_PLANNER_DEFAULTS_SETTING, readJourneySteps } from "../core/journey-settings.mjs";
+import { MODULE_ID } from "../domain/constants.mjs";
 import { Dnd5eJourneyAdapter } from "../adapters/dnd5e-journey-adapter.mjs";
 import { readyJourney } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
@@ -38,7 +42,8 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
     actions: {
       createJourney: this.createJourney,
-      refreshSupplies: this.refreshSupplies
+      refreshSupplies: this.refreshSupplies,
+      saveJourneyDefaults: this.saveJourneyDefaults
     }
   };
 
@@ -58,6 +63,8 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
         };
       }
     }
+    const labels = { weather: "Weather", pace: "Pace", encounters: "Day Encounters", discovery: "Discoveries", navigation: "Navigation", pressOn: "Press On", foraging: "Foraging & Supplies", camp: "Camp", nightEncounters: "Night Encounters", sleep: "Sleep & Shelter" };
+    context.journeySteps = Object.entries(getJourneyStepDefaults()).map(([key, enabled]) => ({ key, enabled, label: labels[key] }));
     return context;
   }
 
@@ -65,6 +72,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     await super._onRender(context, options);
     if (!context.hasJourney) {
       this.#augmentPartyPlanner(context.availableTravelers);
+      applyPlannerDefaults(this.element, game.settings.get(MODULE_ID, JOURNEY_PLANNER_DEFAULTS_SETTING) ?? {});
       await this.#renderPlannerSupplyManifest();
       this.element.querySelector(".ml-journeys-traveler-list")?.addEventListener("change", () => void this.#renderPlannerSupplyManifest());
     }
@@ -81,11 +89,13 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     if (!planner || !navigatorField || !travelerList) return;
 
     const grid = document.createElement("div");
-    grid.className = "journey-role-grid";
+    grid.className = "ml-grid journey-role-grid";
+    grid.dataset.columns = "2";
     const heading = document.createElement("h2");
     heading.textContent = "Expedition Roles";
+    heading.className = "ml-section-heading";
     const section = document.createElement("section");
-    section.className = "journey-expedition-roles";
+    section.className = "ml-stack journey-expedition-roles";
     const observer = selectField("observerUuid", "Observer");
     const quartermaster = selectField("quartermasterUuid", "Quartermaster");
     grid.append(navigatorField, observer.field, quartermaster.field);
@@ -129,16 +139,18 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const progress = this.element.querySelector(".journey-progress")?.closest("section");
     if (!progress) return;
     const panel = document.createElement("section");
-    panel.className = "ml-card ml-stack journey-roles-panel";
+    panel.className = "ml-surface ml-stack journey-roles-panel";
     const header = document.createElement("h2");
     header.textContent = "Expedition Roles";
+    header.className = "ml-section-heading";
     const display = document.createElement("div");
-    display.className = "journey-role-display";
+    display.className = "ml-grid journey-role-display";
+    display.dataset.columns = "3";
     const roleRows = ["navigator", "observer", "quartermaster"].map(role => {
       const actorUuid = context.journey.roles?.[`${role}Uuid`];
       const traveler = context.journey.travelers.find(candidate => candidate.actorUuid === actorUuid);
       const name = traveler?.name ?? (actorUuid === context.journey.partyActorUuid ? context.quartermaster?.name : null) ?? "Not assigned";
-      return `<div><span>${role[0].toUpperCase()}${role.slice(1)}</span><strong>${foundry.utils.escapeHTML(name)}</strong></div>`;
+      return `<div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">${role[0].toUpperCase()}${role.slice(1)}</span><strong>${actorUuid ? actorIdentity({ ...traveler, actorUuid, name }) : foundry.utils.escapeHTML(name)}</strong></div>`;
     }).join("");
     display.innerHTML = roleRows;
     const hint = document.createElement("small");
@@ -152,7 +164,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const partyActor = supplies.findPartyActor(travelerUuids);
     const manifest = await supplies.build({ travelerUuids, partyActorUuid: partyActor?.uuid ?? null });
     this.element.querySelector("[data-planner-supply-manifest]")?.remove();
-    this.#renderSupplyManifest({ manifest }, { anchor: this.element.querySelector(".journey-expedition-roles"), planner: true });
+    this.#renderSupplyManifest({ manifest }, { anchor: this.element.querySelector(".journey-party-planner"), planner: true });
   }
 
   #renderSupplyManifest(context, { anchor = null, planner = false } = {}) {
@@ -163,12 +175,12 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     panel.className = "ml-surface ml-stack journey-supply-panel";
     if (planner) { panel.dataset.plannerSupplyManifest = ""; panel.classList.add("journey-planner-supply-panel"); }
     const header = document.createElement("div");
-    header.className = "journey-progress-label";
+    header.className = "ml-section-heading ml-list-toolbar";
     const title = document.createElement("h2");
     title.textContent = "Supply Manifest";
-    const sourceText = document.createElement("small");
+    const sourceText = document.createElement("div");
     sourceText.className = "journey-supply-source-text";
-    sourceText.textContent = (manifest.sources ?? []).map(source => `${source.actorName}${source.sourceType === "group" ? " (group inventory)" : ""}`).join(" · ");
+    sourceText.innerHTML = (manifest.sources ?? []).map(source => `${actorIdentity(source)}${source.sourceType === "group" ? " (group inventory)" : ""}`).join(" · ");
     const heading = document.createElement("div");
     heading.append(title, sourceText);
     header.append(heading);
@@ -184,34 +196,38 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     }
 
     const totals = document.createElement("div");
-    totals.className = "journey-supply-totals";
+    totals.className = "ml-grid journey-supply-totals";
+    totals.dataset.columns = "auto";
     for (const [label, amount] of [
       ["Food", manifest.totals?.food ?? 0], ["Water (4 pints each)", manifest.waterUnits ?? Math.floor(Number(manifest.totals?.water ?? 0) / 4)],
       ["Tents", manifest.totals?.tent ?? 0], ["Bedrolls", manifest.totals?.bedroll ?? 0],
       ["Blankets", manifest.totals?.blanket ?? 0]
     ]) {
       const total = document.createElement("div");
-      total.className = "journey-supply-total";
+      total.className = "ml-card ml-stack journey-supply-total";
+      total.dataset.gap = "1";
       const strong = document.createElement("strong");
       strong.textContent = amount;
       const text = document.createElement("span");
       text.textContent = label;
-      total.append(strong, text);
+      text.className = "ml-eyebrow";
+      total.append(text, strong);
       totals.append(total);
     }
 
     const items = document.createElement("div");
-    items.className = "journey-supply-items";
+    items.className = "ml-cluster journey-supply-items";
     for (const item of manifest.items ?? []) {
       const tag = document.createElement("span");
-      tag.className = "journey-supply-item";
+      tag.className = "ml-card ml-cluster journey-supply-item";
       const text = document.createElement("span");
-      text.textContent = `${item.quantity}× ${item.name} — ${item.sourceActorName}`;
+      text.innerHTML = `${foundry.utils.escapeHTML(String(item.quantity))}× ${foundry.utils.escapeHTML(item.name)} — ${actorIdentity({ actorUuid: item.sourceActorUuid, name: item.sourceActorName })}`;
       tag.append(text);
       items.append(tag);
     }
     if (!(manifest.items?.length)) {
       const empty = document.createElement("p");
+      empty.className = "ml-empty-message";
       empty.textContent = "No recognized travel supplies were found in the Group or traveler inventories.";
       items.append(empty);
     }
@@ -245,6 +261,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
         id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,
         travelers: actors.map(actor => dnd5e.snapshotTraveler(actor, { longRestHours: longRestHours.get(actor.uuid) }))
       });
+      journey.steps = readJourneySteps(this.element);
       const partyActor = supplies.findPartyActor(travelerUuids);
       journey.partyActorUuid = partyActor?.uuid ?? null;
       journey.roles = { navigatorUuid, observerUuid, quartermasterUuid };
@@ -257,6 +274,15 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       console.error("Morelord Journeys | Unable to create journey.", error);
       ui.notifications.error(error.message);
     }
+  }
+
+  static async saveJourneyDefaults(event) {
+    event.preventDefault();
+    try {
+      if (!game.user.isGM) throw new Error("Only the GM can save journey defaults.");
+      await game.settings.set(MODULE_ID, JOURNEY_PLANNER_DEFAULTS_SETTING, readPlannerDefaults(this.element));
+      ui.notifications.info("All journey creation choices saved as defaults for new journeys.");
+    } catch (error) { ui.notifications.error(error.message); }
   }
 
   static async refreshSupplies(event) {

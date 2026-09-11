@@ -1,3 +1,4 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { automaticDayEncounterModifiers, resolveEncounterRoll } from "../domain/encounter-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { roleRollService } from "../services/role-roll-service.mjs";
@@ -77,19 +78,20 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     const pending = roleRollService.getPending(context.journey);
     const result = roleRollService.getResult(context.journey, phase);
     const panel = document.createElement("div");
-    panel.className = "ml-card ml-stack journey-role-request";
+    panel.className = "ml-stack journey-role-request";
     const title = document.createElement("strong");
-    title.textContent = `${role}: ${traveler?.name ?? "Not assigned"}`;
+    title.innerHTML = `${role}: ${traveler ? actorIdentity(traveler) : "Not assigned"}`;
     const detail = document.createElement("p");
-    detail.textContent = `${skill} check · DC ${phase === "navigation" ? context.route.navigationDC : context.route.discoveryDC}`;
+    const dc = phase === "navigation" ? context.route.navigationDC : context.route.discoveryDC;
+    detail.textContent = `${skill} check · DC ${dc}${dc === 0 ? " · No roll needed" : ""}`;
     panel.append(title, detail);
 
     if (pending?.phase === phase) {
       const status = document.createElement("p");
       status.className = "journey-roll-pending";
-      status.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Waiting for ${pending.actorName}…`;
+      status.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Waiting for ${actorIdentity(pending)}…`;
       const controls = document.createElement("div");
-      controls.className = "journey-roll-controls";
+      controls.className = "ml-cluster journey-roll-controls";
       controls.append(button("autoRoleFailure", phase === "navigation" ? "Lost" : "Fail", "fa-xmark"));
       if (phase === "navigation") controls.append(button("autoRoleReversed", "Turned Around", "fa-rotate-left"));
       controls.append(button("autoRoleSuccess", "Succeed", "fa-check"));
@@ -99,11 +101,11 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       status.className = "ml-status journey-roll-result";
       const outcomeLabel = phase === "navigation" ? navigationOutcomeLabel(result.outcome) : result.outcome;
       status.dataset.tone = ["success", "shortcut"].includes(result.outcome) ? "success" : "danger";
-      status.textContent = phase === "navigation" ? outcomeLabel : `${result.actorName}: ${outcomeLabel}.`;
+      status.innerHTML = phase === "navigation" ? foundry.utils.escapeHTML(outcomeLabel) : `${actorIdentity(result)}: ${foundry.utils.escapeHTML(outcomeLabel)}.`;
       panel.append(status, createOutcomeDetails({ cards: [{ title: `${skill} Check`, rows: [
-        { label: "Character", value: result.actorName },
+        { label: "Character", value: result.actorName, actor: result },
         { label: "DC", value: phase === "navigation" ? context.route.navigationDC : context.route.discoveryDC },
-        { label: "Roll", value: result.automatic ? "GM resolved manually" : result.total },
+        { label: "Roll", value: result.automaticReason === "zeroDC" ? "DC 0 — no roll needed" : result.automatic ? "GM resolved manually" : result.total },
         { label: "Natural d20", value: result.automatic ? null : result.natural },
         { label: "Outcome", value: outcomeLabel }
       ] }] }));
@@ -119,7 +121,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
         }
       }
     } else {
-      const request = button("requestRoleRoll", `Request ${skill} Check`, "fa-dice-d20");
+      const request = button("requestRoleRoll", dc === 0 ? "Resolve Automatic Success" : `Request ${skill} Check`, dc === 0 ? "fa-check" : "fa-dice-d20");
       request.disabled = !traveler;
       panel.append(request);
     }
@@ -135,7 +137,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
     const panel = document.createElement("div");
-    panel.className = "ml-card ml-stack journey-encounter-check";
+    panel.className = "ml-stack journey-encounter-check";
     if (!context.journey.currentDay?.encounterCheck) {
       const roll = button("rollEncounterChecks", "Roll Day Encounter");
       roll.disabled = context.journey.currentDay?.pace === "stopped";

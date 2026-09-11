@@ -18,22 +18,6 @@
   </section>
 
   <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-list-check"></i> Travel Phases</h3><p>Disabled phases are visibly skipped and logged. Pace defaults to Normal and Navigation defaults to success when disabled.</p></div></div>
-    <div class="ml-journeys-settings__grid">
-      <label class="ml-journeys-setting-row"><span><strong>Weather</strong></span><input type="checkbox" name="phase-weather" {{#if settings.phases.weather}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Pace</strong></span><input type="checkbox" name="phase-pace" {{#if settings.phases.pace}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Day Encounters</strong></span><input type="checkbox" name="phase-encounters" {{#if settings.phases.encounters}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Discoveries</strong></span><input type="checkbox" name="phase-discovery" {{#if settings.phases.discovery}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Navigation</strong></span><input type="checkbox" name="phase-navigation" {{#if settings.phases.navigation}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Press On</strong></span><input type="checkbox" name="phase-pressOn" {{#if settings.phases.pressOn}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Foraging & Supplies</strong></span><input type="checkbox" name="phase-foraging" {{#if settings.phases.foraging}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Camp</strong></span><input type="checkbox" name="phase-camp" {{#if settings.phases.camp}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Night Encounters</strong><small>When disabled, Camp skips its nightly d100 roll.</small></span><input type="checkbox" name="enableNightEncounters" {{#if settings.enableNightEncounters}}checked{{/if}}></label>
-      <label class="ml-journeys-setting-row"><span><strong>Sleep & Shelter</strong><small>When disabled, Camp does not require sleep checks or resolve Long Rest outcomes.</small></span><input type="checkbox" name="enableSleepAndShelter" {{#if settings.enableSleepAndShelter}}checked{{/if}}></label>
-    </div>
-  </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
     <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-compass"></i> Discovery DCs</h3><p>Perception DC presets offered when a new route is created. Existing journeys keep their recorded DC.</p></div></div>
     <div class="ml-journeys-settings__grid">{{#each dcGroups.discovery}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-discovery-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
   </section>

@@ -1,5 +1,6 @@
+import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { nightEncountersEnabled } from "../core/journey-settings.mjs";
-import { assignedWatchIndexes, CAMP_WATCH_COUNT, normalizeCampAssignments, watchCoverage } from "../domain/camp-watch-rules.mjs";
+import { assignedWatchIndexes, availableCampSleepHours, campPeriods, campWatchAction, normalizeCampAssignments, watchCoverage } from "../domain/camp-watch-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyActionApplication as BaseJourneyApplication } from "./journey-action-fix-app.mjs";
@@ -49,39 +50,70 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     const saved = context.journey.currentDay?.campWatches ?? [];
     const assignments = normalizeCampAssignments(context.journey.travelers, saved);
     const panel = document.createElement("section");
-    panel.className = "ml-card ml-stack journey-camp-planner";
-    panel.innerHTML = `<header><h3>Watch Order & Camp Actions</h3><p>Assignments save automatically. Only Slumber counts as sleep during this two-hour camp period; every other camp action reduces available sleep by two hours.</p></header><div><label class="journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
+    panel.className = "ml-stack journey-camp-planner";
+    panel.innerHTML = `<header class="ml-stack" data-gap="1"><h3>Plan the Eight-Hour Night</h3><p>Each column is two hours. Assign one watcher per period, then choose their activity. Everyone else can sleep or take camp actions. Keeping watch rolls Perception normally; other watch activities roll at disadvantage. Changes save automatically.</p></header><div><label class="ml-toggle journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
     panel.querySelector("[data-campfire-help]").addEventListener("click", event => {
       event.preventDefault();
         void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>Required For</h3><ul><li>Craft</li><li>Cook</li><li>Prepare</li></ul></section><section><h3>Night Encounter</h3><ul><li>Excellent setup: −10</li><li>Visible fire: +5</li><li>Net modifier: −5</li><li>No fire and no tents: +10</li></ul></section></div>", ok: { label: "Close" } });
     });
     const watches = document.createElement("div");
-    watches.className = "journey-watch-list";
+    watches.className = "ml-stack journey-watch-list";
     const nightEncounter = context.journey.currentDay?.nightEncounterCheck;
     const nightOutcomeLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[nightEncounter?.outcome] ?? null;
     for (let index = 0; index < assignments.length; index += 1) {
       const prior = assignments[index];
       const row = document.createElement("div");
-      row.className = "journey-watch-row";
+      row.className = "ml-stack ml-card journey-watch-row";
       row.dataset.assignmentIndex = String(index);
       row.dataset.actorUuid = prior.actorUuid;
       const heading = document.createElement("strong");
-      heading.textContent = prior.actorName;
-      const action = document.createElement("select");
-      action.name = `watchAction${index}`;
-      for (const name of CAMP_ACTIONS) action.append(option(name, name, prior.action ?? "Take a Watch"));
-      const period = document.createElement("select");
-      period.name = `watchPeriod${index}`;
-      period.setAttribute("aria-label", `Watch period for ${prior.actorName}`);
-      for (let watchIndex = 0; watchIndex < CAMP_WATCH_COUNT; watchIndex += 1) period.append(option(String(watchIndex), `Watch ${watchIndex + 1}`, String(prior.watchIndex)));
-      period.hidden = action.value !== "Take a Watch";
-      const additionalPeriod = document.createElement("select");
-      additionalPeriod.name = `additionalWatchPeriod${index}`;
-      additionalPeriod.dataset.additionalWatchAvailable = String(Number(context.journey.travelers[index]?.longRestHours ?? 6) <= 4);
-      additionalPeriod.setAttribute("aria-label", `Additional watch period for ${prior.actorName}`);
-      additionalPeriod.append(option("", "No additional watch", ""));
-      for (let watchIndex = 0; watchIndex < CAMP_WATCH_COUNT; watchIndex += 1) additionalPeriod.append(option(String(watchIndex), `Also take Watch ${watchIndex + 1}`, String(prior.watchIndexes?.[1] ?? "")));
-      additionalPeriod.hidden = action.value !== "Take a Watch" || additionalPeriod.dataset.additionalWatchAvailable !== "true";
+      heading.innerHTML = actorIdentity({ ...context.journey.travelers.find(traveler => traveler.actorUuid === prior.actorUuid), ...prior });
+      const summary = document.createElement("span");
+      summary.className = "journey-camp-rest-summary";
+      summary.setAttribute("aria-live", "polite");
+      const header = document.createElement("header");
+      header.className = "journey-camp-character-heading";
+      header.append(heading, summary);
+      const schedule = document.createElement("div");
+      schedule.className = "journey-camp-periods";
+      campPeriods(prior).forEach((period, periodIndex) => {
+        const slot = document.createElement("div");
+        slot.className = "ml-stack ml-card journey-camp-period";
+        const title = document.createElement("strong");
+        title.textContent = `Period ${periodIndex + 1}: ${periodIndex * 2}-${periodIndex * 2 + 2}h`;
+        const duty = document.createElement("label");
+        duty.className = "ml-toggle journey-check";
+        const watch = document.createElement("input");
+        watch.type = "checkbox";
+        watch.name = `campWatch${index}-${periodIndex}`;
+        watch.checked = period.watch;
+        const dutyLabel = document.createElement("span");
+        dutyLabel.textContent = "On watch";
+        watch.setAttribute("aria-label", `${prior.actorName}: on watch in period ${periodIndex + 1}`);
+        duty.append(watch, dutyLabel);
+        const action = document.createElement("select");
+        action.name = `watchAction${index}-${periodIndex}`;
+        action.setAttribute("aria-label", `${prior.actorName}: activity in period ${periodIndex + 1}`);
+        for (const name of CAMP_ACTIONS) action.append(option(name, name === "Slumber" ? "Sleep" : name === "Take a Watch" ? "Keep watch" : name, period.action));
+        const hint = document.createElement("small");
+        const sync = () => {
+          slot.dataset.state = watch.checked ? "watch" : action.value === "Slumber" ? "sleep" : "action";
+          hint.textContent = watch.checked ? action.value === "Take a Watch" ? "Perception: normal" : "Perception: disadvantage" : action.value === "Slumber" ? "2 hours of sleep" : "2 hours awake";
+        };
+        watch.addEventListener("change", () => {
+          if (watch.checked && action.value === "Slumber") action.value = "Take a Watch";
+          if (!watch.checked && action.value === "Take a Watch") action.value = "Slumber";
+          sync();
+        });
+        action.addEventListener("change", () => {
+          if (action.value === "Slumber") watch.checked = false;
+          if (action.value === "Take a Watch") watch.checked = true;
+          sync();
+        });
+        sync();
+        slot.append(title, duty, action, hint);
+        schedule.append(slot);
+      });
       const result = document.createElement("span");
       result.className = "journey-watch-result";
       const perception = context.journey.currentDay?.campPerceptionResults?.find(entry => entry.actorUuid === prior.actorUuid);
@@ -93,22 +125,23 @@ export class JourneyCampApplication extends BaseJourneyApplication {
           : selectedWatch ? `${nightOutcomeLabel} · Perception not requested`
             : nightEncounter && ["minor", "nightAttack"].includes(nightEncounter.outcome) ? "Not the affected watch"
               : nightOutcomeLabel ?? "Night encounter not rolled";
-      row.append(heading, action, period, additionalPeriod, result);
+      result.hidden = !nightEncounter;
+      row.append(header, schedule, result);
       watches.append(row);
     }
     panel.append(watches);
     const coverage = document.createElement("div");
     coverage.className = "journey-watch-coverage";
     coverage.innerHTML = `<h4>Watch Coverage</h4>${watchCoverage(assignments).map((watcher, watchIndex) => {
-      return `<div><strong>Watch ${watchIndex + 1}</strong><span class="${watcher ? "" : "is-unwatched"}">${foundry.utils.escapeHTML(watcher?.actorName ?? "Unwatched")}</span></div>`;
+      return `<div class="ml-card ml-stack" data-gap="1"><strong>Watch ${watchIndex + 1}</strong><span class="${watcher ?"" : "is-unwatched"}">${watcher ? actorIdentity(watcher) : "Unwatched"}</span></div>`;
     }).join("")}`;
-    panel.append(coverage);
+    watches.before(coverage);
     const validation = document.createElement("p");
-    validation.className = "ml-text journey-camp-validation";
+    validation.className = "ml-callout journey-camp-validation";
     validation.dataset.tone = "danger";
     validation.hidden = true;
     panel.append(validation);
-    if (nightEncountersEnabled() && !nightEncounter) {
+    if (nightEncountersEnabled(context.journey) && !nightEncounter) {
       const rollNight = document.createElement("button");
       rollNight.type = "button";
       rollNight.dataset.action = "rollNightEncounter";
@@ -137,7 +170,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
         nightAttack: "A combat encounter interrupts the selected watch. One interrupted hour is prefilled in Sleep & Shelter; adjust it to the actual duration before rolling."
       };
       const summary = document.createElement("div");
-      summary.className = "journey-encounter-summary journey-encounter-outcome";
+      summary.className = "ml-stack journey-encounter-summary journey-encounter-outcome";
       summary.innerHTML = `<h4>${label}</h4><p>${descriptions[night.outcome] ?? "Resolve the result, then continue to Sleep & Shelter."}</p><p><em>Pending confirmation after Sleep & Shelter.</em></p>`;
       panel.append(summary);
       if (["minor", "nightAttack"].includes(night.outcome)) {
@@ -155,7 +188,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
         { label: "Outcome", value: label },
         { label: "Affected watch roll", value: night.watchRoll },
         { label: "Affected watch", value: Number.isInteger(night.watchIndex) ? `Watch ${night.watchIndex + 1}` : null },
-        { label: "Watch coverage", value: Number.isInteger(night.watchIndex) ? night.unwatched ? "Unwatched — no Perception check is requested" : night.watcherActorName : null }
+        { label: "Watch coverage", value: Number.isInteger(night.watchIndex) ? night.unwatched ? "Unwatched — no Perception check is requested" : night.watcherActorName : null, actor: !night.unwatched && night.watcherActorUuid ? { actorUuid: night.watcherActorUuid, name: night.watcherActorName } : null }
       ] }] }));
       if (["minor", "nightAttack"].includes(night.outcome)) {
         panel.append(createEncountersCallout());
@@ -164,7 +197,21 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     notes.before(panel);
     const syncValidity = () => {
       let message = "";
-      try { readCampAssignments(this.element, context.journey); }
+      try {
+        const current = readCampAssignments(this.element, context.journey);
+        current.forEach((assignment, index) => {
+          const sleep = availableCampSleepHours(current, assignment.actorUuid);
+          const needed = Number(context.journey.travelers[index].longRestHours ?? 6);
+          const summary = watches.children[index].querySelector(".journey-camp-rest-summary");
+          summary.textContent = `${8 - sleep}h awake / ${sleep}h sleep / ${needed}h needed. ${sleep >= needed ? "Enough time for a Long Rest" : "No Long Rest: insufficient sleep"}`;
+          summary.dataset.tone = sleep >= needed ? "success" : "warning";
+        });
+        watchCoverage(current).forEach((watcher, index) => {
+          const label = coverage.querySelectorAll("div > span")[index];
+          label.innerHTML = watcher ? `${actorIdentity(watcher)}${campWatchAction(watcher, index) === "Take a Watch" ? "" : " (disadvantage)"}` : "Unwatched";
+          label.classList.toggle("is-unwatched", !watcher);
+        });
+      }
       catch (error) { message = error.message; }
       validation.hidden = !message;
       validation.textContent = message ? `${message} Resolve the watch assignments before rolling or continuing.` : "";
@@ -181,7 +228,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       }
     };
     panel.addEventListener("change", event => {
-      if (event.target.matches("select[name^='watchAction'], select[name^='watchPeriod'], select[name^='additionalWatchPeriod']")) syncValidity();
+      if (event.target.matches("select[name^='watchAction'], input[name^='campWatch']")) syncValidity();
     });
     syncValidity();
   }

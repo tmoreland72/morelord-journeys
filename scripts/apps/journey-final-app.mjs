@@ -1,5 +1,5 @@
 import { resolveEncounterRoll } from "../domain/encounter-rules.mjs";
-import { assignedWatchIndexes, CAMP_WATCH_COUNT } from "../domain/camp-watch-rules.mjs";
+import { assignedWatchIndexes, campPeriods, campWatchAction, CAMP_WATCH_COUNT } from "../domain/camp-watch-rules.mjs";
 import { nightEncountersEnabled } from "../core/journey-settings.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
@@ -17,13 +17,13 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
     if (rollButton) rollButton.disabled = true;
     try {
       const journey = await getActiveJourney();
-      if (!nightEncountersEnabled()) throw new Error("Night Encounters are disabled in Journeys Settings.");
+      if (!nightEncountersEnabled(journey)) throw new Error("Night Encounters are disabled for this journey.");
       if (journey.currentDay?.nightEncounterCheck) throw new Error("The night encounter has already been rolled.");
       if (this.element.querySelector("select[name^='watchAction']")) journey.currentDay.campWatches = readCampAssignments(this.element, journey);
       const assignments = journey.currentDay?.campWatches ?? [];
       const watches = assignments.filter(watch => watch.actorUuid && assignedWatchIndexes(watch).length);
       const fireRequired = new Set(["Craft", "Cook", "Prepare"]);
-      if (!journey.currentDay?.campfire && assignments.some(watch => fireRequired.has(watch.action))) throw new Error("Craft, Cook, and Prepare require a campfire. Change those actions or light a fire.");
+      if (!journey.currentDay?.campfire && assignments.some(watch => campPeriods(watch).some(period => fireRequired.has(period.action)))) throw new Error("Craft, Cook, and Prepare require a campfire. Change those actions or light a fire.");
       const anyTent = journey.currentDay?.campSleepPlan?.entries?.some(entry => entry.equipment?.tent)
         || (journey.supplies?.items ?? []).some(item => item.category === "tent" && item.sourceType !== "group" && Number(item.availableQuantity ?? 0) > 0);
       const setupQuality = journey.currentDay?.campfire ? "excellent" : anyTent ? "ordinary" : "poor";
@@ -44,7 +44,7 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
         const watchRoll = await new Roll(`1d${CAMP_WATCH_COUNT}`).evaluate();
         const watchIndex = Number(watchRoll.total) - 1;
         const selected = watches.find(entry => assignedWatchIndexes(entry).includes(watchIndex));
-        Object.assign(result, { watchRoll: Number(watchRoll.total), watchIndex, watcherActorUuid: selected?.actorUuid ?? null, watcherActorName: selected?.actorName ?? "Unwatched", campAction: selected?.action ?? null, unwatched: !selected });
+        Object.assign(result, { watchRoll: Number(watchRoll.total), watchIndex, watcherActorUuid: selected?.actorUuid ?? null, watcherActorName: selected?.actorName ?? "Unwatched", campAction: campWatchAction(selected, watchIndex) ?? null, unwatched: !selected });
         const travelerIds = new Set((journey.travelers ?? []).map(traveler => traveler.actorUuid));
         journey.currentDay.sleepInterruptions = (journey.currentDay.sleepInterruptions ?? []).filter(item => !travelerIds.has(item.actorUuid));
         journey.currentDay.sleepInterruptions.push(...createNightEncounterInterruptions(journey.travelers, { outcome: result.outcome, watchIndex }));
@@ -53,12 +53,7 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
       await saveActiveJourney(journey);
       await displayJourneyRoll(roll, { flavor: `Morelord Journeys night encounter — ${result.outcome} (${result.modified})`, rollMode: "gmroll" });
       if (result.watcherActorUuid) {
-        if (result.campAction === "Slumber") {
-          const current = await getActiveJourney();
-          current.currentDay.campPerceptionResults ??= [];
-          current.currentDay.campPerceptionResults.push({ watchIndex: result.watchIndex, actorUuid: result.watcherActorUuid, actorName: result.watcherActorName, total: 0, automatic: true, action: "Slumber", resolvedAt: Date.now() });
-          await saveActiveJourney(current);
-        } else await campPerceptionRollService.request({ watchIndex: result.watchIndex, actorUuid: result.watcherActorUuid, action: result.campAction });
+        await campPerceptionRollService.request({ watchIndex: result.watchIndex, actorUuid: result.watcherActorUuid, action: result.campAction });
       }
       await this.render({ force: true });
     } catch (error) { if (rollButton) rollButton.disabled = false; ui.notifications.error(error.message); }

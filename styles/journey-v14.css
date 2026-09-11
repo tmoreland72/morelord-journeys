@@ -1,16 +1,7 @@
-.ml-journeys-module .journey-core-status { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.45rem; padding: 0.2rem 0.55rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.75rem; text-transform: uppercase; }
-.ml-journeys-module .journey-core-status.connected { color: var(--ml-color-accent); }
-.ml-journeys-module .journey-core-status.disconnected { color: var(--ml-color-muted); }
-.ml-journeys-module .journey-encounter-summary { display: grid; gap: .45rem; margin-top: .5rem; padding: .8rem 0; border-top: 1px solid var(--color-border-light-primary); border-bottom: 1px solid var(--color-border-light-primary); }
-.ml-journeys-module .journey-encounter-summary h3,.ml-journeys-module .journey-encounter-summary p { margin: 0; }
-.ml-journeys-module .journey-encounter-summary > small { opacity: .72; }
-.ml-journeys-module .journey-passive-perception { align-items: center; display: inline-flex; gap: .45rem; margin-top: .3rem; width: max-content; max-width: 100%; }
+.ml-journeys-module .journey-passive-perception { align-items: center; display: inline-flex; gap: var(--ml-space-2); margin-top: .3rem; width: max-content; max-width: 100%; }
 .ml-journeys-module .journey-open-encounters { margin-top: 0.55rem; }
-.ml-journeys-module .journey-outcome-details { margin-top: .65rem; }
-.ml-journeys-module .journey-watch-row button:disabled { opacity: 0.45; cursor: not-allowed; }
 .ml-journeys-module .journey-phases span.complete {
-  background: var(--ml-color-accent, #e9862c);
-  border-color: var(--ml-color-accent, #e9862c);
-  color: #17120d;
+  background: var(--ml-color-accent);
+  border-color: var(--ml-color-accent);
+  color: var(--ml-color-on-accent);
 }
-.ml-journeys-module .journey-weather-result { display: grid; gap: .2rem; margin: .5rem 0; padding: .65rem; border-left: 3px solid var(--ml-color-accent); }

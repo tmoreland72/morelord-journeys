@@ -1,3 +1,5 @@
+import { decorateActorSelect } from "../../../morelord-core/scripts/ui/actor-identity.js";
+import { readJourneySteps } from "../core/journey-settings.mjs";
 import { Dnd5eJourneyAdapter } from "../adapters/dnd5e-journey-adapter.mjs";
 import { readyJourney } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
@@ -60,6 +62,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
 
     const travelerList = this.element.querySelector(".ml-journeys-traveler-list");
     travelerList?.addEventListener("change", () => queueMicrotask(() => this.#decorateRoleOptions(context)));
+    this.element.querySelector(".journey-role-grid")?.addEventListener("change", () => this.#decorateRoleOptions(context));
   }
 
   #decorateRoleOptions(context) {
@@ -71,6 +74,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
         const traveler = byUuid.get(entry.value);
         if (traveler) entry.textContent = `${traveler.name} (${signed(traveler.survivalBonus)} Survival)`;
       }
+      if (select) decorateActorSelect(select);
     }
     for (const name of ["observerUuid", "activeObserverUuid"]) {
       const select = this.element.querySelector(`[name='${name}']`);
@@ -78,6 +82,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
         const traveler = byUuid.get(entry.value);
         if (traveler) entry.textContent = `${traveler.name} (${signed(traveler.perceptionBonus)} Perception)`;
       }
+      if (select) decorateActorSelect(select);
     }
   }
 
@@ -87,6 +92,7 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
       const travelerUuids = Array.from(this.element.querySelectorAll("[name='travelerUuid']:checked"), input => input.value);
       if (!travelerUuids.length) throw new Error("Select at least one traveler.");
       const actors = (await Promise.all(travelerUuids.map(uuid => fromUuid(uuid)))).filter(Boolean);
+      const longRestHours = new Map(Array.from(this.element.querySelectorAll("[name='longRestHours']"), input => [input.dataset.actorUuid, Number(input.value)]));
       const navigatorUuid = value(this.element, "navigatorUuid");
       const observerUuid = value(this.element, "observerUuid");
       if (!navigatorUuid || !observerUuid) throw new Error("Assign a Navigator and Observer.");
@@ -102,9 +108,10 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
       });
       let journey = createJourney({
         id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,
-        activityHoursPerDay: integer(this.element, "activityHoursPerDay", 2),
+        steps: readJourneySteps(this.element),
+        activityHoursPerDay: Number(value(this.element, "activityHoursPerDay") || 2),
         travelers: actors.map(actor => ({
-          ...dnd5e.snapshotTraveler(actor),
+          ...dnd5e.snapshotTraveler(actor, { longRestHours: longRestHours.get(actor.uuid) }),
           survivalBonus: bonus(actor, "sur"),
           perceptionBonus: bonus(actor, "prc")
         }))

@@ -2,7 +2,7 @@ import { JOURNEY_STATUS, SCHEMA_VERSION, TRAVEL_PHASES } from "./constants.mjs";
 import { validateRoute } from "./route.mjs";
 import { JourneyValidationError, requireString } from "./validation.mjs";
 
-export function createJourney({ id, name, route, travelers = [], rulesProfileId = "core", activityHoursPerDay = 2, currentLocationId = null, temporaryCapabilities = [] }) {
+export function createJourney({ id, name, route, travelers = [], steps = {}, rulesProfileId = "core", activityHoursPerDay = 2, currentLocationId = null, temporaryCapabilities = [] }) {
   const issues = [];
   requireString(id, "id", issues);
   requireString(name, "name", issues);
@@ -19,6 +19,7 @@ export function createJourney({ id, name, route, travelers = [], rulesProfileId 
     remainingSteps: route.lengthSteps,
     dayNumber: 0,
     travelers: structuredClone(travelers),
+    steps: structuredClone(steps),
     roles: {},
     supplies: { food: 0, water: 0 },
     currentDay: null,

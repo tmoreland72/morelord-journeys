@@ -60,7 +60,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
         major: "Present an important event such as a deadly hazard, major discovery, faction confrontation, chase, siege, consequential social scene, or combat. Major describes narrative impact, not encounter type."
       };
       const summary = document.createElement("section");
-      summary.className = "journey-encounter-summary";
+      summary.className = "ml-stack journey-encounter-summary";
       summary.innerHTML = `<h3>${label}</h3><p>${descriptions[check.outcome] ?? "Use the modified result to frame the next event along the route."}</p>`;
       const perception = document.createElement("div");
       perception.className = "journey-passive-perception";
