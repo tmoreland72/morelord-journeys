@@ -4,14 +4,14 @@ description: Detailed rules for movement, weather, encounters, discoveries, supp
 slug: morelord-journeys/gm-travel-rules
 product: morelord-journeys
 audience: game-master
-version: 0.2.0
+version: 0.3.3
 foundry: 14
 order: 15
 ---
 
 # Morelord Journeys: Game Master Travel Rules Reference
 
-> GM reference for the travel-rules update introduced in Morelord Journeys 0.2.0.
+> GM reference for the travel-rules update introduced in Morelord Journeys 0.3.2.
 
 Journeys measures distance in thirds of a normal travel day. Three thirds equal approximately 24 miles. Pace gives the party its starting movement for the day; weather, discoveries, navigation, and a forced march then change that amount.
 
@@ -319,3 +319,7 @@ Use these panels during play whenever the party asks why a result or DC changed.
 ## What Journeys does not automate
 
 Journeys does not enforce encumbrance, begin combat, apply Peaceful Rest choices, or automatically resolve the narrative effects of Craft, Cook, Prepare, Slumber, and Task. It continues to use the D&D 5e actor's existing Exhaustion value and system-defined Exhaustion effects.
+
+## Zero-DC resolution
+
+An effective DC of zero resolves as a success without a player roll request, including Sleep after equipment modifiers. This does not bypass Long Rest eligibility, normal foraging rewards, or supply consequences.

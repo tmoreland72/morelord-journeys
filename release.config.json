@@ -7,6 +7,20 @@
   "releaseBranch": "main",
   "archiveName": "morelord-journeys.zip",
   "websiteUrl": "https://morelordgaming.com",
-  "requiredPaths": ["module.json", "README.md", "scripts", "styles", "templates"],
-  "optionalPaths": ["assets", "lang", "LICENSE", "LICENSE.md", "CHANGELOG.md"]
+  "requiredPaths": [
+    "module.json",
+    "README.md",
+    "scripts",
+    "styles",
+    "templates",
+    "docs"
+  ],
+  "optionalPaths": [
+    "assets",
+    "lang",
+    "LICENSE",
+    "LICENSE.md",
+    "CHANGELOG.md"
+  ],
+  "productDocumentationPath": "docs/README.md"
 }

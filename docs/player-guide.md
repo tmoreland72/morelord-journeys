@@ -4,7 +4,7 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.2.0
+version: 0.3.3
 foundry: 14
 order: 20
 ---
@@ -82,3 +82,9 @@ Sleep checks are private. The GM interface records the result and explains the c
 2. Confirm your user owns the assigned character.
 3. Ask the GM to resend or reroll the relevant step.
 4. Reload the Foundry world if the module was just installed or updated.
+
+## Automatic checks and personal activity time
+
+When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Equipment can reduce the Sleep check to zero, but the character must still meet the Long Rest requirements. Ordinary foraging rewards and food or water consequences continue to apply.
+
+The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. Character portraits help distinguish assignments when you control more than one traveler.

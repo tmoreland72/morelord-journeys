@@ -426,6 +426,21 @@ function Assert-ProductDocumentation {
     }
 }
 
+function New-WebsiteReleasePayload {
+    param([Parameter(Mandatory = $true)][psobject]$Metadata)
+    return [pscustomobject]@{
+        productSlug = $ProductSlug
+        version = $Version
+        title = [string]$Metadata.title
+        summary = [string]$Metadata.summary
+        publishedAt = [DateTimeOffset]::Now.ToString('o')
+        githubReleaseUrl = $GitHubReleaseUrl
+        downloadUrl = $DownloadUrl
+        manifestUrl = $ManifestUrl
+        changes = @($Metadata.changes)
+    }
+}
+
 function Publish-WebsiteRelease {
     param(
         [Parameter(Mandatory = $true)][string]$EndpointBase,
@@ -553,17 +568,7 @@ if ($WebsiteOnly) {
     if (-not [string]::IsNullOrWhiteSpace($ProductDocumentationPath)) {
         Assert-ProductDocumentation -Path $ProductDocumentationPath -ExpectedProductSlug $ProductSlug -ExpectedVersion $Version
     }
-    $Payload = [pscustomobject]@{
-        productSlug = $ProductSlug
-        version = $Version
-        title = [string]$ReleaseMetadata.title
-        summary = [string]$ReleaseMetadata.summary
-        publishedAt = [DateTimeOffset]::Now.ToString('o')
-        githubReleaseUrl = $GitHubReleaseUrl
-        downloadUrl = $DownloadUrl
-        manifestUrl = $ManifestUrl
-        changes = @($ReleaseMetadata.changes)
-    }
+    $Payload = New-WebsiteReleasePayload -Metadata $ReleaseMetadata
     Write-Host ''
     Write-Host "Publishing existing $ModuleTitle $Tag to $WebsiteUrl/releases..." -ForegroundColor Cyan
     if ($DryRun) {
@@ -574,10 +579,7 @@ if ($WebsiteOnly) {
     $WebsiteResponse = Publish-WebsiteRelease -EndpointBase $WebsiteUrl -Token $WebsiteToken -Payload $Payload
     Write-Host "Published: $($WebsiteResponse.action) $($WebsiteResponse.releaseId)" -ForegroundColor Green
     Write-Host "$WebsiteUrl$($WebsiteResponse.publicUrl)"
-    if (-not [string]::IsNullOrWhiteSpace($DocumentationWebsiteRepository) -and $DryRun) {
-        Write-Host "Documentation deployment would be requested from $DocumentationWebsiteRepository."
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($DocumentationWebsiteRepository)) {
+    if (-not [string]::IsNullOrWhiteSpace($DocumentationWebsiteRepository)) {
         Request-DocumentationDeployment -Repository $DocumentationWebsiteRepository -ProductSlug $ProductSlug -ReleaseVersion $Version
         Write-Host "Documentation deployment requested from $DocumentationWebsiteRepository." -ForegroundColor Green
     }
@@ -671,17 +673,7 @@ try {
     Assert-Archive -Path $OutputArchive -ExpectedVersion $Version -ExpectedDownloadUrl $DownloadUrl -ExpectedModuleId $ModuleId -RequiredPaths $RequiredPaths
     Write-Host "  Archive verified: $OutputArchive" -ForegroundColor Green
 
-    $Payload = [pscustomobject]@{
-        productSlug = $ProductSlug
-        version = $Version
-        title = [string]$ReleaseMetadata.title
-        summary = [string]$ReleaseMetadata.summary
-        publishedAt = [DateTimeOffset]::Now.ToString('o')
-        githubReleaseUrl = $GitHubReleaseUrl
-        downloadUrl = $DownloadUrl
-        manifestUrl = $ManifestUrl
-        changes = @($ReleaseMetadata.changes)
-    }
+    $Payload = New-WebsiteReleasePayload -Metadata $ReleaseMetadata
     Write-Step 'Validating website release payload...'
     $PayloadJson = $Payload | ConvertTo-Json -Depth 20
     $null = $PayloadJson | ConvertFrom-Json

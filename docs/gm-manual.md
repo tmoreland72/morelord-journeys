@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.2.0
+version: 0.3.3
 foundry: 14
 order: 10
 ---
@@ -15,7 +15,7 @@ order: 10
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.1.0 or later
+- Morelord Core 0.3.6 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.
@@ -97,7 +97,7 @@ The assigned Observer receives a Perception request. The dialog opens automatica
 
 Discovery pursuit is inferred from its duration. Enter zero when the clue is ignored; otherwise enter any number of whole days plus zero, one, or two thirds. This supports extended ruins or dungeon expeditions rather than limiting discoveries to one day.
 
-The GM can resolve a pending request automatically when no player is available. Pursuit normally costs ⅓ day, with GM-selectable costs from zero through one day and an optional d100 lead prompt.
+The GM can resolve a pending request automatically when no player is available. Pursuit normally costs ⅓ day, with GM-selectable whole days and additional thirds and an optional d100 lead prompt.
 
 ## Foraging
 
@@ -180,3 +180,11 @@ Confirm the player is active and owns the assigned Actor. Reload both GM and pla
 ### An integration button is unavailable
 
 Confirm the corresponding Morelord module is installed and active. Reload the world after enabling modules so their public APIs are available.
+
+## Shared travel context and automatic checks
+
+The GM can select a shared Core Location, set personal activity hours for the travel day, and add temporary capabilities available during the journey. Manage Locations opens Core's shared registry. Temporary capabilities do not permanently change the Location. Optional Downtime integration uses completed days and personal activity hours; Journeys remains usable when Downtime is absent.
+
+A check with an effective DC of zero succeeds automatically without a player roll dialog. Sleep applies equipment modifiers before deciding whether a roll is needed. Automatic success does not waive Long Rest requirements, create extra foraging rewards, or erase ordinary food and water consequences.
+
+Character portraits identify travelers in assignments, checks, supplies, and results. Changing a travel phase returns its page to the top; ordinary updates retain the page position.

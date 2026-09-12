@@ -1,3 +1,4 @@
+import { renderPreservingScroll } from "../../../morelord-core/scripts/ui/scroll-preservation.js";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
 import { getDCConfiguration, readJourneySteps, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
@@ -79,19 +80,10 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   render(options = {}) {
-    const scroller = this.element?.querySelector?.(".ml-journeys.app-shell");
-    const resetScroll = this._resetScrollOnNextRender === true;
+    const reset = this._resetScrollOnNextRender === true;
     this._resetScrollOnNextRender = false;
-    const scrollPosition = scroller ? { top: resetScroll ? 0 : scroller.scrollTop, left: resetScroll ? 0 : scroller.scrollLeft } : null;
-    return Promise.resolve(super.render(options)).then(result => {
-      if (scrollPosition) {
-        const replacement = this.element?.querySelector?.(".ml-journeys.app-shell");
-        replacement?.scrollTo({ top: scrollPosition.top, left: scrollPosition.left, behavior: "auto" });
-      }
-      return result;
-    });
+    return renderPreservingScroll(this, () => super.render(options), { reset });
   }
-
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const journey = await getActiveJourney();
