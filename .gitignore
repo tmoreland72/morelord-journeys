@@ -5,3 +5,4 @@ dist/
 *.log
 .release-runner-*.ps1
 .env
+/morelord-journeys.zip
