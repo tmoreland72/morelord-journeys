@@ -192,3 +192,7 @@ The GM can select a shared Core Location, set personal activity hours for the tr
 A check with an effective DC of zero succeeds automatically without a player roll dialog. Sleep applies equipment modifiers before deciding whether a roll is needed. Automatic success does not waive Long Rest requirements, create extra foraging rewards, or erase ordinary food and water consequences.
 
 Character portraits identify travelers in assignments, checks, supplies, and results. Changing a travel phase returns its page to the top; ordinary updates retain the page position.
+
+## Native recovery and the world calendar
+
+Journeys records Long Rest sleep eligibility and applies its documented Exhaustion changes. It does not invoke native character-sheet Long Rest recovery or advance the world clock. Resolve HP, spell-slot, and item-use recovery separately through the system, checking that Exhaustion is not reduced a second time. D&D 5e v6 day/dawn/dusk recovery requires advancing the system calendar separately.
