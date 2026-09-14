@@ -19,6 +19,7 @@ class SupplyConsequenceService extends EventTarget {
   #started = false;
   #dialogs = new Map();
   #channel = null;
+  #resolving = new Set();
 
   start() {
     if (this.#started) return;
@@ -57,7 +58,9 @@ class SupplyConsequenceService extends EventTarget {
       const config = getDCConfiguration();
       const dc = hungerSaveDC(daysWithoutFood, conModifier, { base: config.hungerBase, increase: config.hungerIncrease });
       const saveRequired = dc !== null;
-      hungerResults.push({ actorUuid, actorName: actor.name, daysWithoutFood, threshold, ateFullMeal: false, saveRequired, dc, exhaustionChange: 0 });
+      const automatic = daysWithoutFood >= threshold;
+      if (automatic) await addExhaustion(actorUuid, 1);
+      hungerResults.push({ actorUuid, actorName: actor.name, daysWithoutFood, threshold, ateFullMeal: false, saveRequired, dc, automatic, exhaustionChange: automatic ? 1 : 0 });
       if (saveRequired) {
         const recipient = dc === 0 ? { user: game.user, fallbackToGM: false } : requestRecipientForActor(actor);
         if (!recipient) continue;
@@ -75,7 +78,23 @@ class SupplyConsequenceService extends EventTarget {
     this.#updated();
   }
 
+  async resend(requestId) {
+    if (!game.user.isGM) throw new Error("Only the GM can resend supply saves.");
+    const journey = await getActiveJourney();
+    const request = journey?.currentDay?.pendingSupplySaves?.find(candidate => candidate.id === requestId);
+    if (!request) throw new Error("That Constitution save is no longer pending.");
+    const recipient = requestRecipientForActor(await fromUuid(request.actorUuid));
+    if (!recipient) throw new Error("No active user is available to roll.");
+    request.userId = recipient.user.id;
+    request.fallbackToGM = recipient.fallbackToGM;
+    await saveActiveJourney(journey);
+    if (request.userId === game.user.id) await this.#open(request);
+    else await this.#channel.executeAsUser("supplySave.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    this.#updated();
+  }
+
   async autoResolve(requestId, succeeded) {
+    if (!game.user.isGM) throw new Error("Only the GM can resolve supply saves.");
     const journey = await getActiveJourney();
     const request = journey?.currentDay?.pendingSupplySaves?.find(candidate => candidate.id === requestId);
     if (!request) throw new Error("That Constitution save is no longer pending.");
@@ -101,6 +120,7 @@ class SupplyConsequenceService extends EventTarget {
   async #open(request) {
     const actor = await fromUuid(request.actorUuid);
     if (!actor) return;
+    await this.#dialogs.get(request.id)?.close();
     const dialog = new foundry.applications.api.DialogV2({
       classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: "Morelord Journeys — Starvation", icon: "fa-solid fa-heart-pulse" },
@@ -131,6 +151,11 @@ class SupplyConsequenceService extends EventTarget {
   }
 
   async #record(journey, request, result) {
+    if (this.#resolving.has(request.id)) return;
+    this.#resolving.add(request.id);
+    try {
+    journey = await getActiveJourney();
+    if (!journey?.currentDay?.pendingSupplySaves?.some(candidate => candidate.id === request.id)) return;
     if (!result.succeeded) await addExhaustion(request.actorUuid, 1);
     journey.currentDay.supplyConsequences.results.push({ actorUuid: request.actorUuid, actorName: request.actorName, dc: request.dc, ...result, exhaustionChange: result.succeeded ? 0 : 1, resolvedAt: Date.now() });
     journey.currentDay.pendingSupplySaves = journey.currentDay.pendingSupplySaves.filter(candidate => candidate.id !== request.id);
@@ -138,6 +163,7 @@ class SupplyConsequenceService extends EventTarget {
     await saveActiveJourney(journey);
     if (request.userId === game.user.id) { await this.#dialogs.get(request.id)?.close(); this.#dialogs.delete(request.id); }
     this.#updated();
+    } finally { this.#resolving.delete(request.id); }
   }
 
   #updated() { this.dispatchEvent(new Event("updated")); }

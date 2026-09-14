@@ -1,5 +1,5 @@
+import { dayEncounterService } from "../services/day-encounter-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
-import { automaticDayEncounterModifiers, resolveEncounterRoll } from "../domain/encounter-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyRouteSelectApplication as BaseJourneyApplication } from "./journey-route-select-app.mjs";
@@ -27,7 +27,8 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
       autoRoleSuccess: this.autoRoleSuccess,
       autoRoleFailure: this.autoRoleFailure,
       autoRoleReversed: this.autoRoleReversed,
-      rollEncounterChecks: this.rollEncounterChecks
+      rollEncounterChecks: this.rollEncounterChecks,
+      resendDayEncounter: this.resendDayEncounter
     }
   };
 
@@ -38,10 +39,12 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
   constructor(options = {}) {
     super(options);
     roleRollService.addEventListener("updated", this.#roleRollUpdated);
+    dayEncounterService.addEventListener("updated", this.#roleRollUpdated);
   }
 
   async close(options = {}) {
     roleRollService.removeEventListener("updated", this.#roleRollUpdated);
+    dayEncounterService.removeEventListener("updated", this.#roleRollUpdated);
     return super.close(options);
   }
 
@@ -136,12 +139,28 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
   #renderEncounterCheck(context) {
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
+    anchor.disabled = !game.user.isGM || (!context.journey.currentDay?.encounterCheck && context.route.danger > 0);
     const panel = document.createElement("div");
     panel.className = "ml-stack journey-encounter-check";
-    if (!context.journey.currentDay?.encounterCheck) {
-      const roll = button("rollEncounterChecks", "Roll Day Encounter");
-      roll.disabled = context.journey.currentDay?.pace === "stopped";
+    if (!context.journey.currentDay?.encounterCheck && !context.journey.currentDay?.pendingDayEncounterRolls?.length) {
+      const roll = button("rollEncounterChecks", context.route.danger === 0 ? "Confirm No Day Encounters" : "Request Party Day Encounter Rolls");
+      roll.disabled = !game.user.isGM;
+      roll.disabled ||= context.journey.currentDay?.pace === "stopped";
       panel.append(roll);
+    }
+    if (game.user.isGM) for (const request of context.journey.currentDay?.pendingDayEncounterRolls ?? []) {
+      const row = document.createElement("div");
+      row.className = "ml-item-row";
+      const copy = document.createElement("div");
+      copy.className = "ml-stack";
+      copy.innerHTML = actorIdentity(request);
+      const note = document.createElement("small");
+      note.textContent = `Awaiting ${request.checks}d${request.dieFaces} — results visible only to GMs`;
+      copy.append(note);
+      const resend = button("resendDayEncounter", "Resend");
+      resend.dataset.requestId = request.id;
+      row.append(copy, resend);
+      panel.append(row);
     }
     anchor.before(panel);
   }
@@ -184,25 +203,19 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     }
   }
 
-  static async rollEncounterChecks(event) {
+  static async rollEncounterChecks(event, target) {
     event.preventDefault();
-    if (!event.isTrusted) return;
+    if (target) target.disabled = true;
     try {
-      const journey = await getActiveJourney();
-      if (journey.currentDay?.pace === "stopped") throw new Error("Stopped travel does not make a daytime encounter check.");
-      const roll = await new Roll("1d100").evaluate();
-      const actors = (await Promise.all(journey.travelers.map(traveler => fromUuid(traveler.actorUuid)))).filter(Boolean);
-      const passives = actors.map(actor => Number(actor.system?.skills?.prc?.passive ?? 10 + Number(actor.system?.skills?.prc?.total ?? 0)));
-      const pacePenalty = journey.currentDay?.pace === "fast" ? -5 : 0;
-      const modifiers = automaticDayEncounterModifiers(journey);
-      const result = resolveEncounterRoll({ raw: Number(roll.total), danger: journey.routeSnapshot.danger, modifiers });
-      journey.currentDay.encounterCheck = { ...result, highestPassivePerception: (passives.length ? Math.max(...passives) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
-      await saveActiveJourney(journey);
-      await displayJourneyRoll(roll, { flavor: `Morelord Journeys daytime encounter — ${result.outcome} (${result.modified})`, rollMode: "gmroll" });
+      await dayEncounterService.requestParty();
       await this.render({ force: true });
-    } catch (error) {
-      console.error("Morelord Journeys | Encounter checks failed.", error);
-      ui.notifications.error(error.message);
-    }
+    } catch (error) { ui.notifications.error(error.message); }
+    finally { if (target) target.disabled = false; }
+  }
+
+  static async resendDayEncounter(event, target) {
+    event.preventDefault();
+    try { await dayEncounterService.resend(target.dataset.requestId); }
+    catch (error) { ui.notifications.error(error.message); }
   }
 }

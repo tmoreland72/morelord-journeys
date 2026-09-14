@@ -25,7 +25,7 @@ export function validateRoute(route) {
 export function createRoute(data) {
   return validateRoute({
     id: data.id,
-    name: data.name,
+    name: data.name || `${data.origin?.name ?? ""} → ${data.destination?.name ?? ""}`,
     origin: structuredClone(data.origin),
     destination: structuredClone(data.destination),
     description: data.description ?? "",

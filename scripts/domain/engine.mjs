@@ -1,6 +1,7 @@
 import { JOURNEY_STATUS, PACE_STEPS, TRAVEL_PHASES } from "./constants.mjs";
 import { validateJourney } from "./journey.mjs";
 import { JourneyValidationError } from "./validation.mjs";
+import { validateRoute } from "./route.mjs";
 
 const clone = journey => structuredClone(validateJourney(journey));
 
@@ -25,18 +26,29 @@ export function readyJourney(source) {
   return journey;
 }
 
-export function beginTravelDay(source) {
+export function beginTravelDay(source, routeRatings = null) {
   const journey = clone(source);
   if (![JOURNEY_STATUS.READY, JOURNEY_STATUS.ACTIVE].includes(journey.status)) {
     throw new JourneyValidationError("Journey cannot begin a travel day in its current status");
   }
   if (journey.currentDay !== null) throw new JourneyValidationError("Complete the current travel day first");
+  if (routeRatings) {
+    for (const key of ["danger", "discoveryDC", "resourcesDC", "navigationDC"]) {
+      const value = routeRatings[key];
+      if (!Number.isInteger(value) || value < 0 || value > (key === "danger" ? 5 : 50)) {
+        throw new JourneyValidationError(`Invalid daily route rating: ${key}`);
+      }
+      journey.routeSnapshot[key] = value;
+    }
+    validateRoute(journey.routeSnapshot);
+  }
 
   journey.status = JOURNEY_STATUS.ACTIVE;
   journey.dayNumber += 1;
   journey.phase = TRAVEL_PHASES[0];
   journey.currentDay = {
     number: journey.dayNumber,
+    routeRatings: Object.fromEntries(["danger", "discoveryDC", "resourcesDC", "navigationDC"].map(key => [key, journey.routeSnapshot[key]])),
     pace: null,
     baseProgressSteps: null,
     progressModifiers: [],
@@ -53,7 +65,7 @@ export function beginTravelDay(source) {
     delete entry.interruptionHours;
     delete entry.interruptionMinutes;
   }
-  appendLog(journey, "dayStarted");
+  appendLog(journey, "dayStarted", { routeRatings: journey.currentDay.routeRatings });
   return journey;
 }
 

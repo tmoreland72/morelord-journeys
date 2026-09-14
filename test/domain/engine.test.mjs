@@ -105,3 +105,29 @@ test("camp watch order and sleep choices carry into the next day", () => {
   assert.equal(next.currentDay.campWatches[0].action, "Take a Watch");
   assert.equal(next.currentDay.campSleepPlan.entries[0].equipment.tent, true);
 });
+
+test("unnamed routes and journeys derive their identity from endpoints", () => {
+  const route = createRoute({ id: "route", origin: { name: "Northwatch" }, destination: { name: "Old Keep" }, lengthSteps: 3 });
+  assert.equal(route.name, "Northwatch → Old Keep");
+  assert.equal(createJourney({ id: "journey", route }).name, "Northwatch → Old Keep");
+  assert.equal(createJourney({ id: "legacy", name: "Existing name", route }).name, "Existing name");
+  assert.equal(createRoute({ ...route, name: "Existing route" }).name, "Existing route");
+});
+test("daily route ratings are applied at day start and earlier ratings stay in the log", () => {
+  const ready = readyJourney(makeJourney(30));
+  const ratings = { danger: 4, discoveryDC: 20, resourcesDC: 25, navigationDC: 15 };
+  const first = beginTravelDay(ready, ratings);
+  assert.deepEqual(first.currentDay.routeRatings, ratings);
+  assert.equal(first.routeSnapshot.resourcesDC, 25);
+  assert.equal(ready.routeSnapshot.danger, 2);
+  assert.throws(() => beginTravelDay(first, { ...ratings, danger: 1 }), /Complete the current/);
+  assert.throws(() => beginTravelDay(ready, { ...ratings, danger: 6 }), /Invalid daily/);
+  let completed = first;
+  for (const phase of TRAVEL_PHASES.slice(0, -1)) {
+    completed = recordPhase(completed, phase, phase === "pace" ? { pace: "normal" } : phase === "navigation" ? { outcome: "success" } : {});
+  }
+  completed = completeTravelDay(completed);
+  const second = beginTravelDay(completed, { ...ratings, danger: 1 });
+  assert.equal(second.routeSnapshot.danger, 1);
+  assert.equal(second.log.filter(entry => entry.type === "dayStarted")[0].data.routeRatings.danger, 4);
+});

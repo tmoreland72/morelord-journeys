@@ -1,4 +1,5 @@
 import { actorIdentity, decorateActorSelect } from "../../../morelord-core/scripts/ui/actor-identity.js";
+import { prepareJourneySections } from "../ui/journey-sections.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { foragingRollService } from "../services/foraging-roll-service.mjs";
 import { SupplyConsumptionService } from "../services/supply-consumption-service.mjs";
@@ -60,6 +61,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     consumeTravelSupplies: this.consumeTravelSupplies,
     resolveTravelSuppliesManually: this.resolveTravelSuppliesManually,
     autoSupplySaveSuccess: this.autoSupplySaveSuccess,
+    resendSupplySave: this.resendSupplySave,
     autoSupplySaveFailure: this.autoSupplySaveFailure,
     saveCampSleepPlan: this.saveCampSleepPlan,
     rollCampSleep: this.rollCampSleep,
@@ -114,6 +116,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       this.#renderCampSleep(context);
     }
     if (context.phaseIs?.pressOn) this.#configurePressOn();
+    if (context.hasJourney) prepareJourneySections(this.element, context);
   }
 
   #expandForSleepPhase() {
@@ -443,7 +446,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const row = document.createElement("p");
       row.innerHTML = hunger.ateFullMeal
         ? `${actorIdentity(hunger)} ate a full meal; hunger reset.`
-        : `${actorIdentity(hunger)}: ${hunger.daysWithoutFood} day(s) without food; ${hunger.threshold} day(s) allowed${hunger.saveRequired ? `; DC ${hunger.dc} Constitution save required` : "; no save required yet"}.`;
+        : `${actorIdentity(hunger)}: ${hunger.daysWithoutFood} day(s) without food; ${hunger.saveRequired ? `DC ${hunger.dc} Constitution save required` : hunger.automatic ? "gained 1 Exhaustion automatically" : "no save required"}.`;
       section.append(row);
     }
     for (const request of context.journey.currentDay?.pendingSupplySaves ?? []) {
@@ -452,7 +455,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const label = document.createElement("span");
       label.innerHTML = `${actorIdentity(request)}: DC ${request.dc} Constitution save pending`;
       row.append(label);
-      for (const [action, text] of [["autoSupplySaveFailure", "Fail"], ["autoSupplySaveSuccess", "Succeed"]]) {
+      for (const [action, text] of [["resendSupplySave", "Send Save / GM Roll"], ["autoSupplySaveFailure", "Fail"], ["autoSupplySaveSuccess", "Succeed"]]) {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.action = action;
@@ -645,6 +648,10 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       ui.notifications.info("Manual daily supply outcomes were recorded without changing inventory.");
       await this.render({ force: true });
     } catch (error) { ui.notifications.error(error.message); }
+  }
+
+  static async resendSupplySave(event, target) {
+    await supplyConsequenceService.resend(target.dataset.requestId);
   }
 
   static async autoSupplySaveSuccess(event, target) {

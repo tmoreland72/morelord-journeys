@@ -1,17 +1,1 @@
-.ml-journeys-window .ml-journeys-traveler img { width: var(--ml-avatar-md); height: var(--ml-avatar-md); border: 0; border-radius: 50%; object-fit: cover; }
-.ml-journeys-window .journey-traveler-name { min-width: 0; overflow-wrap: anywhere; }
-
-.ml-journeys-window .journey-traveler-rest-hours {
-  grid-column: 3;
-  grid-row: 2;
-  display: grid;
-  grid-template-columns: auto 5rem;
-  gap: var(--ml-space-1) var(--ml-space-2);
-  align-items: center;
-  color: var(--ml-color-muted);
-  font-size: var(--ml-font-size-xs);
-  font-weight: var(--ml-font-weight-bold);
-}
-
-.ml-journeys-window .journey-traveler-rest-hours input { min-width: 0; }
-.ml-journeys-window .journey-traveler-rest-hours small { grid-column: 1 / -1; color: var(--ml-color-muted); }
+/* Party cards use Core selectable cards, item rows, actor identities, and field controls. */

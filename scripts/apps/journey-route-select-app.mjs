@@ -24,6 +24,13 @@ function replaceWithSelect(element, name, options) {
     option.selected = choice.value === current;
     select.append(option);
   }
+  if (!options.some(choice => choice.value === current) && Number.isFinite(current)) {
+    const custom = document.createElement("option");
+    custom.value = String(current);
+    custom.textContent = `Current value — ${current}`;
+    custom.selected = true;
+    select.append(custom);
+  }
   field.replaceWith(select);
 }
 

@@ -22,7 +22,7 @@ export function setPrimaryAction(root, selectors) {
 }
 
 export function primaryActionSelectors(context) {
-  if (!context?.hasJourney) return ["[data-action='createJourney']"];
+  if (!context?.hasJourney) return [];
   if (context.isArrived) return ["[data-action='endJourney']"];
   if (context.canBeginDay) return ["[data-action='beginDay']"];
   if (context.isDayComplete) return ["[data-action='completeDay']"];

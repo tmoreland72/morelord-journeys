@@ -1,3 +1,4 @@
+import { listCharacterActors, listCharacterChoices, primaryPartyGroup } from "../../../morelord-core/scripts/ui/actor-participation.js";
 import { naturalD20 } from "../domain/d20-roll.mjs";
 import { navigationOutcome } from "../domain/navigation-rules.mjs";
 
@@ -5,23 +6,12 @@ export class Dnd5eJourneyAdapter {
   getAvailableTravelers() {
     if (game.system.id !== "dnd5e") return [];
 
-    const groups = game.actors.filter(actor => actor.type === "group");
-    const orderedGroups = [game.actors.party, ...groups]
-      .filter((group, index, entries) => group && entries.indexOf(group) === index);
-
-    const primaryGroup = orderedGroups.find(group => this.#characterMembers(group).length) ?? null;
-    const groupMembers = primaryGroup ? this.#characterMembers(primaryGroup) : [];
-    const groupMemberUuids = new Set(groupMembers.map(actor => actor.uuid));
-    const candidates = new Map();
-    for (const actor of groupMembers) candidates.set(actor.uuid, actor);
-    for (const actor of game.actors.filter(actor => actor.type === "character" && actor.hasPlayerOwner)) candidates.set(actor.uuid, actor);
-
-    return [...candidates.values()]
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map(actor => this.#candidate(actor, {
-        selectedByDefault: primaryGroup ? groupMemberUuids.has(actor.uuid) : true,
-        group: groupMemberUuids.has(actor.uuid) ? primaryGroup : null
-      }));
+    const party = primaryPartyGroup();
+    const choices = new Map(listCharacterChoices().map(choice => [choice.uuid, choice]));
+    return listCharacterActors().map(actor => this.#candidate(actor, {
+      selectedByDefault: choices.get(actor.uuid).checked,
+      group: choices.get(actor.uuid).groupId ? party : null
+    }));
   }
 
   snapshotTraveler(actor, { longRestHours = null } = {}) {
@@ -88,14 +78,6 @@ export class Dnd5eJourneyAdapter {
       longRestHours: rest.hours,
       longRestHoursSource: rest.source
     };
-  }
-
-  #characterMembers(group) {
-    const direct = Array.from(group?.system?.playerCharacters ?? []);
-    if (direct.length) return direct;
-    return Array.from(group?.system?.members ?? [])
-      .map(member => member?.actor)
-      .filter(actor => actor?.type === "character");
   }
 
   #tokenImage(actor) {

@@ -4,6 +4,7 @@ import { JourneyValidationError, requireString } from "./validation.mjs";
 
 export function createJourney({ id, name, route, travelers = [], steps = {}, rulesProfileId = "core", activityHoursPerDay = 2, currentLocationId = null, temporaryCapabilities = [] }) {
   const issues = [];
+  name ||= `${route?.origin?.name ?? ""} → ${route?.destination?.name ?? ""}`;
   requireString(id, "id", issues);
   requireString(name, "name", issues);
   validateRoute(route);

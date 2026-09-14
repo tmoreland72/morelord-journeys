@@ -1,3 +1,7 @@
+<!-- Historical implementation plan; current behavior is documented in gm-manual.md and gm-travel-rules-reference.md. -->
+
+> Superseded daytime encounter design: daytime checks now use a configurable die per traveler per Danger check/day, with player-triggered GM-only results. Ones add encounters and maximum rolls cancel them. Route Traffic has been removed. Daily route ratings can change before each travel day. Older d100 daytime proposals below are retained as design history, not current rules.
+
 # Travel Rules Alignment Implementation Plan
 
 Status: Pre-implementation specification  

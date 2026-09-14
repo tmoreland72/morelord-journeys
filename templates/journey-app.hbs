@@ -1,21 +1,22 @@
 <section class="ml-app ml-app-shell ml-journeys-dashboard ml-journeys app-shell journey-shell">
   {{#unless hasJourney}}
     <header class="ml-hero"><i class="fa-solid fa-compass ml-hero__icon"></i><div class="ml-hero__body"><h1>{{localize "MORELORD_JOURNEYS.Name"}}</h1><p>{{localize "MORELORD_JOURNEYS.Planner.Intro"}}</p></div><div class="ml-actions"><button type="button" data-action="openDocumentation"><i class="fa-solid fa-book-open"></i> Documentation</button></div></header>
-    <section class="ml-surface ml-stack journey-step-planner">
-      <div class="ml-section-heading">
+    <details class="ml-surface ml-collapsible-section journey-step-planner" data-ml-section-key="morelord-journeys.journey-steps" open>
+      <summary>
+      <div class="ml-section-heading"><div>
       <h2>Journey Steps</h2>
       <p>Choose the steps for this journey. Disabled steps are skipped and logged; Pace defaults to Normal and Navigation to success.</p>
-      </div>
-      <div class="ml-grid" data-columns="2">
+      </div></div>
+      <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+      </summary>
+      <div class="ml-collapsible-section__body ml-grid" data-columns="2">
         {{#each journeySteps}}<label class="ml-toggle"><input type="checkbox" name="step-{{key}}" {{#if enabled}}checked{{/if}}><span>{{label}}</span></label>{{/each}}
       </div>
-    </section>
+    </details>
     <section class="ml-stack journey-planner">
       <section class="ml-surface ml-stack journey-route-planner">
       <div class="ml-section-heading"><h2>{{localize "MORELORD_JOURNEYS.Planner.Journey"}}</h2></div>
       <div class="ml-grid" data-columns="2">
-        <label><span>{{localize "MORELORD_JOURNEYS.Fields.JourneyName"}}</span><input name="journeyName" type="text" value="Expedition" required></label>
-        <label><span>{{localize "MORELORD_JOURNEYS.Fields.RouteName"}}</span><input name="routeName" type="text" value="The Open Road" required></label>
         <label><span>{{localize "MORELORD_JOURNEYS.Fields.Origin"}}</span><input name="origin" type="text" value="Starting Point" required></label>
         <label><span>{{localize "MORELORD_JOURNEYS.Fields.Destination"}}</span><input name="destination" type="text" value="Destination" required></label>
         <fieldset class="ml-field-group journey-route-length"><legend>Route Length</legend><div class="ml-field-group__controls"><label><span>Days</span><input name="lengthDays" type="number" min="0" value="4"></label><label><span>Thirds</span><select name="lengthThirds"><option value="0">0</option><option value="1">⅓</option><option value="2">⅔</option></select></label></div></fieldset>
@@ -28,7 +29,6 @@
         <label><span>{{localize "MORELORD_JOURNEYS.Fields.DiscoveryDC"}}</span><input name="discoveryDC" type="number" min="0" value="15"></label>
         <label><span>{{localize "MORELORD_JOURNEYS.Fields.ResourcesDC"}}</span><input name="resourcesDC" type="number" min="0" value="15"></label>
         <label><span>{{localize "MORELORD_JOURNEYS.Fields.NavigationDC"}}</span><input name="navigationDC" type="number" min="0" value="10"></label>
-        <label><span>Route traffic</span><select name="routeTraffic"><option value="ordinary">Ordinary / remote</option><option value="high">Road or high traffic (+5 encounters)</option></select></label>
       </div>
       </section>
       <div class="ml-actions journey-planner-actions">
@@ -37,12 +37,21 @@
       </div>
     </section>
   {{else}}
-<header class="ml-hero ml-journeys-hero ml-journeys-dashboard-hero journey-dashboard-header"><div class="ml-hero__body"><p class="ml-eyebrow">{{route.origin.name}} → {{route.destination.name}}</p><h1>{{journey.name}}</h1><p>{{route.name}} · {{localize "MORELORD_JOURNEYS.Day"}} {{journey.dayNumber}}</p></div><div class="ml-actions"><button type="button" class="ml-icon-button ml-journeys-icon-button" data-action="clearJourney" aria-label="{{localize 'MORELORD_JOURNEYS.Actions.Clear'}}" data-tooltip="{{localize 'MORELORD_JOURNEYS.Actions.Clear'}}"><i class="fa-solid fa-trash"></i></button></div></header>
+<header class="ml-hero ml-journeys-hero ml-journeys-dashboard-hero journey-dashboard-header"><div class="ml-hero__body"><h1>{{route.origin.name}} → {{route.destination.name}}</h1><p>{{localize "MORELORD_JOURNEYS.Day"}} {{journey.dayNumber}}</p></div><div class="ml-actions"><button type="button" class="ml-icon-button ml-journeys-icon-button" data-action="clearJourney" aria-label="{{localize 'MORELORD_JOURNEYS.Actions.Clear'}}" data-tooltip="{{localize 'MORELORD_JOURNEYS.Actions.Clear'}}"><i class="fa-solid fa-trash"></i></button></div></header>
 <section class="ml-surface ml-stack"><div class="journey-progress-label"><strong>{{progress.daysRemaining}} days remaining <small>({{progress.daysCurrent}} traveled; original route {{progress.originalDaysTotal}} days)</small></strong><span>{{progress.percent}}%</span></div><div class="ml-progress journey-progress" role="progressbar" aria-label="Journey progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{progress.percent}}"><span class="ml-progress__fill" style="width: {{progress.percent}}%"></span></div></section>
     {{#if isArrived}}
       <section class="ml-empty-state"><i class="fa-solid fa-location-dot journey-large-icon"></i><h2>{{localize "MORELORD_JOURNEYS.Arrived.Title"}}</h2><p>{{localize "MORELORD_JOURNEYS.Arrived.Message" destination=route.destination.name}}</p><button type="button" data-action="endJourney"><i class="fa-solid fa-flag-checkered"></i> End Journey</button></section>
     {{else if canBeginDay}}
       <section class="ml-empty-state"><i class="fa-solid fa-sun journey-large-icon"></i><h2>{{localize "MORELORD_JOURNEYS.Ready.Title"}}</h2><p>{{localize "MORELORD_JOURNEYS.Ready.Message"}}</p><button type="button" data-action="beginDay">{{localize "MORELORD_JOURNEYS.Actions.BeginDay"}}</button></section>
+      <details class="ml-surface ml-collapsible-section journey-daily-ratings" data-ml-section-key="morelord-journeys.daily-route-ratings" open>
+        <summary><div class="ml-section-heading"><div><h2>Daily Route Ratings</h2><p>Adjust the environment for the next travel day. Begin Travel Day saves these ratings for that day and carries them forward as the next day's defaults.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+        <div class="ml-collapsible-section__body ml-grid" data-columns="2">
+          <label><span>Danger</span><input type="number" name="danger" min="0" max="5" value="{{route.danger}}"></label>
+          <label><span>Discovery DC</span><input type="number" name="discoveryDC" min="0" max="50" value="{{route.discoveryDC}}"></label>
+          <label><span>Resources DC</span><input type="number" name="resourcesDC" min="0" max="50" value="{{route.resourcesDC}}"></label>
+          <label><span>Navigation DC</span><input type="number" name="navigationDC" min="0" max="50" value="{{route.navigationDC}}"></label>
+        </div>
+      </details>
     {{else}}
       <nav class="journey-phases" aria-label="Journey phases">{{#each phases}}<span class="{{#if active}}active{{/if}} {{#if complete}}complete{{/if}}" data-tooltip="{{label}}" aria-label="{{label}}" {{#if active}}aria-current="step"{{/if}}>{{#if complete}}<i class="fa-solid fa-check"></i>{{else}}{{number}}{{/if}}</span>{{/each}}</nav>
       <section class="ml-surface ml-stack journey-phase-card">

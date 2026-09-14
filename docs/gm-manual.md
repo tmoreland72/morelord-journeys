@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.3.3
+version: 0.3.4
 foundry: 14
 order: 10
 ---
@@ -15,7 +15,7 @@ order: 10
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.3.6 or later
+- Morelord Core 0.3.7 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.
@@ -34,12 +34,12 @@ Open the Token scene controls and select the hiking-person button. Opening Journ
 
 ## Planning a journey
 
-Enter the journey and route names, origin, destination, planned length, danger, and route DCs.
+Enter the origin and destination in **Journey Distance**, then choose the planned travel time. The journey is identified as Origin → Destination; separate journey and route names are not needed. **Route Ratings** follows Journey Distance. Every creation section includes a description and can be collapsed; its last state is remembered per user and world in the current browser.
 
 ### Route ratings
 
 - **Length** is entered as whole days plus 0, ⅓, or ⅔.
-- **Danger** modifies d100 encounter results toward or away from major events.
+- **Danger** sets daytime encounter checks per traveler per day.
 - **Discovery DC** is used by the Observer's Perception check.
 - **Resources DC** is used by traveler foraging checks.
 - **Navigation DC** is used by the Navigator's Survival check.
@@ -48,7 +48,7 @@ Select every traveler participating in the expedition. Assign an Observer and Na
 
 ## Supply Manifest
 
-The manifest reads the party Group inventory and each selected traveler's inventory.
+The manifest reads the party Group inventory and each selected traveler's inventory. Each character and shared Group inventory has one compact card, with item names and quantities aligned in columns. Party selection cards retain traveler checkboxes and Long Rest hours without separate oversized rows.
 
 Recognized supplies are:
 
@@ -65,6 +65,8 @@ The Supply Manifest summarizes one Water for every four available pints; detaile
 Food and water form one expedition pool across traveler and Group inventories. Sleeping supplies are not pooled: a traveler may only use tents, bedrolls, and blankets from that traveler's own inventory.
 
 ## Starting and completing a day
+
+Before each day, edit **Daily Route Ratings**, located below **Ready for the Road**, to match today’s environment. Danger and the Discovery, Resources, and Navigation DCs carry forward as the next day’s defaults. Each day records its ratings in the expedition log. All journey sections have descriptions and remember their expanded or collapsed state.
 
 Select **Begin Travel Day** to start the nine-phase cycle. Camp and Sleep & Shelter are separate phases. Journeys calculates movement in thirds. Pace supplies base movement; weather, discoveries, forced marching, and Navigation change the exact distance remaining.
 
@@ -87,7 +89,9 @@ Choose Slow (⅔ day and foraging advantage), Normal (1 day), Fast (1⅓ days, f
 
 ## Encounters
 
-Roll one daytime d100 or request it from an active player. The result can be No Encounter, Signs, Minor Encounter, or Major Encounter. Danger and every known route, pace, and weather modifier change the total. Mark **Route traffic** during route creation so Journeys applies the road/high-traffic modifier explicitly.
+Choose the daytime encounter die in Journeys Settings (d6 by default). Each traveler rolls that die once for every check/day shown by Danger. At Extreme (Danger 4), four travelers make 16 rolls. Each 1 adds one encounter, and each maximum die result cancels one encounter across the entire party; the total cannot be negative. Danger 0 requires no rolls.
+
+Select **Request Party Day Encounter Rolls**. Each active owning player receives a roll button for their character; the GM receives requests for absent players. Results are hidden from players and private roll cards are visible only to GMs. Wait for all requests to resolve before continuing; use Resend for an outstanding request. Route Traffic is no longer used.
 
 When a complication occurs, **Open Morelord Encounters** appears as an orange action button. If Morelord Encounters is not installed, Journeys explains how to enable it.
 
@@ -108,9 +112,9 @@ After all checks resolve:
 1. Review the food and water required.
 2. Confirm the proposed personal and Group allocations.
 3. Consume supplies.
-4. Journeys immediately applies water consequences, updates hunger, and sends any required starvation Constitution saves after supplies are confirmed.
+4. Journeys immediately applies water consequences, updates hunger, and sends starvation Constitution saves after supplies are confirmed. Days 1�4 without food request a daily Constitution save (default DC 10); failure adds one Exhaustion. Day 5 and each subsequent day without food automatically add one Exhaustion without a roll. Constitution does not alter this threshold. Send Save / GM Roll resends a pending request to the player or opens it for the GM when the player is offline, including after disconnecting.
 
-**Open Morelord Craftworks - Gather** is an optional orange action. Gathering crafting materials does not replace Journeys' food and water resolution.
+**Optional Exploration Activities** appears only after every traveler's foraging check is resolved and no requests remain pending. Successful, failed, and automatically resolved checks all count. **Launch Morelord Craftworks** opens the optional gathering integration when available. Gathering crafting materials does not replace Journeys' food and water resolution.
 
 ## Navigation
 

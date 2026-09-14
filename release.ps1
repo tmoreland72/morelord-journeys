@@ -299,7 +299,7 @@ function Assert-Archive {
     try {
         $EntryNames = @($Zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
         foreach ($RelativePath in $RequiredPaths) {
-            if ($RelativePath -in @('module.json', 'README.md', 'LICENSE', 'LICENSE.md')) {
+            if (Test-Path -LiteralPath (Join-Path $ProjectRoot $RelativePath) -PathType Leaf) {
                 if ($EntryNames -notcontains $RelativePath) { throw "Required archive entry '$RelativePath' is missing from the ZIP root." }
             }
             else {
@@ -315,6 +315,8 @@ function Assert-Archive {
             '(^|/)\.DS_Store$', '(^|/)Thumbs\.db$', '^RELEASE-NOTES-'
         )
         foreach ($EntryName in $EntryNames) {
+            # LevelDB numbered logs contain live records and must ship with packs.
+            if ($EntryName -match '^packs/[^/]+/[0-9]+\.log$') { continue }
             foreach ($Pattern in $ForbiddenPatterns) {
                 if ($EntryName -match $Pattern) { throw "Forbidden archive entry '$EntryName' matched '$Pattern'." }
             }

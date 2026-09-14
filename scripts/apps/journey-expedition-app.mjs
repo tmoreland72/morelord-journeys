@@ -1,3 +1,4 @@
+import { preparePlannerSections } from "../ui/planner-sections.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { applyPlannerDefaults, readPlannerDefaults } from "../ui/journey-planner-defaults.mjs";
 import { getJourneyStepDefaults, JOURNEY_PLANNER_DEFAULTS_SETTING, readJourneySteps } from "../core/journey-settings.mjs";
@@ -164,7 +165,8 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const partyActor = supplies.findPartyActor(travelerUuids);
     const manifest = await supplies.build({ travelerUuids, partyActorUuid: partyActor?.uuid ?? null });
     this.element.querySelector("[data-planner-supply-manifest]")?.remove();
-    this.#renderSupplyManifest({ manifest }, { anchor: this.element.querySelector(".journey-party-planner"), planner: true });
+    this.#renderSupplyManifest({ manifest }, { anchor: this.element.querySelector(".journey-expedition-roles") ?? this.element.querySelector(".journey-party-planner"), planner: true });
+    if (this.element.querySelector("details.journey-party-planner")) preparePlannerSections(this.element);
   }
 
   #renderSupplyManifest(context, { anchor = null, planner = false } = {}) {
@@ -216,19 +218,38 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     }
 
     const items = document.createElement("div");
-    items.className = "ml-cluster journey-supply-items";
-    for (const item of manifest.items ?? []) {
-      const tag = document.createElement("span");
-      tag.className = "ml-card ml-cluster journey-supply-item";
-      const text = document.createElement("span");
-      text.innerHTML = `${foundry.utils.escapeHTML(String(item.quantity))}× ${foundry.utils.escapeHTML(item.name)} — ${actorIdentity({ actorUuid: item.sourceActorUuid, name: item.sourceActorName })}`;
-      tag.append(text);
-      items.append(tag);
+    items.className = "ml-grid journey-supply-items";
+    items.dataset.columns = "2";
+    for (const source of manifest.sources ?? []) {
+      const card = document.createElement("div");
+      card.className = "ml-card ml-stack";
+      card.dataset.gap = "2";
+      const owner = document.createElement("div");
+      owner.innerHTML = actorIdentity(source);
+      if (source.sourceType === "group") owner.append(" (shared inventory)");
+      const list = document.createElement("dl");
+      list.className = "ml-quantity-list";
+      for (const item of (manifest.items ?? []).filter(item => item.sourceActorUuid === source.actorUuid)) {
+        const name = document.createElement("dt");
+        name.textContent = item.name;
+        const quantity = document.createElement("dd");
+        quantity.textContent = String(item.quantity);
+        list.append(name, quantity);
+      }
+      card.append(owner);
+      if (list.childElementCount) card.append(list);
+      else {
+        const empty = document.createElement("p");
+        empty.className = "ml-empty-message";
+        empty.textContent = "No recognized travel supplies.";
+        card.append(empty);
+      }
+      items.append(card);
     }
-    if (!(manifest.items?.length)) {
+    if (!(manifest.sources?.length)) {
       const empty = document.createElement("p");
       empty.className = "ml-empty-message";
-      empty.textContent = "No recognized travel supplies were found in the Group or traveler inventories.";
+      empty.textContent = "Select travelers to review their supplies.";
       items.append(empty);
     }
     panel.append(header, totals, items);
@@ -250,15 +271,13 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       validateExpeditionRoles({ navigatorUuid, observerUuid });
 
       const route = createRoute({
-        id: crypto.randomUUID(), name: value(this.element, "routeName"),
-        origin: { name: value(this.element, "origin") }, destination: { name: value(this.element, "destination") },
+        id: crypto.randomUUID(), origin: { name: value(this.element, "origin") }, destination: { name: value(this.element, "destination") },
         lengthSteps: integer(this.element, "lengthDays", 1) * 3 + integer(this.element, "lengthThirds", 0),
         danger: integer(this.element, "danger", 1), discoveryDC: integer(this.element, "discoveryDC", 15),
-        resourcesDC: integer(this.element, "resourcesDC", 15), navigationDC: integer(this.element, "navigationDC", 10),
-        traffic: value(this.element, "routeTraffic") || "ordinary"
+        resourcesDC: integer(this.element, "resourcesDC", 15), navigationDC: integer(this.element, "navigationDC", 10)
       });
       let journey = createJourney({
-        id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,
+        id: crypto.randomUUID(), route,
         travelers: actors.map(actor => dnd5e.snapshotTraveler(actor, { longRestHours: longRestHours.get(actor.uuid) }))
       });
       journey.steps = readJourneySteps(this.element);

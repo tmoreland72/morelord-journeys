@@ -4,7 +4,7 @@ description: Detailed rules for movement, weather, encounters, discoveries, supp
 slug: morelord-journeys/gm-travel-rules
 product: morelord-journeys
 audience: game-master
-version: 0.3.3
+version: 0.3.4
 foundry: 14
 order: 15
 ---
@@ -92,36 +92,9 @@ The party gains four progress thirds. Travelers have disadvantage on foraging ch
 
 ## Day encounters
 
-Journeys normally makes one encounter check for a day of travel, representing approximately 24–25 miles of exposure. This is not automatically a combat roll.
+Choose the daytime encounter die in Journeys Settings (d6 by default). Each traveler rolls that die once for every check/day shown by Danger. At Extreme (Danger 4), four travelers make 16 rolls. Each 1 adds one encounter, and each maximum die result cancels one encounter across the entire party; the total cannot be negative. Danger 0 requires no rolls.
 
-| Modified d100 | Result |
-| --- | --- |
-| 1–40 | No encounter |
-| 41–60 | Signs and foreshadowing |
-| 61–85 | Minor encounter: hazard, discovery, or social scene |
-| 86+ | Major encounter: combat or major story moment |
-
-Danger shifts the roll upward:
-
-| Danger | Typical region | Modifier |
-| ---: | --- | ---: |
-| 0 | Protected or exceptionally quiet | -10 |
-| 1 | Safe or civilized | +0 |
-| 2 | Untamed wilderness | +5 |
-| 3 | Hostile territory | +10 |
-| 4 | Extremely dangerous | +15 |
-| 5 | Lethal or otherworldly | +20 |
-
-Journeys applies every applicable situational modifier known from the route, pace, and weather:
-
-| Situation | Modifier |
-| --- | ---: |
-| Road or high traffic | +5 |
-| Favorable weather | -5 |
-| Bad weather or low visibility | +5 |
-| Stealthy travel or strong party awareness | -10 |
-
-Journeys shows the raw roll, modifiers, modified result, and outcome. You can let a player make the encounter roll when the campaign uses player-facing encounter checks.
+Players trigger their character’s rolls from private requests. Only the GM sees the results. Resolve every traveler before continuing. Route Traffic and the former daytime d100 modifiers no longer apply. Before beginning each day, update Daily Route Ratings for its environment; the values carry forward and each day retains its recorded ratings.
 
 ### Detection and surprise
 
@@ -129,11 +102,7 @@ Journeys displays the party's highest passive Perception. Fast pace reduces that
 
 When you construct an encounter in Morelord Encounters, its Stealth action uses the worst Stealth modifier among the chosen creatures. Compare that result with the displayed passive Perception. When the two values are within 5 of each other, neither side is surprised. Journeys records the comparison but does not begin combat automatically.
 
-### What the noncombat results mean
-
-- **Signs and foreshadowing** reveal that something is nearby or has passed through: tracks, damage, discarded gear, distant calls, smoke, or frightened travelers.
-- **Minor encounters** create a decision without demanding a major battle: a blocked crossing, dangerous terrain, an argument between NPCs, a wounded creature, or a localized magical effect.
-- **Major encounters** can be combat, but may instead be a major faction scene, severe hazard, or campaign-changing discovery.
+The encounter count does not prescribe severity or require combat. The GM chooses the encounters and records any resulting travel delay.
 
 ## Discoveries
 
@@ -201,7 +170,7 @@ Every traveler rolls Wisdom (Survival) against the route's Resources DC.
 - Journeys shows which items and actors will supply the rations before you confirm consumption.
 - If no recognized pooled ration is available, use **Manual Ration** when the party has a valid supply Journeys cannot identify.
 
-Journeys tracks consecutive days without a full meal. A character can go `3 + Constitution modifier` days without food. On the next hungry day, the character makes a DC 10 Constitution save, increasing by 5 on each additional consecutive hungry day; failure adds one Exhaustion. Eating a full day's ration resets the counter. These outcomes begin automatically when daily supplies are confirmed.
+Journeys tracks consecutive days without a full meal. Days 1�4 without food request a daily Constitution save (default DC 10); failure adds one Exhaustion. Day 5 and each subsequent day without food automatically add one Exhaustion without a roll. Constitution does not alter this threshold. Send Save / GM Roll resends a pending request to the player or opens it for the GM when the player is offline, including after disconnecting. Eating a full day's ration resets the counter. These outcomes begin automatically when daily supplies are confirmed.
 
 The Foraging panel shows each traveler's roll, meal status, hunger counter, starvation threshold, supply source, and any pending consequence.
 
@@ -262,7 +231,6 @@ Add the route's Danger modifier and every applicable situational modifier:
 
 | Situation | Modifier |
 | --- | ---: |
-| Road or high traffic | +5 |
 | Favorable weather | -5 |
 | Bad weather or low visibility | +5 |
 | No fire and no tents | +10 |

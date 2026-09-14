@@ -4,7 +4,7 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.3.3
+version: 0.3.4
 foundry: 14
 order: 20
 ---
@@ -44,7 +44,7 @@ The Navigator rolls Survival against the route's Navigation DC. The result is re
 
 ## Encounter rolls
 
-When player encounter rolling is enabled, Journeys asks one active party owner to make the day's d100 encounter check. Danger and GM-selected situational modifiers determine whether the result is quiet, signs, a minor event, or a major encounter.
+Each participating character receives a daytime encounter request. Press its roll button to roll the die chosen in Journeys Settings once per Danger check/day. Only the GM sees the dice and encounter count. A 1 adds an encounter and a maximum result cancels one across the party. These requests do not show a public result or a dice configuration dialog.
 
 ## Camp watches
 

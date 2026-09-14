@@ -99,15 +99,13 @@ export class JourneyRoleRefinementApplication extends BaseJourneyApplication {
       validateExpeditionRoles({ navigatorUuid, observerUuid });
 
       const route = createRoute({
-        id: crypto.randomUUID(), name: value(this.element, "routeName"),
-        origin: { name: value(this.element, "origin") }, destination: { name: value(this.element, "destination") },
+        id: crypto.randomUUID(), origin: { name: value(this.element, "origin") }, destination: { name: value(this.element, "destination") },
         lengthSteps: integer(this.element, "lengthDays", 1) * 3 + integer(this.element, "lengthThirds", 0),
         danger: integer(this.element, "danger", 1), discoveryDC: integer(this.element, "discoveryDC", 15),
-        resourcesDC: integer(this.element, "resourcesDC", 15), navigationDC: integer(this.element, "navigationDC", 10),
-        traffic: value(this.element, "routeTraffic") || "ordinary"
+        resourcesDC: integer(this.element, "resourcesDC", 15), navigationDC: integer(this.element, "navigationDC", 10)
       });
       let journey = createJourney({
-        id: crypto.randomUUID(), name: value(this.element, "journeyName"), route,
+        id: crypto.randomUUID(), route,
         steps: readJourneySteps(this.element),
         activityHoursPerDay: Number(value(this.element, "activityHoursPerDay") || 2),
         travelers: actors.map(actor => ({

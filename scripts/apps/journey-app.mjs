@@ -71,7 +71,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       id: "morelord-journeys", title: "Morelord Journeys", icon: "fa-solid fa-compass",
       subtitle: "Define a route and begin a stateful expedition.",
       sections: [
-        { id: "planning", title: "Plan a Journey", icon: "fa-solid fa-route", introduction: "Choose the journey steps, name the expedition and route, set its origin and destination, and specify the route length in days and thirds. Set danger, discovery, resources, navigation, and traffic ratings before creating the journey." },
+        { id: "planning", title: "Plan a Journey", icon: "fa-solid fa-route", introduction: "Choose the journey steps, origin and destination, and route length in days and thirds. Set Danger and the Discovery, Resources, and Navigation DCs. Daily Route Ratings can be changed before each travel day." },
         { id: "travel", title: "Travel and Camp", icon: "fa-solid fa-person-hiking", introduction: "Follow the active journey's phases to resolve each travel day. Record travel progress and encounters, then arrange camp, watches, foraging, and rest using the enabled steps. Disabled steps are skipped and logged." },
         { id: "defaults", title: "Saved Defaults", icon: "fa-solid fa-bookmark", introduction: "Use Save as Default on the planner to remember your preferred setup for future journeys." }
       ]
@@ -140,19 +140,16 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     try {
       const route = createRoute({
         id: crypto.randomUUID(),
-        name: value(this.element, "routeName"),
         origin: { name: value(this.element, "origin") },
         destination: { name: value(this.element, "destination") },
         lengthSteps: integer(this.element, "lengthDays", 1) * 3 + integer(this.element, "lengthThirds", 0),
         danger: integer(this.element, "danger", 1),
         discoveryDC: integer(this.element, "discoveryDC", 15),
         resourcesDC: integer(this.element, "resourcesDC", 15),
-        navigationDC: integer(this.element, "navigationDC", 10),
-        traffic: value(this.element, "routeTraffic") || "ordinary"
+        navigationDC: integer(this.element, "navigationDC", 10)
       });
       const journey = readyJourney(createJourney({
         id: crypto.randomUUID(),
-        name: value(this.element, "journeyName"),
         route, steps: readJourneySteps(this.element)
       }));
       await saveActiveJourney(journey);
@@ -166,7 +163,10 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static async #beginDay() {
     try {
-      let journey = beginTravelDay(await getActiveJourney());
+      if (!game.user.isGM) throw new Error("Only a GM may begin a travel day.");
+      const ratings = this.element.querySelector(".journey-daily-ratings");
+      const routeRatings = ratings ? Object.fromEntries(["danger", "discoveryDC", "resourcesDC", "navigationDC"].map(key => [key, Number(value(ratings, key))])) : null;
+      let journey = beginTravelDay(await getActiveJourney(), routeRatings);
       journey = JourneyApplication.#skipDisabledPhases(journey);
       await saveActiveJourney(journey);
       this._resetScrollOnNextRender = true;
@@ -192,11 +192,15 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       }
       if (phase === "pace") {
         source.currentDay.encounterCheck = null;
+        source.currentDay.pendingDayEncounterRolls = [];
+        source.currentDay.dayEncounterResults = [];
         result = { pace: value(this.element, "pace") || "normal" };
       }
       if (phase === "encounters") {
+        if (!game.user.isGM) throw new Error("Only a GM may resolve daytime encounters.");
         const encounter = source.currentDay?.encounterCheck;
-        const delaySteps = ["minor", "major"].includes(encounter?.outcome)
+        if (!encounter && Number(source.routeSnapshot.danger) > 0) throw new Error("Resolve the party's daytime encounter checks before continuing.");
+        const delaySteps = ["minor", "major", "encounter"].includes(encounter?.outcome)
           ? integer(this.element, "encounterDelayDays", 0) * 3 + integer(this.element, "encounterDelayThirds", 0)
           : 0;
         result = { count: Number(encounter?.encounterCount ?? 0), delaySteps, encounter: encounter ?? null };
@@ -416,7 +420,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static async #showEncounterOutcomes(event) {
     event.preventDefault();
-    await foundry.applications.api.DialogV2.prompt({ window: { title: "Day Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>d100 Results</h3><ul><li><strong>1–40:</strong> No encounter</li><li><strong>41–60:</strong> Signs or foreshadowing</li><li><strong>61–85:</strong> Minor encounter</li><li><strong>86+:</strong> Major encounter</li></ul></section><section><h3>Examples</h3><ul><li>Minor: hazard, traveler, ruin, animal, or faction scene.</li><li>Major: deadly hazard, discovery, confrontation, chase, siege, or combat.</li><li>Minor and Major measure importance—not combat.</li></ul></section></div>`, ok: { label: "Close" } });
+    await foundry.applications.api.DialogV2.prompt({ window: { title: "Day Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>Party Checks</h3><p>Each traveler rolls the configured daytime encounter die once per Danger check/day. Four travelers at Danger 4 make 16 rolls. Players trigger their rolls; only the GM sees results.</p></section><section><h3>Encounter Count</h3><p>Each 1 adds an encounter. Each maximum die result cancels one across the party. The final count cannot be negative. The GM determines what each encounter involves.</p></section></div>`, ok: { label: "Close" } });
   }
 
   static async #showNightEncounterOutcomes(event) {
@@ -438,6 +442,10 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   static #formatLogResult(entry) {
+    if (entry.type === "dayStarted" && entry.data?.routeRatings) {
+      const r = entry.data.routeRatings;
+      return `Danger ${r.danger}; Discovery DC ${r.discoveryDC}; Resources DC ${r.resourcesDC}; Navigation DC ${r.navigationDC}`;
+    }
     if (entry.type === "dayCompleted") return `${formatSteps(entry.data.applied ?? 0)} day(s) applied; ${formatSteps(entry.data.total ?? 0)} traveled`;
     if (entry.type === "progressModifierAdded") return `${entry.data.label}: ${formatDistance(entry.data.steps)}`;
     if (entry.type !== "phaseRecorded") return "";
@@ -445,7 +453,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     const phase = entry.data?.phase;
     if (phase === "weather") return result.generated ? `${result.generated.label}${result.extreme ? " (extreme)" : ""}` : result.extreme ? "Extreme weather" : "No generated weather";
     if (phase === "pace") return result.pace ?? "";
-    if (phase === "encounters") return `${result.count ?? 0} encounter(s)`;
+    if (phase === "encounters") return game.user.isGM ? `${result.count ?? 0} encounter(s)` : "Resolved privately by the GM";
     if (phase === "navigation") {
       return `${result.outcome ?? "Resolved"} — ${formatDistance(result.distanceSteps ?? 0)}`;
     }

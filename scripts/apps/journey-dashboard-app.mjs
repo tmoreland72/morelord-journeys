@@ -62,7 +62,7 @@ export class JourneyApplication extends BaseJourneyApplication {
       empty.className = "ml-empty-message";
       empty.textContent = "No D&D 5e character actors are available.";
       section.append(empty);
-      ratings.before(section);
+      ratings.after(section);
       return;
     }
 
@@ -71,21 +71,23 @@ export class JourneyApplication extends BaseJourneyApplication {
     list.dataset.columns = "2";
     for (const traveler of travelers) {
       const card = document.createElement("div");
-      card.className = "ml-choice-card ml-journeys-traveler";
+      card.className = "ml-card ml-item-row ml-journeys-traveler";
+      card.dataset.mlSelectableCard = "";
       const input = document.createElement("input");
       input.type = "checkbox";
       input.name = "travelerUuid";
       input.value = traveler.uuid;
       input.checked = traveler.hasPlayerOwner;
       input.setAttribute("aria-label", `Include ${traveler.name} in the expedition`);
-      const image = document.createElement("img");
-      image.src = traveler.img;
-      image.alt = "";
-      const name = document.createElement("strong");
-      name.className = "journey-traveler-name";
-      name.textContent = traveler.name;
-      const rest = document.createElement("span");
-      rest.className = "journey-traveler-rest-hours";
+      const identity = document.createElement("label");
+      identity.className = "ml-check";
+      const name = document.createElement("span");
+      name.innerHTML = actorIdentity(traveler);
+      identity.append(input, name);
+      const copy = document.createElement("div");
+      copy.className = "ml-stack";
+      copy.dataset.gap = "1";
+      const rest = document.createElement("label");
       const restLabel = document.createElement("span");
       restLabel.textContent = "Long Rest hours";
       const restInput = document.createElement("input");
@@ -99,8 +101,9 @@ export class JourneyApplication extends BaseJourneyApplication {
       restInput.setAttribute("aria-label", `Long Rest hours required for ${traveler.name}`);
       const restSource = document.createElement("small");
       restSource.textContent = traveler.longRestHoursSource;
-      rest.append(restLabel, restInput, restSource);
-      card.append(input, image, name, rest);
+      rest.append(restLabel, restInput);
+      copy.append(identity, restSource);
+      card.append(copy, rest);
       list.append(card);
     }
     section.append(list);
@@ -128,10 +131,13 @@ export class JourneyApplication extends BaseJourneyApplication {
     };
     list.addEventListener("change", syncNavigator);
     syncNavigator();
-    ratings.before(section);
+    ratings.after(section);
   }
 
   #renderCraftworksGather(context) {
+    const day = context.journey?.currentDay;
+    if (!context.journey?.travelers?.length || day?.pendingForagingRolls?.length
+      || !context.journey.travelers.every(traveler => day?.foragingResults?.some(result => result.actorUuid === traveler.actorUuid))) return;
     const notesLabel = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!notesLabel) return;
     const panel = document.createElement("div");
@@ -198,19 +204,16 @@ export class JourneyApplication extends BaseJourneyApplication {
 
       const route = createRoute({
         id: crypto.randomUUID(),
-        name: value(this.element, "routeName"),
         origin: { name: value(this.element, "origin") },
         destination: { name: value(this.element, "destination") },
         lengthSteps: integer(this.element, "lengthDays", 1) * 3 + integer(this.element, "lengthThirds", 0),
         danger: integer(this.element, "danger", 1),
         discoveryDC: integer(this.element, "discoveryDC", 15),
         resourcesDC: integer(this.element, "resourcesDC", 15),
-        navigationDC: integer(this.element, "navigationDC", 10),
-        traffic: value(this.element, "routeTraffic") || "ordinary"
+        navigationDC: integer(this.element, "navigationDC", 10)
       });
       const journey = createJourney({
         id: crypto.randomUUID(),
-        name: value(this.element, "journeyName"),
         route,
         travelers
       });

@@ -34,7 +34,6 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
       const weatherLabel = String(weather?.generated?.label ?? "").toLowerCase();
       if (weather?.extreme || /rain|snow|storm|wind|flood|fog|overcast/.test(weatherLabel)) modifiers.unshift({ id: "badWeather", label: "Bad weather / low visibility", value: 5 });
       else if (/fair|clear|comfortable/.test(weatherLabel)) modifiers.unshift({ id: "favorableWeather", label: "Favorable weather", value: -5 });
-      if (journey.routeSnapshot?.traffic === "high") modifiers.unshift({ id: "road", label: "Road / high traffic", value: 5 });
       const roll = await new Roll("1d100").evaluate();
       const effectiveDanger = Math.max(0, Number(journey.routeSnapshot.danger ?? 0) - (journey.currentDay?.pace === "stopped" ? 1 : 0));
       const result = resolveEncounterRoll({ raw: Number(roll.total), danger: effectiveDanger, modifiers, night: true });

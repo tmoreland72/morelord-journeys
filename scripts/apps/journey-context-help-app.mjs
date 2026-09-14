@@ -18,7 +18,7 @@ const HELP = Object.freeze({
   },
   danger: {
     title: "Danger",
-    content: sections(["Modifier", ["Danger 0: −10", "Danger 1: +0", "Danger 2: +5", "Danger 3: +10", "Danger 4: +15", "Danger 5: +20"]], ["Effect", ["Higher totals increase major daytime encounters and night attacks."]])
+    content: sections(["Modifier", ["Danger 0: no daytime checks", "Danger 1–5: that many checks per traveler each day"]], ["Effect", ["Daytime ones add encounters; maximum rolls cancel them. Night encounters retain their separate Danger modifiers."]])
   },
   discoveryDC: {
     title: "Discovery DC",
@@ -32,13 +32,9 @@ const HELP = Object.freeze({
     title: "Navigation DC",
     content: sections(["Use", ["The Navigator rolls Survival against this DC.", "Roads use lower DCs; uncharted terrain uses higher DCs."]])
   },
-  routeTraffic: {
-    title: "Route Traffic",
-    content: sections(["High Traffic", ["Adds +5 to daytime encounter rolls.", "Adds +5 to night encounter rolls.", "Applied separately from Danger."]])
-  },
   weather: { title: "Weather", content: sections(["Extreme Check", ["Roll 1d20.", "Natural 1: use an extreme forecast.", "Any other result: use an ordinary forecast."]], ["Warm Forecast", ["Fair weather", "Rain showers", "Humid haze", "Overcast", "Strong warm winds", "Clear and hot"]], ["Cold Forecast", ["Cold and clear", "Snow flurries", "Freezing drizzle", "Overcast", "Strong cold winds", "Sleet"]], ["Warm Extreme", ["Thunderstorm", "Heat wave", "Flash flood", "Tornado", "Wildfire smoke", "Dust storm"]], ["Cold Extreme", ["Blizzard", "Ice storm", "Extreme cold", "Avalanche conditions", "Freezing fog", "Whiteout"]], ["Effects", ["Extreme weather costs ⅓ day.", "Navigation rolls with disadvantage.", "Sleep DC increases by 5.", "Clear or fair weather cannot be extreme."]]) },
   pace: { title: "Pace", content: sections(["Options", ["Stopped: no progress; advantage on foraging and sleep.", "Slow: ⅔ day; advantage on foraging.", "Normal: 1 day.", "Fast: 1⅓ days; disadvantage on foraging; −5 passive Perception."]]) },
-  encounters: { title: "Day Encounters", content: sections(["d100 Result", ["1–40: no encounter", "41–60: signs and foreshadowing", "61–85: minor encounter", "86+: major encounter"]], ["Notes", ["Danger, route, pace, and weather modify the roll.", "Minor and major do not automatically mean combat."]]) },
+  encounters: { title: "Day Encounters", content: sections(["Party Checks", ["Each traveler rolls the configured encounter die once per Danger check/day.", "Players trigger their rolls; only the GM sees the results."]], ["Encounter Count", ["Each 1 adds an encounter; each maximum die result cancels one.", "Combine all travelers’ dice and stop at zero encounters."]]) },
   discovery: { title: "Discovery", content: sections(["Check", ["The Observer rolls Perception.", "Success reveals a clue and enables the optional d100 lead.", "Failure costs no time."]], ["Investigating", ["Close Journeys and run the discovery.", "Reopen Journeys when travel resumes.", "Record the actual elapsed days and thirds."]]) },
   navigation: { title: "Navigation", content: sections(["Results", ["Success: apply progress.", "Natural 1: turned around; lose one day.", "Natural 20: shortcut; gain ⅓ day.", "Other failure: lost; no progress."]], ["Weather", ["Extreme weather imposes disadvantage."]]) },
   pressOn: { title: "Press On", content: sections(["Benefit", ["Gain ⅓ day of progress."]], ["Cost", ["Every traveler makes the configured Constitution save.", "Failure adds one Exhaustion.", "Resolve every request before continuing."]]) },
@@ -57,8 +53,7 @@ const FIELD_HELP = Object.freeze({
   danger: "danger",
   discoveryDC: "discoveryDC",
   resourcesDC: "resourcesDC",
-  navigationDC: "navigationDC",
-  routeTraffic: "routeTraffic"
+  navigationDC: "navigationDC"
 });
 
 export class JourneyContextHelpApplication extends BaseJourneyApplication {

@@ -1,9 +1,12 @@
 <section class="ml-app ml-app-shell ml-journeys-settings">
-  <header class="ml-hero ml-journeys-settings__header">
-    <i class="fa-solid fa-person-hiking"></i>
-    <div class="ml-hero__body"><h2>Morelord Journeys</h2><p>Travel workflow and account access for this world.</p></div>
+  <header class="ml-hero">
+    <i class="fa-solid fa-person-hiking ml-hero__icon"></i>
+    <div class="ml-hero__body"><h1>Morelord Journeys Settings</h1><p>Travel workflow and account access for this world.</p></div>
   </header>
 
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.account" open>
+    <summary><div class="ml-section-heading"><div><h2>Morelord Account</h2><p>Review account access and manage your connection through Morelord Core.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body">
   <section class="ml-access-card" data-state="{{#if access.connected}}active{{else}}locked{{/if}}">
     <div class="ml-access-card__icon"><i class="fa-solid fa-crown"></i></div>
     <div class="ml-access-card__body">
@@ -16,44 +19,64 @@
       {{#if access.connected}}<button type="button" data-action="refreshAccess"><i class="fa-solid fa-rotate"></i> Refresh Access</button>{{/if}}
     </div>
   </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-compass"></i> Discovery DCs</h3><p>Perception DC presets offered when a new route is created. Existing journeys keep their recorded DC.</p></div></div>
-    <div class="ml-journeys-settings__grid">{{#each dcGroups.discovery}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-discovery-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
-  </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-map"></i> Navigation DCs</h3><p>Survival DC presets offered for route navigation terrain and difficulty.</p></div></div>
-    <div class="ml-journeys-settings__grid">{{#each dcGroups.navigation}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-navigation-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
-  </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-wheat-awn"></i> Foraging & Supply DCs</h3><p>Survival DC presets for terrain plus the escalating Constitution saves caused by hunger.</p></div></div>
-    <div class="ml-journeys-settings__grid">{{#each dcGroups.foraging}}<label class="ml-journeys-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-foraging-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}
-      <label class="ml-journeys-setting-row"><span><strong>First hunger save</strong></span><input type="number" name="dc-hungerBase" min="0" max="50" step="1" value="{{settings.dc.hungerBase}}"></label>
-      <label class="ml-journeys-setting-row"><span><strong>Hunger DC increase per day</strong></span><input type="number" name="dc-hungerIncrease" min="0" max="50" step="1" value="{{settings.dc.hungerIncrease}}"></label>
     </div>
-  </section>
+  </details>
 
-  <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-dice-d20"></i> Dice Display</h3><p>Controls the visual presentation of GM journey rolls. Outcomes and audit details are still recorded.</p></div></div>
-    <label class="ml-journeys-setting-row"><span><strong>Skip dice roll animation</strong><small>Off by default. When enabled, GM journey rolls do not create a dice display or chat roll card.</small></span><input type="checkbox" name="skipDiceAnimation" {{#if settings.skipDiceAnimation}}checked{{/if}}></label>
-  </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-person-running"></i> Press On DC</h3><p>Constitution saving throw made by each traveler who presses on for an additional third of a day.</p></div></div>
-    <label class="ml-journeys-setting-row"><span><strong>Forced march save</strong></span><input type="number" name="dc-pressOn" min="0" max="50" step="1" value="{{settings.dc.pressOn}}"></label>
-  </section>
-
-  <section class="ml-settings-section ml-journeys-settings__section">
-    <div class="ml-settings-section__heading"><div><h3><i class="fa-solid fa-bed"></i> Sleep & Shelter DCs</h3><p>Base sleep check and Xanathar-style escalating Constitution saves when a character fails to complete a Long Rest.</p></div></div>
-    <div class="ml-journeys-settings__grid">
-      <label class="ml-journeys-setting-row"><span><strong>Base sleep check</strong></span><input type="number" name="dc-sleepBase" min="0" max="50" step="1" value="{{settings.dc.sleepBase}}"></label>
-      <label class="ml-journeys-setting-row"><span><strong>First sleep-deprivation save</strong></span><input type="number" name="dc-sleepDeprivationBase" min="0" max="50" step="1" value="{{settings.dc.sleepDeprivationBase}}"></label>
-      <label class="ml-journeys-setting-row"><span><strong>Sleep-deprivation DC increase</strong></span><input type="number" name="dc-sleepDeprivationIncrease" min="0" max="50" step="1" value="{{settings.dc.sleepDeprivationIncrease}}"></label>
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.day-encounters" open>
+    <summary><div class="ml-section-heading"><div><h2>Daytime Encounters</h2><p>Each traveler rolls this die once per Danger level. Ones add encounters; maximum results cancel them across the party, to a minimum of zero. Rolls are visible only to GMs.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <label><span>Daytime Encounter Die</span><select name="dayEncounterDie">{{#each dayEncounterDice}}<option value="{{faces}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
     </div>
-    <label class="ml-journeys-setting-row"><span><strong>Do not add Exhaustion level for lack of sleep</strong><small>The character still receives no Long Rest benefits, but Journeys skips the deprivation save and Exhaustion.</small></span><input type="checkbox" name="suppressSleepDeprivationExhaustion" {{#if settings.suppressSleepDeprivationExhaustion}}checked{{/if}}></label>
-  </section>
+  </details>
 
-  <footer class="ml-actions ml-journeys-settings__footer"><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button></footer>
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.discovery-dcs" open>
+    <summary><div class="ml-section-heading"><div><h2><i class="fa-solid fa-compass"></i> Discovery DCs</h2><p>Perception DC presets offered during route creation and daily rating updates. Existing journeys keep their recorded DC until you change it.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <div class="ml-stack">{{#each dcGroups.discovery}}<label class="ml-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-discovery-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
+    </div>
+  </details>
+
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.navigation-dcs" open>
+    <summary><div class="ml-section-heading"><div><h2><i class="fa-solid fa-map"></i> Navigation DCs</h2><p>Survival DC presets offered for route navigation terrain and difficulty.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <div class="ml-stack">{{#each dcGroups.navigation}}<label class="ml-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-navigation-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}</div>
+    </div>
+  </details>
+
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.foraging-dcs" open>
+    <summary><div class="ml-section-heading"><div><h2><i class="fa-solid fa-wheat-awn"></i> Foraging & Supply DCs</h2><p>Survival DC presets for terrain plus the escalating Constitution saves caused by hunger.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <div class="ml-stack">{{#each dcGroups.foraging}}<label class="ml-setting-row"><span><strong>{{label}}</strong></span><input type="number" name="dc-foraging-{{index}}" min="0" max="50" step="1" value="{{value}}"></label>{{/each}}
+      <label class="ml-setting-row"><span><strong>Daily hunger save (days 1�4)</strong></span><input type="number" name="dc-hungerBase" min="0" max="50" step="1" value="{{settings.dc.hungerBase}}"></label>
+    </div>
+    </div>
+  </details>
+
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.dice-display" open>
+    <summary><div class="ml-section-heading"><div><h2><i class="fa-solid fa-dice-d20"></i> Dice Display</h2><p>Controls the visual presentation of GM journey rolls. Outcomes and audit details are still recorded.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <label class="ml-setting-row"><span><strong>Skip dice roll animation</strong><small>Off by default. When enabled, GM journey rolls do not create a dice display or chat roll card.</small></span><input type="checkbox" name="skipDiceAnimation" {{#if settings.skipDiceAnimation}}checked{{/if}}></label>
+    </div>
+  </details>
+
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.press-on-dc" open>
+    <summary><div class="ml-section-heading"><div><h2><i class="fa-solid fa-person-running"></i> Press On DC</h2><p>Constitution saving throw made by each traveler who presses on for an additional third of a day.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <label class="ml-setting-row"><span><strong>Forced march save</strong></span><input type="number" name="dc-pressOn" min="0" max="50" step="1" value="{{settings.dc.pressOn}}"></label>
+    </div>
+  </details>
+
+  <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.sleep-dcs" open>
+    <summary><div class="ml-section-heading"><div><h2><i class="fa-solid fa-bed"></i> Sleep & Shelter DCs</h2><p>Base sleep check and Xanathar-style escalating Constitution saves when a character fails to complete a Long Rest.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <div class="ml-collapsible-section__body ml-stack">
+    <div class="ml-stack">
+      <label class="ml-setting-row"><span><strong>Base sleep check</strong></span><input type="number" name="dc-sleepBase" min="0" max="50" step="1" value="{{settings.dc.sleepBase}}"></label>
+      <label class="ml-setting-row"><span><strong>First sleep-deprivation save</strong></span><input type="number" name="dc-sleepDeprivationBase" min="0" max="50" step="1" value="{{settings.dc.sleepDeprivationBase}}"></label>
+      <label class="ml-setting-row"><span><strong>Sleep-deprivation DC increase</strong></span><input type="number" name="dc-sleepDeprivationIncrease" min="0" max="50" step="1" value="{{settings.dc.sleepDeprivationIncrease}}"></label>
+    </div>
+    <label class="ml-setting-row"><span><strong>Do not add Exhaustion level for lack of sleep</strong><small>The character still receives no Long Rest benefits, but Journeys skips the deprivation save and Exhaustion.</small></span><input type="checkbox" name="suppressSleepDeprivationExhaustion" {{#if settings.suppressSleepDeprivationExhaustion}}checked{{/if}}></label>
+    </div>
+  </details>
+
+  <footer class="ml-page-footer ml-actions"><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button></footer>
 </section>

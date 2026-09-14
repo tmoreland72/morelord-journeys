@@ -6,7 +6,7 @@ import { createRoute } from "../../scripts/domain/route.mjs";
 const dialogs = [];
 const sent = [];
 globalThis.foundry = { applications: { api: { ApplicationV2: class {}, HandlebarsApplicationMixin: base => base,
-  DialogV2: class { constructor(options) { dialogs.push(options); } async render() {} }
+  DialogV2: class { constructor(options) { dialogs.push(options); } async render() {} async close() {} }
 } } };
 const { roleRollService } = await import("../../scripts/services/role-roll-service.mjs");
 const { foragingRollService } = await import("../../scripts/services/foraging-roll-service.mjs");
@@ -41,6 +41,43 @@ function setup(phase) {
 }
 function noRolls() { assert.equal(dialogs.length, 0); assert.equal(sent.length, 0); }
 
+test("hunger sends daily player saves, supports disconnected-player GM rolls, and resolves once", async () => {
+  const actor = setup("foraging");
+  actor.flags.daysWithoutFood = 0;
+  config.hungerBase = 10;
+  const player = { id: "player", active: true, character: { uuid: actor.uuid } };
+  game.users.unshift(player);
+  stored.currentDay.supplyResolution = { shortageActorUuids: { food: [actor.uuid], water: [] } };
+  stored.currentDay.foragingResolution = {};
+  supplyConsequenceService.start();
+  await supplyConsequenceService.begin();
+  const request = stored.currentDay.pendingSupplySaves[0];
+  assert.equal(request.dc, 10);
+  assert.equal(request.userId, "player");
+  assert.equal(sent.length, 1);
+  player.active = false;
+  await supplyConsequenceService.resend(request.id);
+  assert.equal(stored.currentDay.pendingSupplySaves[0].userId, "gm");
+  assert.equal(dialogs.length, 1);
+  await Promise.all([supplyConsequenceService.autoResolve(request.id, false), supplyConsequenceService.autoResolve(request.id, false)]);
+  assert.equal(actor.system.attributes.exhaustion, 3);
+  assert.equal(stored.currentDay.supplyConsequences.results.length, 1);
+});
+
+for (const day of [5, 6]) test(`hunger day ${day} automatically adds exhaustion without a roll`, async () => {
+  const actor = setup("foraging");
+  actor.flags.daysWithoutFood = day - 1;
+  stored.currentDay.supplyResolution = { shortageActorUuids: { food: [actor.uuid], water: [] } };
+  stored.currentDay.foragingResolution = {};
+  await supplyConsequenceService.begin();
+  await supplyConsequenceService.begin();
+  assert.equal(actor.system.attributes.exhaustion, 3);
+  assert.equal(stored.currentDay.supplyConsequences.hungerResults[0].automatic, true);
+  assert.equal(stored.currentDay.supplyConsequences.resolved, true);
+  assert.deepEqual(stored.currentDay.pendingSupplySaves, []);
+  noRolls();
+});
+
 for (const phase of ["navigation", "discovery"]) test(`${phase} DC 0 records ordinary success without a player request`, async () => {
   setup(phase);
   await roleRollService.request({ phase });
@@ -74,6 +111,7 @@ test("DC 0 forced march adds no Exhaustion", async () => {
 
 test("DC 0 hunger succeeds while a water shortage still adds Exhaustion", async () => {
   const actor = setup("foraging");
+  actor.flags.daysWithoutFood = 0;
   stored.currentDay.supplyResolution = { shortageActorUuids: { food: [actor.uuid], water: [actor.uuid] } };
   stored.currentDay.foragingResolution = {};
   await supplyConsequenceService.begin();

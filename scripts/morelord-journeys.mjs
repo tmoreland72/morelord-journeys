@@ -15,6 +15,7 @@ import { supplyConsequenceService } from "./services/supply-consequence-service.
 import { supplySyncService } from "./services/supply-sync-service.mjs";
 import { sleepRollService } from "./services/sleep-roll-service.mjs";
 import { SupplyManifestService } from "./services/supply-manifest-service.mjs";
+import { dayEncounterService } from "./services/day-encounter-service.mjs";
 import { getJourneyTravelContext, updateJourneyTravelContext } from "./domain/travel-context.mjs";
 
 Hooks.once("init", () => { registerSettings(); registerJourneySettings(); });
@@ -31,6 +32,7 @@ Hooks.once("ready", async () => {
   forcedMarchRollService.start();
   peacefulRestService.start();
   sleepRollService.start();
+  dayEncounterService.start();
   supplyConsequenceService.start();
   supplySyncService.start();
   const coreAccess = new MorelordCoreAccessService();
