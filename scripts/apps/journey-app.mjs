@@ -2,7 +2,7 @@ import { renderPreservingScroll } from "../../../morelord-core/scripts/ui/scroll
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
 import { getDCConfiguration, readJourneySteps, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
-import { addProgressModifier, beginTravelDay, completeTravelDay, readyJourney, recordPhase } from "../domain/engine.mjs";
+import { addProgressModifier, adjustRemainingTravel, beginTravelDay, completeTravelDay, readyJourney, recordPhase } from "../domain/engine.mjs";
 import { createJourney } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
 import { clearActiveJourney, getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
@@ -46,6 +46,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       openDocumentation: this.openDocumentation,
       createJourney: this.#createJourney,
       beginDay: this.#beginDay,
+      adjustRemainingTravel: this.#adjustRemainingTravel,
       advancePhase: this.#advancePhase,
       completeDay: this.#completeDay,
       endJourney: this.#endJourney,
@@ -88,16 +89,21 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     const context = await super._prepareContext(options);
     const journey = await getActiveJourney();
     if (!journey) return { ...context, hasJourney: false };
-    const length = Math.max(journey.routeSnapshot.lengthSteps, journey.routeSnapshot.lengthSteps - journey.remainingSteps);
+    const length = journey.progressSteps + journey.remainingSteps;
     const phase = journey.phase;
     const phaseIndex = phase ? TRAVEL_PHASES.indexOf(phase) : -1;
+    const canBeginDay = journey.status === "ready" || (journey.status === "active" && !journey.currentDay);
     return {
       ...context,
       hasJourney: true,
       journey,
       route: journey.routeSnapshot,
       isArrived: journey.status === "arrived",
-      canBeginDay: journey.status === "ready" || (journey.status === "active" && !journey.currentDay),
+      canBeginDay,
+      canAdjustRemaining: game.user.isGM && canBeginDay,
+      remainingDays: Math.floor(journey.remainingSteps / 3),
+      remainingThirds: [0, 1, 2].map(value => ({ value, label: value === 1 ? "⅓" : value === 2 ? "⅔" : "0", selected: value === journey.remainingSteps % 3 })),
+      displayDayNumber: Math.max(1, journey.dayNumber + (canBeginDay ? 1 : 0)),
       isDayComplete: phase === "dayComplete",
       progress: {
         current: journey.progressSteps,
@@ -176,6 +182,19 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     }
   }
 
+  static async #adjustRemainingTravel(event, target) {
+    if (!game.user.isGM) return;
+    target.disabled = true;
+    try {
+      const days = Number(value(this.element, "remainingDays"));
+      const thirds = Number(value(this.element, "remainingThirds"));
+      if (!Number.isInteger(days) || days < 0 || ![0, 1, 2].includes(thirds)) throw new Error("Enter whole days and zero, one, or two thirds.");
+      await saveActiveJourney(adjustRemainingTravel(await getActiveJourney(), days * 3 + thirds, { userId: game.user.id }));
+      await this.render({ force: true });
+    } catch (error) { this.#notifyError(error); }
+    finally { target.disabled = false; }
+  }
+
   static async #advancePhase() {
     try {
       const source = await getActiveJourney();
@@ -240,6 +259,10 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
             actorName: traveler.name,
             watchIndex: source.currentDay.nightEncounterCheck.watchIndex,
             reason: source.currentDay.nightEncounterCheck.outcome === "nightAttack" ? "night attack" : "night encounter",
+            count: Math.max(0, Math.floor(Number(value(this.element, "nightInterruptionCount") || 0))),
+            interruptsRest: Number(value(this.element, "nightInterruptionCount") || 0) > 0,
+            offsetHours: Math.max(0, Math.min(2, Number(value(this.element, "nightInterruptionOffset") || 0))),
+            startHour: Number(source.currentDay.nightEncounterCheck.watchIndex ?? 0) * 2 + Math.max(0, Math.min(2, Number(value(this.element, "nightInterruptionOffset") || 0))),
             suggestedHours: interruptionHours,
             hours: interruptionHours,
             recordedAt: Date.now()
@@ -442,6 +465,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   static #formatLogResult(entry) {
+    if (entry.type === "remainingTravelAdjusted") return `${formatSteps(entry.data.previous)} → ${formatSteps(entry.data.remainingSteps)} days remaining (GM adjustment)`;
     if (entry.type === "dayStarted" && entry.data?.routeRatings) {
       const r = entry.data.routeRatings;
       return `Danger ${r.danger}; Discovery DC ${r.discoveryDC}; Resources DC ${r.resourcesDC}; Navigation DC ${r.navigationDC}`;
@@ -455,7 +479,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     if (phase === "pace") return result.pace ?? "";
     if (phase === "encounters") return game.user.isGM ? `${result.count ?? 0} encounter(s)` : "Resolved privately by the GM";
     if (phase === "navigation") {
-      return `${result.outcome ?? "Resolved"} — ${formatDistance(result.distanceSteps ?? 0)}`;
+      return result.outcome === "lost" ? "Lost — no base travel progress; delays and extra travel still count." : `${result.outcome ?? "Resolved"} — ${formatDistance(result.distanceSteps ?? 0)}`;
     }
     if (phase === "discovery") return result.pursued ? "Discovery pursued" : "Passed by";
     if (phase === "pressOn") return result.pressedOn ? `Pressed on — ${formatDistance(1)}` : "Did not press on — 0 days";

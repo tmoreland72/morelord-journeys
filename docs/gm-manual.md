@@ -157,7 +157,7 @@ Sleep & Shelter is separate from watch planning. Tents, bedrolls, and blankets d
 - Extreme weather increases the sleep DC by 5.
 - A Peaceful Rest night result reduces the sleep DC by 5.
 
-Select **Roll Party Sleep Checks** to roll privately. Cold weather is inherited from the forecast. Sleep begins at eight hours minus two hours for each watch taken. Journeys tracks interruptions in hours; a Night Attack prefills one combat-interruption hour for the affected watcher, while Minor encounters add no interruption unless the GM determines that combat occurred. Six hours of sleep and less than one interrupted hour are required. Player-submitted Peaceful Rest selections are shown to the GM and committed when the phase advances; Journeys does not apply those benefits mechanically. Missed Long Rests use escalating Xanathar-style deprivation saves unless the GM enables **Do not add Exhaustion level for lack of sleep**.
+Select **Roll Party Sleep Checks** to roll privately. Cold weather is inherited from the forecast. Sleep begins at eight hours minus two hours for each watch taken. Journeys tracks interruptions in hours; a Night Attack prefills one combat-interruption hour for the affected watcher, while Minor encounters add no interruption unless the GM determines that combat occurred. Six hours of sleep and less than one interrupted hour are required. Player-submitted Peaceful Rest selections are shown to the GM and committed when the phase advances; Heroic Inspiration is applied to the character sheet when selected; the other benefits remain manual. Missed Long Rests use escalating Xanathar-style deprivation saves unless the GM enables **Do not add Exhaustion level for lack of sleep**.
 
 ## Journey progress
 
@@ -196,3 +196,11 @@ Character portraits identify travelers in assignments, checks, supplies, and res
 ## Native recovery and the world calendar
 
 Journeys records Long Rest sleep eligibility and applies its documented Exhaustion changes. It does not invoke native character-sheet Long Rest recovery or advance the world clock. Resolve HP, spell-slot, and item-use recovery separately through the system, checking that Exhaustion is not reduced a second time. D&D 5e v6 day/dawn/dusk recovery requires advancing the system calendar separately.
+
+### Current journey display and progress
+
+The subtitle shows the day, remaining time, traveled time, and original route length. Ready for the Road is the first idle section, followed by Daily Route Ratings before supplies. Weather checks and forecasts use two columns. Pace options express this module’s travel scale in miles: Slow 2/hour and 16/day, Normal 3/hour and 24/day, Fast 4/hour and 32/day, Stopped 0.
+
+A triggered encounter is highlighted as combat or non-combat; the GM may close Journeys while resolving it and return afterward. Dice-count arithmetic is in Outcome Details, and phase help stays beside the section title.
+
+Lost navigation removes base pace progress but balances delays against extra travel, with a minimum of zero travel credit. Thus a ⅓-day encounter delay plus ⅓-day Press On produces zero credit after a lost-navigation day. Previously completed historical logs are retained.

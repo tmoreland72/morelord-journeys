@@ -48,3 +48,5 @@ Journey Settings uses Core’s separate, opaque page footer so Save Changes stay
 
 
 Settings use Morelord Core’s shared headers, sections, content cards, settings rows, and footer. Descriptions remain beside checkboxes at narrow widths.
+
+The journey subtitle contains progress; daily ratings precede supplies, weather is side by side, and pace choices show hourly/daily mileage. Encounter callouts explain combat/non-combat resolution and safely closing/reopening the window. Peaceful Rest applies Heroic Inspiration directly; other benefit choices remain manual. Lost-navigation day credit includes both positive and negative travel modifiers and never grants credit for a delay canceled by Press On. See the updated GM manuals for details.

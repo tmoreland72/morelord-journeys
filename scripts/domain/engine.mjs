@@ -64,8 +64,29 @@ export function beginTravelDay(source, routeRatings = null) {
     delete entry.sleepHours;
     delete entry.interruptionHours;
     delete entry.interruptionMinutes;
+    delete entry.interruptionSources;
+    delete entry.restAssessment;
+    delete entry.extraRestHours;
+    delete entry.eligibleToStart;
   }
   appendLog(journey, "dayStarted", { routeRatings: journey.currentDay.routeRatings });
+  return journey;
+}
+
+export function adjustRemainingTravel(source, remainingSteps, { userId = null } = {}) {
+  const journey = clone(source);
+  if (journey.currentDay || ![JOURNEY_STATUS.READY, JOURNEY_STATUS.ACTIVE].includes(journey.status)) {
+    throw new JourneyValidationError("Remaining travel can only be adjusted before starting a new day.");
+  }
+  if (!Number.isInteger(remainingSteps) || remainingSteps < 0) throw new JourneyValidationError("Remaining travel must be a non-negative number of thirds.");
+  const previous = journey.remainingSteps;
+  journey.remainingSteps = remainingSteps;
+  journey.routeAdjustmentSteps = journey.progressSteps + remainingSteps - journey.routeSnapshot.lengthSteps;
+  appendLog(journey, "remainingTravelAdjusted", { previous, remainingSteps, userId });
+  if (remainingSteps === 0) {
+    journey.status = JOURNEY_STATUS.ARRIVED;
+    appendLog(journey, "journeyArrived");
+  }
   return journey;
 }
 
@@ -104,13 +125,13 @@ export function completeTravelDay(source) {
   const day = journey.currentDay;
   const planned = day.baseProgressSteps + day.progressModifiers.reduce((sum, item) => sum + item.steps, 0);
   const outcome = day.phases.navigation?.outcome ?? "success";
-  const gainedDespiteLostNavigation = day.progressModifiers.filter(item => item.steps > 0).reduce((sum, item) => sum + item.steps, 0);
-  const navigated = outcome === "lost" ? gainedDespiteLostNavigation : outcome === "reversed" ? -3 : outcome === "shortcut" ? planned + 1 : planned;
+  const modifiers = day.progressModifiers.reduce((sum, item) => sum + item.steps, 0);
+  const navigated = outcome === "lost" ? Math.max(0, modifiers) : outcome === "reversed" ? -3 : outcome === "shortcut" ? planned + 1 : planned;
   const applied = Math.min(journey.remainingSteps, navigated);
 
   day.appliedProgressSteps = applied;
   journey.remainingSteps = Math.max(0, journey.remainingSteps - applied);
-  journey.progressSteps = Math.max(0, journey.routeSnapshot.lengthSteps - journey.remainingSteps);
+  journey.progressSteps = Math.max(0, journey.routeSnapshot.lengthSteps + (journey.routeAdjustmentSteps ?? 0) - journey.remainingSteps);
   journey.campDefaults = {
     watches: structuredClone(day.campWatches ?? journey.campDefaults?.watches ?? []),
     sleepPlan: day.campSleepPlan ? structuredClone(day.campSleepPlan) : journey.campDefaults?.sleepPlan ?? null

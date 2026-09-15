@@ -1,5 +1,6 @@
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
-import { assignedWatchIndexes, availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
+import { campPeriods, availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
+import { evaluateRest2024 } from "../domain/rest-2024.mjs";
 import { getDCConfiguration, suppressSleepDeprivationExhaustion } from "../core/journey-settings.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 import { qualifiesForLongRest, sleepDeprivationDC } from "../domain/sleep-rules.mjs";
@@ -43,10 +44,14 @@ class SleepRollService extends EventTarget {
         if (seenActors.has(entry.actorUuid)) continue;
         seenActors.add(entry.actorUuid);
         const actor = await fromUuid(entry.actorUuid);
-        if (!actor) continue;
-        const recipient = entry.dc === 0 ? { user: game.user, fallbackToGM: false } : requestRecipientForActor(actor);
-        if (!recipient) continue;
-        requests.push(this.#requestData({ journey, entry, actor, recipient, kind: "sleep", dc: entry.dc }));
+        if (!actor) throw new Error(`Cannot resolve rest: ${entry.actorName} is unavailable.`);
+        entry.restAssessment = evaluateRest2024({ ...entry,
+          assignment: journey.currentDay?.campWatches?.find(item => item.actorUuid === entry.actorUuid) });
+        entry.sleepHours = entry.restAssessment.sleepHours;
+        entry.interruptionHours = entry.restAssessment.interruptionHours;
+        entry.interruptionSources = entry.restAssessment.interruptionSources;
+        const recipient = { user: game.user, fallbackToGM: false };
+        requests.push(this.#requestData({ journey, entry, actor, recipient, kind: "sleep", dc: 0 }));
       }
       if (!requests.length) throw new Error("No active user is available to make the sleep checks.");
       journey.currentDay.pendingSleepRolls = requests;
@@ -92,6 +97,7 @@ class SleepRollService extends EventTarget {
   }
 
   async #dispatch(request, { replace = false } = {}) {
+    if (request.kind === "sleep" && request.entry.restAssessment) return this.#recordResult(request.id, { total: null, succeeded: true, automatic: true, automaticReason: "rules2024", resolvedBy: game.user.id });
     if (request.dc === 0) return this.#recordResult(request.id, { total: null, succeeded: true, automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
     if (request.userId === game.user.id) await this.#open(request, { replace });
     else await this.#channel.executeAsUser("sleepRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
@@ -171,7 +177,7 @@ class SleepRollService extends EventTarget {
     journey.currentDay.completedSleepRequestIds ??= [];
     if (!journey.currentDay.completedSleepRequestIds.includes(request.id)) journey.currentDay.completedSleepRequestIds.push(request.id);
     if (request.kind === "sleep") {
-      const longRestCompleted = qualifiesForLongRest({
+      const longRestCompleted = request.entry.restAssessment?.longRestCompleted ?? qualifiesForLongRest({
         sleepCheckSucceeded: result.succeeded,
         sleepHours: request.entry.sleepHours,
         requiredSleepHours: request.entry.requiredSleepHours,
@@ -216,7 +222,7 @@ class SleepRollService extends EventTarget {
           : "did not complete a Long Rest; no Long Rest benefits and sleep-deprivation Exhaustion is disabled";
     journey.currentDay.campSleepResults ??= [];
     journey.currentDay.campSleepResults = journey.currentDay.campSleepResults.filter(item => item.actorUuid !== actor.uuid);
-    journey.currentDay.campSleepResults.push({ requestId: request.id, actorUuid: actor.uuid, actorName: actor.name, baseDC: entry.baseDC, modifiers: entry.modifiers, dc: entry.dc, total: sleepResult.total, automatic: sleepResult.automatic, automaticReason: sleepResult.automaticReason, advantage: sleepResult.advantage ?? request.advantage, sleepHours: entry.sleepHours, requiredSleepHours: entry.requiredSleepHours ?? 6, requiredSleepHoursSource: entry.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement", interruptionHours: entry.interruptionHours, interruptionSources: entry.interruptionSources ?? [], longRestCompleted: sleepResult.longRestCompleted, daysWithoutLongRest, deprivation: deprivation ?? { suppressed: true }, fed: !consequences.foodActorUuids.includes(entry.actorUuid), watered: !consequences.waterActorUuids.includes(entry.actorUuid), succeeded: sleepResult.succeeded, exhaustionChange, consequence });
+    journey.currentDay.campSleepResults.push({ restAssessment: entry.restAssessment ?? null, requestId: request.id, actorUuid: actor.uuid, actorName: actor.name, baseDC: entry.baseDC, modifiers: entry.modifiers, dc: entry.dc, total: sleepResult.total, automatic: sleepResult.automatic, automaticReason: sleepResult.automaticReason, advantage: sleepResult.advantage ?? request.advantage, sleepHours: entry.sleepHours, requiredSleepHours: entry.requiredSleepHours ?? 6, requiredSleepHoursSource: entry.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement", interruptionHours: entry.interruptionHours, interruptionSources: entry.interruptionSources ?? [], longRestCompleted: sleepResult.longRestCompleted, daysWithoutLongRest, deprivation: deprivation ?? { suppressed: true }, fed: !consequences.foodActorUuids.includes(entry.actorUuid), watered: !consequences.waterActorUuids.includes(entry.actorUuid), succeeded: sleepResult.succeeded, exhaustionChange, consequence });
     await saveActiveJourney(journey);
     if (!journey.currentDay.pendingSleepRolls.length) await this.#completeParty(journey);
     this.#updated();
@@ -225,10 +231,10 @@ class SleepRollService extends EventTarget {
   async #completeParty(journey) {
     const results = journey.currentDay.campSleepResults ?? [];
     const peacefulNight = journey.currentDay?.nightEncounterCheck?.outcome === "peacefulRest";
-    const slumberActors = (journey.currentDay?.campWatches ?? []).filter(watch => watch.action === "Slumber" && !assignedWatchIndexes(watch).length).map(watch => watch.actorUuid);
-    const watchActors = new Set((journey.currentDay?.campWatches ?? []).filter(watch => assignedWatchIndexes(watch).length > 0).map(watch => watch.actorUuid));
-    const automaticSlumberActors = journey.travelers.filter(traveler => !watchActors.has(traveler.actorUuid)).map(traveler => traveler.actorUuid);
-    journey.currentDay.peacefulRestEligible = [...new Set([...(peacefulNight ? results.filter(result => result.longRestCompleted).map(result => result.actorUuid) : []), ...slumberActors, ...automaticSlumberActors].filter(actorUuid => results.some(result => result.actorUuid === actorUuid && result.longRestCompleted)))];
+    const slumberActors = journey.travelers.filter(traveler => campPeriods(
+      journey.currentDay?.campWatches?.find(watch => watch.actorUuid === traveler.actorUuid) ?? { action: "Slumber" }
+    ).every(period => !period.watch && period.action === "Slumber")).map(traveler => traveler.actorUuid);
+    journey.currentDay.peacefulRestEligible = [...new Set([...(peacefulNight ? results.filter(result => result.longRestCompleted).map(result => result.actorUuid) : []), ...slumberActors].filter(actorUuid => results.some(result => result.actorUuid === actorUuid && result.longRestCompleted)))];
     if (journey.currentDay.nightEncounterCheck) {
       journey.currentDay.nightEncounterCheck.pendingSleepConfirmation = false;
       journey.currentDay.nightEncounterCheck.sleepConfirmedAt = Date.now();

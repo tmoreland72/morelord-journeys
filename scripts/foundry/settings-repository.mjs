@@ -26,7 +26,7 @@ export async function getActiveJourney() {
     journey.remainingSteps = Math.max(0, Number(journey.routeSnapshot?.lengthSteps ?? 0) + extensionSteps - Number(journey.progressSteps ?? 0));
     delete journey.routeExtensionDays;
   }
-  journey.progressSteps = Math.max(0, Number(journey.routeSnapshot?.lengthSteps ?? 0) - journey.remainingSteps);
+  journey.progressSteps = Math.max(0, Number(journey.routeSnapshot?.lengthSteps ?? 0) + Number(journey.routeAdjustmentSteps ?? 0) - journey.remainingSteps);
   if (!journey.currentDay && journey.remainingSteps <= 0) {
     journey.status = "arrived";
     journey.phase = null;

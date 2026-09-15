@@ -121,16 +121,16 @@ test("DC 0 hunger succeeds while a water shortage still adds Exhaustion", async 
   noRolls();
 });
 
-for (const hours of [6, 2]) test(`DC 0 sleep with ${hours} hours preserves Long Rest requirements`, async () => {
+for (const hours of [6, 2]) test(`2024 rest with ${hours} hours resolves without a sleep check`, async () => {
   const actor = setup("sleep");
   // A watch excludes the unrelated Peaceful Rest choice prompt.
-  stored.currentDay.campWatches = [{ actorUuid: actor.uuid, watchIndexes: [0], action: "Watch" }];
+  stored.currentDay.campWatches = [{ actorUuid: actor.uuid, watchIndexes: [0], action: "Take a Watch" }];
   await sleepRollService.requestParty({ entries: [{ actorUuid: actor.uuid, dc: 0, baseDC: 10, modifiers: [], sleepHours: hours, requiredSleepHours: 6, interruptionHours: 0 }] });
   // Separate deprivation saves are dispatched after the sleep result is saved.
   await new Promise(resolve => setTimeout(resolve, 20));
   const result = stored.currentDay.campSleepResults[0];
   assert.equal(result.succeeded, true);
-  assert.equal(result.automaticReason, "zeroDC");
+  assert.equal(result.automaticReason, "rules2024");
   assert.equal(result.longRestCompleted, hours === 6);
   assert.equal(actor.system.attributes.exhaustion, hours === 6 ? 1 : 2);
   if (hours === 2) assert.equal(result.deprivation.automaticReason, "zeroDC");

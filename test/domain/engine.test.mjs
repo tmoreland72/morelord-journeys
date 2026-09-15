@@ -3,6 +3,7 @@ import test from "node:test";
 import { TRAVEL_PHASES } from "../../scripts/domain/constants.mjs";
 import {
   addProgressModifier,
+  adjustRemainingTravel,
   beginTravelDay,
   completeTravelDay,
   readyJourney,
@@ -43,6 +44,22 @@ test("normal travel advances three steps", () => {
   assert.equal(result.dayNumber, 1);
 });
 
+test("GM remaining-time adjustments preserve earned progress and original duration", () => {
+  const traveled = resolveDay(readyJourney(makeJourney(18)));
+  const adjusted = adjustRemainingTravel(traveled, 4, { userId: "gm" });
+  assert.equal(adjusted.progressSteps, 3);
+  assert.equal(adjusted.routeSnapshot.lengthSteps, 18);
+  assert.equal(adjusted.remainingSteps, 4);
+  assert.equal(adjusted.log.at(-1).type, "remainingTravelAdjusted");
+  const next = resolveDay(adjusted);
+  assert.equal(next.progressSteps, 6);
+  assert.equal(next.remainingSteps, 1);
+  assert.equal(adjustRemainingTravel(next, 0).status, "arrived");
+  assert.throws(() => adjustRemainingTravel(beginTravelDay(adjusted), 3), /before starting/);
+  assert.throws(() => adjustRemainingTravel(adjusted, -1), /non-negative/);
+  assert.throws(() => adjustRemainingTravel(adjusted, 1.5), /non-negative/);
+});
+
 test("weather delay subtracts exactly one third from fast progress", () => {
   let current = beginTravelDay(readyJourney(makeJourney()));
   current = recordPhase(current, "weather", {});
@@ -72,6 +89,21 @@ test("pressing on still advances one third when navigation is lost", () => {
   const completed = completeTravelDay(current);
   assert.equal(completed.progressSteps, 1);
   assert.equal(completed.remainingSteps, 11);
+});
+
+test("lost navigation keeps encounter delays when crediting extra travel", () => {
+  for (const delay of [1, 2, 4]) {
+    let current = beginTravelDay(readyJourney(makeJourney()));
+    for (const phase of TRAVEL_PHASES.slice(0, -1)) {
+      current = recordPhase(current, phase, phase === "pace" ? { pace: "normal" } : phase === "navigation" ? { outcome: "lost" } : {});
+      if (phase === "encounters") current = addProgressModifier(current, { id: "encounter-delay", label: "Encounter delay", steps: -delay });
+      if (phase === "pressOn") current = addProgressModifier(current, { id: "press-on", label: "Pressed on", steps: 1 });
+    }
+    const completed = completeTravelDay(current);
+    assert.equal(completed.progressSteps, 0);
+    assert.equal(completed.remainingSteps, 12);
+    assert.equal(completed.log.findLast(entry => entry.type === "dayCompleted").data.applied, 0);
+  }
 });
 
 test("turned-around navigation adds exactly one day to distance remaining", () => {

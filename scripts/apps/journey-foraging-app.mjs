@@ -15,6 +15,7 @@ import { adjustActorExhaustion } from "../services/actor-exhaustion-service.mjs"
 import { JourneyFinalApplication as BaseJourneyApplication } from "./journey-final-app.mjs";
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
+import { restResultBullets } from "../domain/rest-2024.mjs";
 import { longRestFailureReasons } from "../domain/sleep-rules.mjs";
 import { availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
 
@@ -22,6 +23,15 @@ const SLEEP_MODIFIER_LABELS = Object.freeze({ tent: "Tent", bedroll: "Bedroll", 
 const supplyConsumption = new SupplyConsumptionService();
 const supplyManifest = new SupplyManifestService();
 const campSupplies = new CampSupplyService();
+
+function readRestInputs(entry, row, day) {
+  entry.sleepHours = Math.max(0, Math.min(Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8), availableCampSleepHours(day?.campWatches, entry.actorUuid)));
+  entry.extraRestHours = Math.max(0, Number(row?.querySelector("[data-extra-rest-hours]")?.value ?? 0));
+  entry.eligibleToStart = row?.querySelector("[data-rest-eligible]")?.checked ?? true;
+  entry.interruptionSources = (day?.sleepInterruptions ?? []).filter(item => item.actorUuid === entry.actorUuid)
+    .map(item => ({ ...item, hours: Math.max(0, Number(item.hours ?? Number(item.minutes ?? 0) / 60)) }));
+  entry.interruptionHours = entry.interruptionSources.reduce((sum, item) => sum + item.hours, 0);
+}
 
 
 
@@ -214,10 +224,10 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const night = context.journey.currentDay?.nightEncounterCheck;
     const nightLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[night?.outcome] ?? "Night result unavailable";
     section.dataset.cold = String(Boolean(context.journey.currentDay?.phases?.weather?.cold));
-    section.innerHTML = `<div class="journey-sleep-intro"><p>Weather and temperature are applied automatically from the Weather phase. Each traveler may select only sleeping equipment in their own inventory.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="ml-audit-card journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="ml-stack journey-camp-sleep-list"></div>`;
+    section.innerHTML = `<div class="journey-sleep-intro"><p>2024 Long Rest rules use time and interruptions; no sleep check is required. Confirm starting eligibility and enter any extra rest after the four watches. Equipment remains recorded for camp planning.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="ml-audit-card journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="ml-stack journey-camp-sleep-list"></div>`;
     section.querySelector("[data-sleep-help]").addEventListener("click", event => {
       event.preventDefault();
-      void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>Sleep Hours</h3><ul><li>Start at 8 hours.</li><li>Lose 2 hours per watch or non-Slumber action.</li><li>Interruption time comes from Night Encounters.</li></ul></section><section><h3>Long Rest</h3><ul><li>Pass the sleep check.</li><li>Meet required sleep hours.</li><li>Have less than 1 interrupted hour.</li></ul></section><section><h3>Other Effects</h3><ul><li>Peaceful Rest: −5 sleep DC.</li><li>Missing a Long Rest may require a deprivation save.</li><li>Food or water shortages prevent Exhaustion recovery.</li></ul></section></div>", ok: { label: "Close" } });
+      void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><h3>2024 Long Rests</h3><ul><li>A normal rest needs 8 hours, including at least 6 hours asleep and no more than 2 hours of light activity.</li><li>Trance can finish after 4 hours of meditation. Later encounters do not cancel completed rests.</li><li>Initiative, damage, a leveled spell, or an hour of exertion interrupts a rest. Each interruption adds 1 recovery hour, plus time spent interrupted.</li><li>Night encounter timing uses the selected watch and start offset. Extra rest after Watch 4 is sleeping or meditation time.</li><li>Confirm at least 1 HP at the start and 16 hours since the last Long Rest.</li><li>No sleep check or shelter DC is required. The existing optional Xanathar deprivation setting and nutrition rules remain separate.</li><li>Journeys records eligibility and adjusts Exhaustion. Apply HP, Hit Dice, and feature recovery using the character sheet.</li></ul></div>", ok: { label: "Close" } });
     });
     const list = section.querySelector(".journey-camp-sleep-list");
       for (const traveler of context.journey.travelers) {
@@ -227,11 +237,15 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         row.className = "ml-stack ml-card journey-camp-sleep-row";
         row.dataset.actorUuid = traveler.actorUuid;
         row.dataset.requiredSleepHours = String(traveler.longRestHours ?? 6);
-        row.innerHTML = `<header class="journey-sleep-character"><strong>${actorIdentity(traveler)}</strong><span class="journey-sleep-dc">Sleep DC ${sleepBaseDC} · Long Rest requires ${traveler.longRestHours ?? 6}h</span></header><div class="journey-sleep-controls"><div class="journey-shelter-group"><span class="journey-control-label">Sleeping setup</span><div class="journey-shelter-choices"><select data-shelter-select aria-label="Sleeping setup for ${foundry.utils.escapeHTML(traveler.name)}">${options}</select><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-shelter-help aria-label="Explain shelter bonuses" data-tooltip="Explain shelter bonuses"><i class="fa-solid fa-circle-question"></i></button></div></div><label class="journey-sleep-hours"><span>Sleep hours</span><input type="number" data-sleep-hours min="0" max="8" step="0.5" value="8"></label><div class="journey-readonly-value"><span>Interrupted</span><strong data-interruption-display>0 hours</strong></div></div>`;
+        row.innerHTML = `<header class="journey-sleep-character"><strong>${actorIdentity(traveler)}</strong><span class="journey-sleep-dc">${traveler.longRestHours ?? 6}h sleep / meditation required · No sleep check</span></header><div class="journey-sleep-controls"><div class="journey-shelter-group"><span class="journey-control-label">Camp equipment</span><div class="journey-shelter-choices"><select data-shelter-select aria-label="Camp equipment for ${foundry.utils.escapeHTML(traveler.name)}">${options}</select><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-shelter-help aria-label="Explain camp equipment" data-tooltip="Explain camp equipment"><i class="fa-solid fa-circle-question"></i></button></div></div><label class="journey-sleep-hours"><span>Planned sleep / meditation hours</span><input type="number" data-sleep-hours min="0" max="8" step="0.5" value="8"></label><div class="journey-readonly-value"><span>Encounter duration</span><strong data-interruption-display>0 hours</strong></div></div>`;
         row.querySelector("[data-shelter-help]").addEventListener("click", event => {
           event.preventDefault();
-          void foundry.applications.api.DialogV2.prompt({ window: { title: "Shelter and Sleep DC", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>DC Modifiers</h3><ul><li>Owned tent: −5</li><li>Owned bedroll: −2</li><li>Owned blanket in cold weather: −1</li><li>Extreme weather: +5</li><li>Peaceful night: −5</li></ul></section><section><h3>Ownership</h3><ul><li>Sleeping equipment is never pooled.</li></ul></section></div>", ok: { label: "Close" } });
+          void foundry.applications.api.DialogV2.prompt({ window: { title: "Shelter and Sleep DC", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><p>Only equipment owned by this character is listed. Equipment is recorded for camp planning; it does not impose a sleep check or change 2024 Long Rest timing.</p></div>", ok: { label: "Close" } });
         });
+        const restControls = document.createElement("div");
+        restControls.className = "ml-stack";
+        restControls.innerHTML = `<label><span>Extra rest after Watch 4 (hours)</span><input type="number" data-extra-rest-hours min="0" max="24" step="0.25" value="0"></label><label class="ml-check"><input type="checkbox" data-rest-eligible checked><span>Eligible to start a Long Rest</span></label><small>Confirm at least 1 HP at the start and at least 16 hours since the previous Long Rest ended. Extra hours are spent sleeping or meditating.</small>`;
+        row.append(restControls);
         list.append(row);
     }
     const recalculate = () => {
@@ -245,14 +259,14 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         const extreme = Boolean(row.closest(".journey-camp-sleep")?.dataset.extreme === "true");
         if (extreme) dc += 5;
         if (row.closest(".journey-camp-sleep")?.dataset.peaceful === "true") dc -= 5;
-        row.querySelector(".journey-sleep-dc").textContent = `Sleep DC ${Math.max(0, dc)}${dc <= 0 ? " · No roll needed" : ""} · Long Rest requires ${row.dataset.requiredSleepHours}h`;
+        row.querySelector(".journey-sleep-dc").textContent = `${row.dataset.requiredSleepHours}h sleep / meditation required · No sleep check`;
       }
     };
     section.querySelectorAll("input, select").forEach(input => input.addEventListener("change", recalculate));
     const roll = document.createElement("button");
     roll.type = "button";
     roll.dataset.action = "rollCampSleep";
-    roll.textContent = "Resolve Party Sleep";
+    roll.textContent = "Resolve Party Rest";
     section.append(roll);
     anchor.before(section);
     recalculate();
@@ -274,18 +288,21 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         select.value = Array.from(select.options).some(option => option.value === savedSetup) ? savedSetup : "";
         row.querySelector("[data-sleep-hours]").value = Math.min(entry.sleepHours ?? 8, availableCampSleepHours(active.currentDay?.campWatches, entry.actorUuid));
         row.querySelector("[data-sleep-hours]").max = availableCampSleepHours(active.currentDay?.campWatches, entry.actorUuid);
+        row.querySelector("[data-extra-rest-hours]").value = entry.extraRestHours ?? 0;
+        row.querySelector("[data-rest-eligible]").checked = entry.eligibleToStart !== false;
         const encounterHours = (active.currentDay?.sleepInterruptions ?? [])
           .filter(item => item.actorUuid === entry.actorUuid)
           .reduce((total, item) => total + Math.max(0, Number(item.hours ?? Number(item.minutes ?? 0) / 60)), 0);
-        const savedInterruptionHours = entry.interruptionHours ?? Number(entry.interruptionMinutes ?? 0) / 60;
+        const savedInterruptionHours = 0;
         row.querySelector("[data-interruption-display]").textContent = `${Math.max(Number(savedInterruptionHours), encounterHours)} hours`;
       }
       recalculate();
       const pendingSleep = active.currentDay?.pendingSleepRolls ?? [];
       const sleepWasRequested = pendingSleep.length > 0 || (active.currentDay?.campSleepResults?.length ?? 0) > 0;
+      if (sleepWasRequested) section.querySelectorAll(".journey-camp-sleep-row input, .journey-camp-sleep-row select").forEach(input => { input.disabled = true; });
       roll.hidden = sleepWasRequested;
       roll.disabled = sleepWasRequested;
-      roll.textContent = pendingSleep.length > 0 ? "Sleep Checks Pending" : "Resolve Party Sleep";
+      roll.textContent = pendingSleep.length > 0 ? "Rest Resolution Pending" : "Resolve Party Rest";
       if (pendingSleep.length) {
         const pending = document.createElement("div");
         pending.className = "ml-stack journey-sleep-result-list";
@@ -295,24 +312,26 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       if (active.currentDay?.campSleepResults?.length) {
         const summary = document.createElement("div");
         summary.className = "ml-stack journey-sleep-results";
-        summary.innerHTML = `<h4>Sleep Check Results</h4><div class="ml-stack journey-sleep-result-list">${active.currentDay.campSleepResults.map(result => {
+        summary.innerHTML = `<h4>Rest Results</h4><div class="ml-stack journey-sleep-result-list">${active.currentDay.campSleepResults.map(result => {
           const state = result.longRestCompleted ? "is-success" : result.succeeded ? "is-warning" : "is-failure";
-          const status = result.longRestCompleted ? "Sleep check passed · Long Rest completed" : `${result.succeeded ? "Sleep check passed" : "Sleep check failed"} · No Long Rest`;
-          return `<article class="ml-audit-card journey-sleep-result ${state}"><header><strong>${actorIdentity(result)}</strong><span>${status}</span></header><p class="journey-result-consequence">${foundry.utils.escapeHTML(result.consequence)}</p></article>`;
+          const status = result.longRestCompleted ? "Long Rest completed" : "No Long Rest";
+          return `<article class="ml-audit-card journey-sleep-result ${state}"><header><strong>${actorIdentity(result)}</strong><span>${status}</span></header><ul>${restResultBullets(result).map(text => `<li>${foundry.utils.escapeHTML(text)}</li>`).join("")}</ul></article>`;
         }).join("")}</div>`;
         summary.append(createOutcomeDetails({ cards: active.currentDay.campSleepResults.map(result => ({ title: result.actorName, actor: result, rows: [
-          { label: "Sleep check roll", value: result.automaticReason === "zeroDC" ? "DC 0 — no roll needed" : result.total },
-          { label: "Base DC", value: result.baseDC },
+          { label: "Rules", value: result.restAssessment ? "2024 Long Rest — no sleep check" : "Earlier Journeys sleep rules" },
+          { label: "Sleep check roll", value: result.restAssessment ? "Not required" : result.automaticReason === "zeroDC" ? "DC 0 — no roll needed" : result.total },
+          ...(result.restAssessment ? [] : [{ label: "Base DC", value: result.baseDC },
           ...(result.modifiers ?? []).map(modifier => ({ label: SLEEP_MODIFIER_LABELS[modifier.id] ?? modifier.id, value: `${modifier.value >= 0 ? "+" : ""}${modifier.value}` })),
           { label: "Final DC", value: result.dc },
           { label: "Sleep check outcome", value: result.automaticReason === "zeroDC" ? "Automatic success — DC 0; no roll needed" : result.automatic ? `${result.succeeded ? "Success" : "Failure"} — manually set by GM` : result.succeeded ? `Success — ${result.total} meets final DC ${result.dc}` : `Failure — ${result.total} is below final DC ${result.dc}` },
+          ]),
           { label: "Sleep", value: `${result.sleepHours ?? 0} hours` },
           { label: "Required sleep for Long Rest", value: `${result.requiredSleepHours ?? 6} hours` },
           { label: "Requirement source", value: result.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement" },
           { label: "Interrupted", value: `${result.interruptionHours ?? Number(result.interruptionMinutes ?? 0) / 60} hours` },
           { label: "Interruption source", value: describeInterruptionSources(result, active.currentDay) },
           { label: "Long Rest", value: result.longRestCompleted ? "Completed" : "Not completed" },
-          { label: "Long Rest determination", value: result.longRestCompleted ? `All requirements met: successful sleep check, at least ${result.requiredSleepHours ?? 6} sleep hours, and less than 1 interrupted hour.` : `Requirements not met: ${longRestFailureReasons({ sleepCheckSucceeded: result.succeeded, sleepHours: result.sleepHours, requiredSleepHours: result.requiredSleepHours, interruptionHours: result.interruptionHours }).join("; ")}.` },
+          { label: "Long Rest determination", value: result.restAssessment ? restResultBullets(result).join(" ") : result.longRestCompleted ? "Earlier rules: all requirements were met." : `Earlier rules: ${longRestFailureReasons({ sleepCheckSucceeded: result.succeeded, sleepHours: result.sleepHours, requiredSleepHours: result.requiredSleepHours, interruptionHours: result.interruptionHours }).join("; ")}.` },
           { label: "Exhaustion change", value: result.exhaustionChange > 0 ? `+${result.exhaustionChange}` : result.exhaustionChange }
         ] })) }));
         section.append(summary);
@@ -321,7 +340,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       if (eligible.length) {
         const choices = document.createElement("div");
         choices.className = "ml-stack journey-peaceful-rest";
-        choices.innerHTML = `<h4>Peaceful Rest Benefits</h4><p>Players choose these benefits. Journeys records the selections but does not apply them mechanically.</p><div class="ml-stack journey-peaceful-choice-list">${eligible.map(actorUuid => { const traveler = active.travelers.find(item => item.actorUuid === actorUuid); const choice = active.currentDay?.peacefulRestChoices?.find(item => item.actorUuid === actorUuid); const pending = active.currentDay?.pendingPeacefulRestChoices?.find(item => item.actorUuid === actorUuid); return `<article class="ml-card ml-grid" data-peaceful-actor="${actorUuid}"><strong>${actorIdentity({ ...traveler, actorUuid })}</strong>${choice ? `<span class="journey-peaceful-selection">${foundry.utils.escapeHTML(choice.label)}</span>` : pending ? `<div class="journey-peaceful-pending"><span>Awaiting player selection</span><select aria-label="Peaceful Rest benefit for ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")}"><option value="firstSaveAdvantage">Advantage on the first saving throw tomorrow</option><option value="exhaustion">Remove one additional level of Exhaustion</option><option value="inspiration">Gain Heroic Inspiration</option></select><div class="ml-cluster journey-peaceful-actions"><button type="button" data-action="resendPeacefulRest" data-request-id="${pending.id}">Resend</button><button type="button" data-action="setPeacefulRest" data-request-id="${pending.id}">GM Set</button></div></div>` : `<span>Selection not requested</span>`}</article>`; }).join("")}</div>`;
+        choices.innerHTML = `<h4>Peaceful Rest Benefits</h4><p>Players choose these benefits. Heroic Inspiration is applied to the character sheet. Other selections are recorded for manual application.</p><div class="ml-stack journey-peaceful-choice-list">${eligible.map(actorUuid => { const traveler = active.travelers.find(item => item.actorUuid === actorUuid); const choice = active.currentDay?.peacefulRestChoices?.find(item => item.actorUuid === actorUuid); const pending = active.currentDay?.pendingPeacefulRestChoices?.find(item => item.actorUuid === actorUuid); return `<article class="ml-card ml-grid" data-peaceful-actor="${actorUuid}"><strong>${actorIdentity({ ...traveler, actorUuid })}</strong>${choice ? `<span class="journey-peaceful-selection">${foundry.utils.escapeHTML(choice.label)}</span>` : pending ? `<div class="journey-peaceful-pending"><span>Awaiting player selection</span><select aria-label="Peaceful Rest benefit for ${foundry.utils.escapeHTML(traveler?.name ?? "Traveler")}"><option value="firstSaveAdvantage">Advantage on the first saving throw tomorrow</option><option value="exhaustion">Remove one additional level of Exhaustion</option><option value="inspiration">Gain Heroic Inspiration</option></select><div class="ml-cluster journey-peaceful-actions"><button type="button" data-action="resendPeacefulRest" data-request-id="${pending.id}">Resend</button><button type="button" data-action="setPeacefulRest" data-request-id="${pending.id}">GM Set</button></div></div>` : `<span>Selection not requested</span>`}</article>`; }).join("")}</div>`;
         section.append(choices);
       }
       const sleepComplete = (active.currentDay?.campSleepResults?.length ?? 0) >= active.travelers.length
@@ -685,10 +704,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       });
       for (const entry of journey.currentDay.campSleepPlan.entries) {
         const row = this.element.querySelector(`.journey-camp-sleep-row[data-actor-uuid='${entry.actorUuid}']`);
-        entry.sleepHours = Math.min(Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8), availableCampSleepHours(journey.currentDay?.campWatches, entry.actorUuid));
-        const recorded = (journey.currentDay?.sleepInterruptions ?? []).filter(item => item.actorUuid === entry.actorUuid);
-        entry.interruptionSources = recorded.map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null }));
-        entry.interruptionHours = entry.interruptionSources.reduce((total, item) => total + item.hours, 0);
+        readRestInputs(entry, row, journey.currentDay);
       }
       await saveActiveJourney(journey);
       ui.notifications.info("Camp sleep plan saved.");
@@ -707,17 +723,14 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const plan = campSupplies.buildSleepPlan({ travelers: journey.travelers, supplies: journey.supplies, assignments, extremeWeather: Boolean(journey.currentDay.phases?.weather?.extreme), coldWeather: Boolean(journey.currentDay.phases?.weather?.cold), peacefulNight: journey.currentDay?.nightEncounterCheck?.outcome === "peacefulRest", baseDC: getDCConfiguration().sleepBase });
       for (const entry of plan.entries) {
         const row = this.element.querySelector(`.journey-camp-sleep-row[data-actor-uuid='${entry.actorUuid}']`);
-        entry.sleepHours = Math.min(Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8), availableCampSleepHours(journey.currentDay?.campWatches, entry.actorUuid));
-        const recorded = (journey.currentDay?.sleepInterruptions ?? []).filter(item => item.actorUuid === entry.actorUuid);
-        entry.interruptionSources = recorded.map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null }));
-        entry.interruptionHours = entry.interruptionSources.reduce((total, item) => total + item.hours, 0);
+        readRestInputs(entry, row, journey.currentDay);
       }
       journey.currentDay.campSleepPlan = plan;
       journey.campDefaults ??= {};
       journey.campDefaults.sleepPlan = structuredClone(plan);
       await saveActiveJourney(journey);
       await sleepRollService.requestParty(plan);
-      ui.notifications.info("Sleep resolved where no roll is needed; any remaining checks have been sent.");
+      ui.notifications.info("Rest assessed using 2024 rules; any optional deprivation saves have been sent.");
       await this.render({ force: true });
     } catch (error) { if (requestButton) requestButton.disabled = false; ui.notifications.error(error.message); }
   }

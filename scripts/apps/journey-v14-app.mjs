@@ -39,7 +39,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
   }
 
   #moveCurrentPhaseToTop() {
-    const header = this.element.querySelector(".journey-dashboard-header");
+    const header = this.element.querySelector(".journey-progress-dashboard") ?? this.element.querySelector(".journey-dashboard-header");
     const phase = this.element.querySelector(".journey-phase-card");
     const navigation = this.element.querySelector(".journey-phases");
     if (header && phase) header.after(phase, ...(navigation ? [navigation] : []));
@@ -55,7 +55,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
     if (!panel) return;
     const check = context.journey.currentDay?.encounterCheck;
     if (check) {
-      const label = check.method === "partyDice" ? (check.encounterCount ? `${check.encounterCount} Encounter${check.encounterCount === 1 ? "" : "s"}` : "No Encounters") : { none: "No Encounter", signs: "Signs & Foreshadowing", minor: "Minor Encounter", major: "Major Encounter" }[check.outcome] ?? check.outcome;
+      const label = check.method === "partyDice" ? (check.encounterCount ? "Encounter" : "No Encounters") : { none: "No Encounter", signs: "Signs & Foreshadowing", minor: "Minor Encounter", major: "Major Encounter" }[check.outcome] ?? check.outcome;
       const descriptions = {
         none: "The road remains quiet. Describe uneventful travel or move directly to the next phase.",
         signs: "Along the path the party could find tracks, smoke, abandoned equipment, distant sounds, frightened travelers, or evidence that something recently passed through.",
@@ -63,8 +63,9 @@ export class JourneyV14Application extends BaseJourneyApplication {
         major: "Present an important event such as a deadly hazard, major discovery, faction confrontation, chase, siege, consequential social scene, or combat. Major describes narrative impact, not encounter type."
       };
       const summary = document.createElement("section");
-      summary.className = "ml-stack journey-encounter-summary";
-      summary.innerHTML = `<h3>${label}</h3><p>${check.method === "partyDice" ? "Each 1 adds an encounter; each maximum result cancels one across the party. Resolve the remaining encounters before continuing." : descriptions[check.outcome] ?? "Use the modified result to frame the next event along the route."}</p>`;
+      summary.className = "ml-callout journey-encounter-summary";
+      summary.dataset.tone = check.encounterCount > 0 || ["minor", "major", "encounter"].includes(check.outcome) ? "warning" : "info";
+      summary.innerHTML = `<h3>${label}</h3><p>${check.method === "partyDice" ? (check.encounterCount > 0 ? `An encounter has occurred (${check.encounterCount} to resolve). It may be combat or non-combat. You can close this window while resolving it, then reopen Journeys to continue.` : "No encounter occurred. Continue when ready.") : descriptions[check.outcome] ?? "Use the modified result to frame the next event along the route."}</p>`;
       const perception = document.createElement("div");
       perception.className = "journey-passive-perception";
       const value = document.createElement("strong");
@@ -103,6 +104,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
         panel.append(delay);
       }
       panel.append(createOutcomeDetails({ cards: check.method === "partyDice" ? [{ title: "Day Encounter Checks", rows: [
+        { label: "How encounters are counted", value: "Each 1 adds an encounter; each maximum result cancels one across the party." },
         { label: "Checks per traveler", value: check.danger },
         { label: "Die", value: `d${check.dieFaces}` },
         { label: "Total dice", value: check.totalRolls },

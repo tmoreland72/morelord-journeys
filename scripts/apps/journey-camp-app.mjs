@@ -176,8 +176,13 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       if (["minor", "nightAttack"].includes(night.outcome)) {
         const interruption = document.createElement("fieldset");
         interruption.className = "ml-field-group journey-night-interruption";
-        const currentHours = Number(context.journey.currentDay?.sleepInterruptions?.[0]?.hours ?? 1);
-        interruption.innerHTML = `<legend>Sleep Interruption</legend><label><span>Hours</span><input type="number" name="nightInterruptionHours" min="0" max="8" step="0.25" value="${currentHours}"></label><small>Enter the actual time the encounter interrupted the night. This applies to every traveler.</small>`;
+        const currentHours = Number(context.journey.currentDay?.sleepInterruptions?.[0]?.hours ?? (night.outcome === "nightAttack" ? 1 : 0));
+        interruption.innerHTML = `<legend>Sleep Interruption</legend><label><span>Hours</span><input type="number" name="nightInterruptionHours" min="0" max="8" step="0.25" value="${currentHours}"></label><small>Enter the actual time the encounter interrupted the night. 2024 rules: count initiative, damage, leveled spells, or at least one hour of exertion. Completed rests are unaffected.</small>`;
+                const eventDetails = document.createElement("div");
+        eventDetails.className = "ml-grid";
+        eventDetails.dataset.columns = "2";
+        eventDetails.innerHTML = `<label><span>Rest-interrupting events</span><input type="number" name="nightInterruptionCount" min="0" max="100" step="1" value="${context.journey.currentDay?.sleepInterruptions?.[0]?.count ?? (night.outcome === "nightAttack" ? 1 : 0)}"></label><label><span>Start within the affected watch (hours)</span><input type="number" name="nightInterruptionOffset" min="0" max="2" step="0.25" value="${context.journey.currentDay?.sleepInterruptions?.[0]?.offsetHours ?? 0}"></label>`;
+        interruption.append(eventDetails);
         panel.append(interruption);
       }
       panel.append(createOutcomeDetails({ cards: [{ title: "Night Encounter Calculation", rows: [

@@ -7,6 +7,12 @@ const SUPPLY_CATEGORIES = Object.freeze([
 ]);
 
 export class SupplyManifestService {
+  static orderItems(items) {
+    const order = SUPPLY_CATEGORIES.map(category => category.id);
+    const rank = category => order.includes(category) ? order.indexOf(category) : order.length;
+    return [...items].sort((a, b) => rank(a.category) - rank(b.category));
+  }
+
   static WATER_CONTAINER_CAPACITY = Object.freeze([
     { pattern: /waterskin/i, pints: 4 },
     { pattern: /flask/i, pints: 1 },

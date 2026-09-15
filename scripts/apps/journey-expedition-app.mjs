@@ -137,8 +137,8 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   #renderRoles(context) {
     const neededRole = context.phaseIs?.navigation ? "navigator" : context.phaseIs?.discovery ? "observer" : null;
     if (!neededRole) return;
-    const progress = this.element.querySelector(".journey-progress")?.closest("section");
-    if (!progress) return;
+    const headerAnchor = this.element.querySelector(".journey-progress-dashboard") ?? this.element.querySelector(".journey-dashboard-header");
+    if (!headerAnchor) return;
     const panel = document.createElement("section");
     panel.className = "ml-surface ml-stack journey-roles-panel";
     const header = document.createElement("h2");
@@ -157,7 +157,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     const hint = document.createElement("small");
     hint.textContent = "Expedition roles are assigned while planning the journey.";
     panel.append(header, display, hint);
-    progress.after(panel);
+    headerAnchor.after(panel);
   }
 
   async #renderPlannerSupplyManifest() {
@@ -170,7 +170,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
   }
 
   #renderSupplyManifest(context, { anchor = null, planner = false } = {}) {
-    const roles = anchor ?? this.element.querySelector(".journey-roles-panel") ?? this.element.querySelector(".journey-progress")?.closest("section");
+    const roles = anchor ?? this.element.querySelector(".journey-daily-ratings") ?? this.element.querySelector(".journey-roles-panel") ?? this.element.querySelector(".journey-phase-card") ?? this.element.querySelector(".ml-empty-state") ?? this.element.querySelector(".journey-dashboard-header");
     if (!roles) return;
     const manifest = context.manifest ?? context.journey?.supplies ?? {};
     const panel = document.createElement("section");
@@ -229,7 +229,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       if (source.sourceType === "group") owner.append(" (shared inventory)");
       const list = document.createElement("dl");
       list.className = "ml-quantity-list";
-      for (const item of (manifest.items ?? []).filter(item => item.sourceActorUuid === source.actorUuid)) {
+      for (const item of SupplyManifestService.orderItems((manifest.items ?? []).filter(item => item.sourceActorUuid === source.actorUuid))) {
         const name = document.createElement("dt");
         name.textContent = item.name;
         const quantity = document.createElement("dd");
@@ -253,8 +253,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       items.append(empty);
     }
     panel.append(header, totals, items);
-    const readyForRoad = context.canBeginDay ? this.element.querySelector(".ml-empty-state") : null;
-    (readyForRoad ?? roles).after(panel);
+    roles.after(panel);
   }
 
   static async createJourney(event) {

@@ -92,15 +92,21 @@ class PeacefulRestService extends EventTarget {
       return action;
     } }));
     const dialog = new foundry.applications.api.DialogV2({
-      classes: ["ml-window", "ml-journeys-dialog"], window: { title: "Morelord Journeys — Peaceful Rest", icon: "fa-solid fa-bed" }, content: `<p>${actorIdentity(request)} receives a Peaceful Rest benefit. Choose one; Journeys records but does not apply it.</p>`, modal: false, buttons });
+      classes: ["ml-window", "ml-journeys-dialog"], position: { width: 860, height: "auto" }, window: { resizable: true, title: "Morelord Journeys — Peaceful Rest", icon: "fa-solid fa-bed" }, content: `<p>${actorIdentity(request)} receives a Peaceful Rest benefit. Choose one. Heroic Inspiration is applied to the character sheet; other benefits are recorded for manual application.</p>`, modal: false, buttons });
     this.#dialogs.set(request.id, dialog);
     await dialog.render({ force: true });
   }
 
   async #record(journey, request, choice, { resolvedBy = null, automatic = false } = {}) {
+    if (!(journey.currentDay.pendingPeacefulRestChoices ?? []).some(item => item.id === request.id)) return;
+    if (choice === "inspiration") {
+      const actor = await fromUuid(request.actorUuid);
+      if (!actor) throw new Error("The character is unavailable; the benefit remains pending.");
+      await actor.update({ "system.attributes.inspiration": true });
+    }
     journey.currentDay.peacefulRestChoices ??= [];
     journey.currentDay.peacefulRestChoices = journey.currentDay.peacefulRestChoices.filter(item => item.actorUuid !== request.actorUuid);
-    journey.currentDay.peacefulRestChoices.push({ actorUuid: request.actorUuid, actorName: request.actorName, choice, label: CHOICES[choice], appliedAutomatically: false, automatic, resolvedBy, recordedAt: Date.now() });
+    journey.currentDay.peacefulRestChoices.push({ actorUuid: request.actorUuid, actorName: request.actorName, choice, label: CHOICES[choice], appliedAutomatically: choice === "inspiration", automatic, resolvedBy, recordedAt: Date.now() });
     journey.currentDay.pendingPeacefulRestChoices = (journey.currentDay.pendingPeacefulRestChoices ?? []).filter(item => item.id !== request.id);
     await saveActiveJourney(journey);
     if (request.userId !== game.user.id) await this.#channel.executeAsUser("peacefulRest.resolved", { requestId: request.id }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });

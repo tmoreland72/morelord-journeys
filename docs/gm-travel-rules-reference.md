@@ -246,7 +246,7 @@ When the night result is Peaceful Rest, each eligible player chooses one benefit
 - Remove one additional level of Exhaustion.
 - Gain Heroic Inspiration.
 
-Journeys records the selection but does not apply it mechanically. A character using Slumber can also receive a Peaceful Rest selection after completing the sleep required for a Long Rest.
+Journeys applies Heroic Inspiration to the character sheet when selected. It records the other choices for manual application. A character using Slumber can also receive a Peaceful Rest selection after completing the sleep required for a Long Rest.
 
 ## Sleep and shelter
 
@@ -291,3 +291,11 @@ Journeys does not enforce encumbrance, begin combat, apply Peaceful Rest choices
 ## Zero-DC resolution
 
 An effective DC of zero resolves as a success without a player roll request, including Sleep after equipment modifiers. This does not bypass Long Rest eligibility, normal foraging rewards, or supply consequences.
+
+### Current journey display and progress
+
+The subtitle shows the day, remaining time, traveled time, and original route length. Ready for the Road is the first idle section, followed by Daily Route Ratings before supplies. Weather checks and forecasts use two columns. Pace options express this module’s travel scale in miles: Slow 2/hour and 16/day, Normal 3/hour and 24/day, Fast 4/hour and 32/day, Stopped 0.
+
+A triggered encounter is highlighted as combat or non-combat; the GM may close Journeys while resolving it and return afterward. Dice-count arithmetic is in Outcome Details, and phase help stays beside the section title.
+
+Lost navigation removes base pace progress but balances delays against extra travel, with a minimum of zero travel credit. Thus a ⅓-day encounter delay plus ⅓-day Press On produces zero credit after a lost-navigation day. Previously completed historical logs are retained.

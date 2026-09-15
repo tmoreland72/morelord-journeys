@@ -35,10 +35,10 @@
   "MORELORD_JOURNEYS.Phases.camp": "Camp",
   "MORELORD_JOURNEYS.Phases.sleep": "Sleep & Shelter",
   "MORELORD_JOURNEYS.Phases.dayComplete": "Day Complete",
-  "MORELORD_JOURNEYS.Paces.slow": "Slow (2 steps)",
-  "MORELORD_JOURNEYS.Paces.normal": "Normal (3 steps)",
-  "MORELORD_JOURNEYS.Paces.fast": "Fast (4 steps)",
-  "MORELORD_JOURNEYS.Paces.stopped": "Stopped (0 steps)",
+  "MORELORD_JOURNEYS.Paces.slow": "Slow — 2 miles/hour; 16 miles/day",
+  "MORELORD_JOURNEYS.Paces.normal": "Normal — 3 miles/hour; 24 miles/day",
+  "MORELORD_JOURNEYS.Paces.fast": "Fast — 4 miles/hour; 32 miles/day",
+  "MORELORD_JOURNEYS.Paces.stopped": "Stopped — 0 miles/hour; 0 miles/day",
   "MORELORD_JOURNEYS.Inputs.ExtremeWeather": "Extreme weather (-1 progress step)",
   "MORELORD_JOURNEYS.Inputs.Pace": "Travel pace",
   "MORELORD_JOURNEYS.Inputs.EncounterCount": "Encounters resolved",
@@ -63,6 +63,7 @@
   "MORELORD_JOURNEYS.Log.dayStarted": "Travel day started",
   "MORELORD_JOURNEYS.Log.phaseRecorded": "Phase resolved",
   "MORELORD_JOURNEYS.Log.progressModifierAdded": "Progress modified",
-  "MORELORD_JOURNEYS.Log.dayCompleted": "Travel day completed",
+    "MORELORD_JOURNEYS.Log.dayCompleted": "Travel day completed",
+    "MORELORD_JOURNEYS.Log.remainingTravelAdjusted": "Remaining travel adjusted",
   "MORELORD_JOURNEYS.Log.journeyArrived": "Destination reached"
 }
