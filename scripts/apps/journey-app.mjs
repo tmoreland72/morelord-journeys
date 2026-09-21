@@ -1,3 +1,5 @@
+import { readNightInterruptions } from "../ui/night-interruption-controls.mjs";
+import { checkpointJourney, canGoBack, requestGoBack } from "../services/journey-undo-service.mjs";
 import { renderPreservingScroll } from "../../../morelord-core/scripts/ui/scroll-preservation.js";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
@@ -43,11 +45,12 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     position: { width: 720, height: "auto" },
     window: { title: "MORELORD_JOURNEYS.Name", icon: "fa-solid fa-compass" },
     actions: {
+      goBack: this.goBack,
       openDocumentation: this.openDocumentation,
       createJourney: this.#createJourney,
       beginDay: this.#beginDay,
       adjustRemainingTravel: this.#adjustRemainingTravel,
-      advancePhase: this.#advancePhase,
+      advancePhase: this.advancePhase,
       completeDay: this.#completeDay,
       endJourney: this.#endJourney,
       clearJourney: this.#clearJourney,
@@ -64,6 +67,18 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   static PARTS = {
     content: { template: "modules/morelord-journeys/templates/journey-app.hbs" }
   };
+
+  static async goBack(event, target) {
+    event.preventDefault();
+    target.disabled = true;
+    try {
+      await requestGoBack();
+      this._resetScrollOnNextRender = true;
+      await this.render({ force: true });
+      ui.notifications.info("Previous step restored, including Journey-applied character and supply changes.");
+    } catch (error) { ui.notifications.error(error.message); }
+    finally { target.disabled = false; }
+  }
 
   static openDocumentation() {
     const documentation = game.modules.get("morelord-core")?.api?.ui?.documentation;
@@ -89,6 +104,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     const context = await super._prepareContext(options);
     const journey = await getActiveJourney();
     if (!journey) return { ...context, hasJourney: false };
+    await checkpointJourney(journey);
     const length = journey.progressSteps + journey.remainingSteps;
     const phase = journey.phase;
     const phaseIndex = phase ? TRAVEL_PHASES.indexOf(phase) : -1;
@@ -96,6 +112,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     return {
       ...context,
       hasJourney: true,
+      canGoBack: canGoBack(journey),
       journey,
       route: journey.routeSnapshot,
       isArrived: journey.status === "arrived",
@@ -195,7 +212,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     finally { target.disabled = false; }
   }
 
-  static async #advancePhase() {
+  static async advancePhase() {
     try {
       const source = await getActiveJourney();
       const phase = source.phase;
@@ -218,7 +235,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       if (phase === "encounters") {
         if (!game.user.isGM) throw new Error("Only a GM may resolve daytime encounters.");
         const encounter = source.currentDay?.encounterCheck;
-        if (!encounter && Number(source.routeSnapshot.danger) > 0) throw new Error("Resolve the party's daytime encounter checks before continuing.");
+        if (!encounter) throw new Error("Resolve the party's daytime encounter checks before continuing.");
         const delaySteps = ["minor", "major", "encounter"].includes(encounter?.outcome)
           ? integer(this.element, "encounterDelayDays", 0) * 3 + integer(this.element, "encounterDelayThirds", 0)
           : 0;
@@ -252,7 +269,11 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
           : validateCampAssignments(normalizeCampAssignments(source.travelers, source.currentDay?.campWatches ?? []));
         if (nightEncountersEnabled(source) && !source.currentDay?.nightEncounterCheck) throw new Error("Resolve the night encounter check before continuing, or disable Night Encounters for this journey.");
         source.currentDay.campWatches = assignments;
-        if (["minor", "nightAttack"].includes(source.currentDay?.nightEncounterCheck?.outcome)) {
+        if (source.currentDay?.nightEncounterCheck?.method === "nightDice") {
+          if (source.currentDay.pendingCampPerceptionRolls?.length) throw new Error("Resolve pending watch Perception checks before continuing.");
+          if (source.currentDay.nightEncounterCheck.encounters.some(encounter => !encounter.unwatched && !source.currentDay.campPerceptionResults?.some(result => result.watchIndex === encounter.watchIndex))) throw new Error("Request and resolve Perception for each affected watch before continuing.");
+          source.currentDay.sleepInterruptions = readNightInterruptions(this.element, source);
+        } else if (["minor", "nightAttack"].includes(source.currentDay?.nightEncounterCheck?.outcome)) {
           const interruptionHours = Math.max(0, Number(value(this.element, "nightInterruptionHours") || 0));
           source.currentDay.sleepInterruptions = source.travelers.map(traveler => ({
             actorUuid: traveler.actorUuid,
@@ -271,7 +292,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         result = { watches: assignments, nightEncounterSkipped: !nightEncountersEnabled(source) };
       }
       if (phase === "sleep") {
-        if ((source.currentDay?.campSleepResults?.length ?? 0) < source.travelers.length) throw new Error("Resolve every traveler's sleep check before continuing.");
+        if ((source.currentDay?.campSleepResults?.length ?? 0) < source.travelers.length) throw new Error("Resolve every traveler's rest before continuing.");
         if ((source.currentDay?.pendingPeacefulRestChoices?.length ?? 0) > 0) throw new Error("Wait for or resolve every pending Peaceful Rest choice before continuing.");
         result = { sleep: source.currentDay?.campSleepResults ?? [] };
       }
@@ -443,12 +464,12 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
 
   static async #showEncounterOutcomes(event) {
     event.preventDefault();
-    await foundry.applications.api.DialogV2.prompt({ window: { title: "Day Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>Party Checks</h3><p>Each traveler rolls the configured daytime encounter die once per Danger check/day. Four travelers at Danger 4 make 16 rolls. Players trigger their rolls; only the GM sees results.</p></section><section><h3>Encounter Count</h3><p>Each 1 adds an encounter. Each maximum die result cancels one across the party. The final count cannot be negative. The GM determines what each encounter involves.</p></section></div>`, ok: { label: "Close" } });
+    await foundry.applications.api.DialogV2.prompt({ window: { title: "Day Encounter Dice" }, content: '<div class="ml-app ml-app-shell ml-dialog-shell"><p>Danger 0–5 selects d20, d12, d10, d8, d6, d4. Each traveler rolls once. Pool all results: each 1 triggers an encounter; maximums cancel encounters except on d4 and d6. Only GMs see results.</p></div>', ok: { label: "Close" } });
   }
 
   static async #showNightEncounterOutcomes(event) {
     event.preventDefault();
-    await foundry.applications.api.DialogV2.prompt({ window: { title: "Night Encounter Outcomes", icon: "fa-solid fa-circle-question" }, content: `<div class="ml-journeys-help-content"><section><h3>d100 Results</h3><ul><li><strong>1–30:</strong> Peaceful Rest</li><li><strong>31–60:</strong> Uneventful</li><li><strong>61–85:</strong> Minor encounter</li><li><strong>86+:</strong> Night Attack</li></ul></section><section><h3>Modifiers</h3><ul><li>Danger</li><li>Weather</li><li>Camp quality</li><li>Fire visibility</li></ul></section></div>`, ok: { label: "Close" } });
+    await foundry.applications.api.DialogV2.prompt({ window: { title: "Night Encounter Dice" }, content: '<div class="ml-app ml-app-shell ml-dialog-shell"><p>Use the Danger die: 0–5 selects d20, d12, d10, d8, d6, d4. Roll once per watch, or once per hour using Journeys Settings. Pool the eight-hour night before play. Each 1 triggers an encounter; a campfire also triggers on 2. Maximums cancel the latest triggered periods first, except on d4 and d6. Resolve each remaining encounter at its listed time. One Perception check covers each affected watch. The GM decides encounter type and actual rest interruptions. This method does not award the old d100 Peaceful Rest result.</p></div>', ok: { label: "Close" } });
   }
 
   static async #requestForcedMarchRolls(event) {
@@ -488,8 +509,8 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
       const added = (result.resolution.excessRationsAdded ?? []).reduce((total, entry) => total + Number(entry.quantity ?? 0), 0);
       return `+${added} food added; ${result.resolution.foodRequired ?? 0} ration(s) and ${result.resolution.waterRequired ?? 0} water pint(s) still required`;
     }
-    if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} sleep checks`;
-    if (phase === "sleep") return `${result.sleep?.length ?? 0} sleep checks`;
+    if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} rest results`;
+    if (phase === "sleep") return `${result.sleep?.length ?? 0} rest results`;
     return "Resolved";
   }
 
@@ -507,6 +528,8 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   #notifyError(error) {
+    globalThis.MorelordCore?.telemetry?.error(MODULE_ID, "journey.action", error);
+    globalThis.MorelordCore?.telemetry?.error(MODULE_ID, "journey.action", error);
     console.error("morelord-journeys |", error);
     ui.notifications.error(error.issues?.join("; ") ?? error.message);
   }

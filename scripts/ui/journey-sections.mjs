@@ -6,7 +6,7 @@ const PHASE_DESCRIPTIONS = {
   encounters: "Check for events along the route. Results are visible only to the GM.",
   discovery: "Resolve the Observer's check and decide whether the party investigates any discovered opportunity.",
   navigation: "Resolve the Navigator's check to determine whether the party stays on course, loses ground, or finds a shortcut.",
-  foraging: "Resolve the party's foraging checks, review food and water allocations, and confirm daily supply outcomes.",
+  foraging: "Resolve the party's foraging checks, then continue to apply food and water supplies.",
   pressOn: "Choose whether to extend today's travel and resolve the required Constitution saves.",
   camp: "Assign watches and camp activities, then check for nighttime encounters.",
   sleep: "Review each traveler's shelter and interruptions, resolve sleep checks, and record rest benefits.",

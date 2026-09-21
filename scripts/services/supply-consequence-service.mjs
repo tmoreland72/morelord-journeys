@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../domain/constants.mjs";
+import { updateJourneyDocument } from "./journey-undo-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { hungerSaveDC, hungerThreshold } from "../domain/supply-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
@@ -47,12 +48,12 @@ class SupplyConsequenceService extends EventTarget {
       const actor = await fromUuid(actorUuid);
       if (!actor) continue;
       if (!foodActors.includes(actorUuid)) {
-        await actor.setFlag(MODULE_ID, "daysWithoutFood", 0);
+        await updateJourneyDocument(actor, { "flags.morelord-journeys.daysWithoutFood": 0 }, () => actor.setFlag(MODULE_ID, "daysWithoutFood", 0));
         hungerResults.push({ actorUuid, actorName: actor.name, daysWithoutFood: 0, ateFullMeal: true, exhaustionChange: 0 });
         continue;
       }
       const daysWithoutFood = Number(actor.getFlag(MODULE_ID, "daysWithoutFood") ?? 0) + 1;
-      await actor.setFlag(MODULE_ID, "daysWithoutFood", daysWithoutFood);
+      await updateJourneyDocument(actor, { "flags.morelord-journeys.daysWithoutFood": daysWithoutFood }, () => actor.setFlag(MODULE_ID, "daysWithoutFood", daysWithoutFood));
       const conModifier = Number(actor.system?.abilities?.con?.mod ?? 0);
       const threshold = hungerThreshold(conModifier);
       const config = getDCConfiguration();

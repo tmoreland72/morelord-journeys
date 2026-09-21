@@ -1,3 +1,4 @@
+import { updateJourneyDocument, createJourneyRations } from "./journey-undo-service.mjs";
 const SUPPLY_CATEGORIES = Object.freeze([
   { id: "food", label: "Food", matches: (name) => /\bration(s)?\b|\bfood\b/.test(name) },
   { id: "water", label: "Water", matches: (name, item) => /^water\s*\((?:1\s*)?pints?\)$/.test(name) || /^(?:water-)?pint(?:-of-water)?$/.test(String(item.system?.identifier ?? "").toLowerCase()) || Number.isFinite(Number(item.flags?.["morelord-journeys"]?.waterUnits)) },
@@ -113,10 +114,10 @@ export class SupplyManifestService {
         if (containedWater.length) {
           for (const [index, water] of containedWater.entries()) {
             const wrapped = water.system?.quantity && typeof water.system.quantity === "object";
-            await water.update({ [wrapped ? "system.quantity.value" : "system.quantity"]: index === 0 ? pints : 0 });
+            await updateJourneyDocument(water, { [wrapped ? "system.quantity.value" : "system.quantity"]: index === 0 ? pints : 0 });
           }
         }
-        await item.update({ "flags.morelord-journeys.waterUnits": pints, "flags.morelord-journeys.waterState": "full" });
+        await updateJourneyDocument(item, { "flags.morelord-journeys.waterUnits": pints, "flags.morelord-journeys.waterState": "full" });
         refilled.push({ actorUuid, actorName: actor.name, itemUuid: item.uuid, itemName: item.name, pints });
       }
     }
@@ -137,16 +138,16 @@ export class SupplyManifestService {
         const quantityPath = wrapped ? "system.quantity.value" : "system.quantity";
         const expected = current + amount;
         const update = { _id: ration.id ?? ration._id, [quantityPath]: expected };
-        if (update._id && typeof actor.updateEmbeddedDocuments === "function") await actor.updateEmbeddedDocuments("Item", [update]);
-        else await ration.update({ [quantityPath]: expected });
+        if (update._id && typeof actor.updateEmbeddedDocuments === "function") await updateJourneyDocument(ration, { [quantityPath]: expected }, () => actor.updateEmbeddedDocuments("Item", [update]));
+        else await updateJourneyDocument(ration, { [quantityPath]: expected });
         const observed = Number(wrapped ? ration.system?.quantity?.value : ration.system?.quantity) || 0;
-        if (observed !== expected && typeof ration.update === "function") await ration.update({ [quantityPath]: expected });
+        if (observed !== expected && typeof ration.update === "function") await updateJourneyDocument(ration, { [quantityPath]: expected });
         const verified = Number(wrapped ? ration.system?.quantity?.value : ration.system?.quantity) || 0;
         if (verified !== expected) throw new Error(`Unable to add ${amount} ration(s) to ${actor.name}; expected quantity ${expected}, found ${verified}.`);
         added.push({ actorUuid, actorName: actor.name, itemUuid: ration.uuid, itemName: ration.name, quantity: amount });
         continue;
       }
-      const [created] = await actor.createEmbeddedDocuments("Item", [{ name: "Rations", type: "loot", system: { quantity: amount } }]);
+      const [created] = await createJourneyRations(actor, { name: "Rations", type: "loot", system: { quantity: amount } });
       added.push({ actorUuid, actorName: actor.name, itemUuid: created?.uuid ?? null, itemName: created?.name ?? "Rations", quantity: amount });
     }
     return added;

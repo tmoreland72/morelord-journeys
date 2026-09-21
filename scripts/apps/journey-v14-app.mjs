@@ -104,8 +104,8 @@ export class JourneyV14Application extends BaseJourneyApplication {
         panel.append(delay);
       }
       panel.append(createOutcomeDetails({ cards: check.method === "partyDice" ? [{ title: "Day Encounter Checks", rows: [
-        { label: "How encounters are counted", value: "Each 1 adds an encounter; each maximum result cancels one across the party." },
-        { label: "Checks per traveler", value: check.danger },
+        { label: "How encounters are counted", value: check.rulesVersion === 2 ? "Each 1 adds an encounter. Maximums cancel one except on d4 and d6." : "Each 1 adds an encounter; each maximum result cancels one across the party." },
+        { label: "Checks per traveler", value: check.checksPerTraveler ?? check.danger },
         { label: "Die", value: `d${check.dieFaces}` },
         { label: "Total dice", value: check.totalRolls },
         { label: "Ones", value: check.ones },
@@ -127,7 +127,7 @@ export class JourneyV14Application extends BaseJourneyApplication {
     }
   }
 
-  static async openMorelordEncounters(event) {
+  static async openMorelordEncounters(event, target) {
     event.preventDefault();
     const encountersModule = game.modules.get("morelord-encounters");
     if (!encountersModule) {
@@ -145,7 +145,8 @@ export class JourneyV14Application extends BaseJourneyApplication {
     const api = encountersModule.api ?? globalThis.MorelordEncounters;
     if (typeof api?.open === "function") {
       const journey = await getActiveJourney();
-      const night = journey?.currentDay?.nightEncounterCheck;
+      const savedNight = journey?.phase === "camp" ? journey?.currentDay?.nightEncounterCheck : null;
+      const night = savedNight?.method === "nightDice" ? savedNight.encounters.find(entry => entry.id === target?.dataset?.nightEncounterId) : savedNight;
       const watchPerception = night ? journey.currentDay?.campPerceptionResults?.find(result => result.watchIndex === night.watchIndex) : null;
       await api.open({
         source: "morelord-journeys",
@@ -153,8 +154,8 @@ export class JourneyV14Application extends BaseJourneyApplication {
         journeyId: journey?.id,
         dayNumber: journey?.dayNumber,
         phase: journey?.phase,
-        encounterOutcome: night?.outcome ?? journey?.currentDay?.encounterCheck?.outcome,
-        encounterCount: journey?.currentDay?.encounterCheck?.encounterCount ?? 0,
+        encounterOutcome: (night ? night.outcome ?? "encounter" : null) ?? journey?.currentDay?.encounterCheck?.outcome,
+        encounterCount: night ? 1 : journey?.currentDay?.encounterCheck?.encounterCount ?? 0,
         detection: night
           ? { mode: "activePerception", total: watchPerception?.total ?? null, actorUuid: night.watcherActorUuid, useLowestCreatureStealth: true }
           : { mode: "passivePerception", total: journey?.currentDay?.encounterCheck?.highestPassivePerception ?? null, useLowestCreatureStealth: true }

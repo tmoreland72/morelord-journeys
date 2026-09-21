@@ -1,7 +1,14 @@
 import { qualifiesForLongRest } from "../../scripts/domain/sleep-rules.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { campPeriods, campWatchAction, availableCampSleepHours, normalizeCampAssignments, validateCampAssignments, watchCoverage } from "../../scripts/domain/camp-watch-rules.mjs";
+import { campWatchTiming, campPeriods, campWatchAction, availableCampSleepHours, normalizeCampAssignments, validateCampAssignments, watchCoverage } from "../../scripts/domain/camp-watch-rules.mjs";
+
+test("watch timing identifies all four camp periods without inventing missing timing", () => {
+  for (let index = 0; index < 4; index++) {
+    assert.equal(campWatchTiming(index), `Watch ${index + 1} (${index * 2}–${index * 2 + 2} hours after camp begins)`);
+  }
+  for (const value of [null, undefined, -1, 4, 1.5]) assert.equal(campWatchTiming(value), "Watch timing not recorded");
+});
 
 const travelers = count => Array.from({ length: count }, (_, index) => ({ actorUuid: `Actor.${index}`, name: `Traveler ${index + 1}` }));
 

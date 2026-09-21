@@ -139,11 +139,11 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
   #renderEncounterCheck(context) {
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
-    anchor.disabled = !game.user.isGM || (!context.journey.currentDay?.encounterCheck && context.route.danger > 0);
+    anchor.disabled = !game.user.isGM || !context.journey.currentDay?.encounterCheck;
     const panel = document.createElement("div");
     panel.className = "ml-stack journey-encounter-check";
     if (!context.journey.currentDay?.encounterCheck && !context.journey.currentDay?.pendingDayEncounterRolls?.length) {
-      const roll = button("rollEncounterChecks", context.route.danger === 0 ? "Confirm No Day Encounters" : "Request Party Day Encounter Rolls");
+      const roll = button("rollEncounterChecks", "Request Party Day Encounter Rolls");
       roll.disabled = !game.user.isGM;
       roll.disabled ||= context.journey.currentDay?.pace === "stopped";
       panel.append(roll);

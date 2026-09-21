@@ -1,6 +1,6 @@
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-import { getDayEncounterDie } from "../core/journey-settings.mjs";
-import { resolveDayEncounterChecks } from "../domain/encounter-rules.mjs";
+
+import { resolveDayEncounterChecks, dangerDie, resolveDangerDice } from "../domain/encounter-rules.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { requestRecipientForActor, activeGM } from "./client-request-routing-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
@@ -37,21 +37,20 @@ class DayEncounterService extends EventTarget {
     if (journey.currentDay.encounterCheck || journey.currentDay.pendingDayEncounterRolls?.length) throw new Error("Daytime checks have already been requested or resolved.");
     if (journey.currentDay.pace === "stopped") throw new Error("Stopped travel does not make daytime encounter checks.");
     if (!journey.travelers.length) throw new Error("The journey has no travelers.");
-    const checks = Number(journey.routeSnapshot.danger);
-    const dieFaces = getDayEncounterDie();
-    resolveDayEncounterChecks({ danger: checks, dieFaces, travelerRolls: [] });
+    const danger = Number(journey.routeSnapshot.danger);
+    const checks = 1;
+    const dieFaces = dangerDie(danger);
     const requests = [];
-    if (checks > 0) for (const traveler of journey.travelers) {
+    for (const traveler of journey.travelers) {
       const actor = await fromUuid(traveler.actorUuid);
       if (!actor) throw new Error(`${traveler.name}'s actor is unavailable.`);
       const recipient = requestRecipientForActor(actor);
       if (!recipient) throw new Error(`No active user can roll for ${traveler.name}.`);
       requests.push({ id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber,
-        actorUuid: traveler.actorUuid, actorName: traveler.name, userId: recipient.user.id, checks, dieFaces });
+        actorUuid: traveler.actorUuid, actorName: traveler.name, userId: recipient.user.id, checks, dieFaces, danger, rulesVersion: 2 });
     }
     journey.currentDay.pendingDayEncounterRolls = requests;
     journey.currentDay.dayEncounterResults = [];
-    if (!checks) journey.currentDay.encounterCheck = resolveDayEncounterChecks({ danger: 0, dieFaces, travelerRolls: [] });
     await saveActiveJourney(journey);
     this.dispatchEvent(new Event("updated"));
     for (const request of requests) await this.#send(request);
@@ -113,7 +112,9 @@ class DayEncounterService extends EventTarget {
     const roll = await new Roll(`${request.checks}d${request.dieFaces}`).evaluate({ allowInteractive: false });
     const results = roll.dice.flatMap(die => die.results.filter(result => result.active !== false).map(result => result.result));
     const travelerRolls = [...(journey.currentDay.dayEncounterResults ?? []), { actorUuid: request.actorUuid, actorName: request.actorName, results }];
-    const outcome = resolveDayEncounterChecks({ danger: request.checks, dieFaces: request.dieFaces, travelerRolls });
+    const outcome = request.rulesVersion === 2
+      ? { ...resolveDangerDice({ danger: request.danger, results: travelerRolls.flatMap(entry => entry.results) }), method: "partyDice", checksPerTraveler: 1, travelerRolls }
+      : resolveDayEncounterChecks({ danger: request.checks, dieFaces: request.dieFaces, travelerRolls });
     journey.currentDay.dayEncounterResults = travelerRolls;
     journey.currentDay.pendingDayEncounterRolls = journey.currentDay.pendingDayEncounterRolls.filter(item => item.id !== requestId);
     if (!journey.currentDay.pendingDayEncounterRolls.length) {

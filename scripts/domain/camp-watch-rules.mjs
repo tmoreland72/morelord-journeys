@@ -1,5 +1,11 @@
 export const CAMP_WATCH_COUNT = 4;
 
+export function campWatchTiming(watchIndex) {
+  return Number.isInteger(watchIndex) && watchIndex >= 0 && watchIndex < CAMP_WATCH_COUNT
+    ? `Watch ${watchIndex + 1} (${watchIndex * 2}–${watchIndex * 2 + 2} hours after camp begins)`
+    : "Watch timing not recorded";
+}
+
 export function assignedWatchIndexes(assignment) {
   if (!assignment) return [];
   if (Array.isArray(assignment.periods)) return assignment.periods.flatMap((period, index) => period.watch ? [index] : []);

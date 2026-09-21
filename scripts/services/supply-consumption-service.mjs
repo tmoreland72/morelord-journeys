@@ -1,3 +1,5 @@
+import { updateJourneyDocument } from "./journey-undo-service.mjs";
+
 export class SupplyConsumptionService {
   planManualOutcomes({ travelers = [], fedActorUuids = [], wateredActorUuids = [] } = {}) {
     const travelerUuids = travelers.map(traveler => traveler.actorUuid);
@@ -94,36 +96,36 @@ export class SupplyConsumptionService {
       if (allocation.category === "food") {
         const current = Math.max(0, Number(item.system?.quantity ?? 0));
         if (quantity > current) throw new Error(`${item.name} no longer has enough quantity.`);
-        await item.update({ "system.quantity": current - quantity });
+        await updateJourneyDocument(item, { "system.quantity": current - quantity });
         continue;
       }
       if (/^water\s*\((?:1\s*)?pints?\)$/i.test(item.name) || /^(?:water-)?pint(?:-of-water)?$/i.test(item.system?.identifier ?? "")) {
         const wrapped = item.system?.quantity && typeof item.system.quantity === "object";
         const current = Math.max(0, Number(wrapped ? item.system.quantity.value : item.system?.quantity ?? 0));
         if (quantity > current) throw new Error(`${item.name} no longer has enough quantity.`);
-        await item.update({ [wrapped ? "system.quantity.value" : "system.quantity"]: current - quantity });
+        await updateJourneyDocument(item, { [wrapped ? "system.quantity.value" : "system.quantity"]: current - quantity });
         continue;
       }
       const flags = item.flags?.["morelord-journeys"] ?? {};
       const explicitUnits = Number(flags.waterUnits);
       if (Number.isFinite(explicitUnits)) {
         const remaining = Math.max(0, explicitUnits - quantity);
-        await item.update({ "flags.morelord-journeys.waterUnits": remaining, "flags.morelord-journeys.waterState": remaining ? "full" : "empty" });
+        await updateJourneyDocument(item, { "flags.morelord-journeys.waterUnits": remaining, "flags.morelord-journeys.waterState": remaining ? "full" : "empty" });
         continue;
       }
       const uses = item.system?.uses;
       const maximum = Number(uses?.max);
       const spent = Number(uses?.spent);
       if (Number.isFinite(maximum) && maximum > 0 && Number.isFinite(spent)) {
-        await item.update({ "system.uses.spent": Math.min(maximum, spent + quantity) });
+        await updateJourneyDocument(item, { "system.uses.spent": Math.min(maximum, spent + quantity) });
         continue;
       }
       const value = Number(uses?.value);
       if (Number.isFinite(value)) {
-        await item.update({ "system.uses.value": Math.max(0, value - quantity) });
+        await updateJourneyDocument(item, { "system.uses.value": Math.max(0, value - quantity) });
         continue;
       }
-      await item.update({ "flags.morelord-journeys.waterUnits": 0, "flags.morelord-journeys.waterState": "empty" });
+      await updateJourneyDocument(item, { "flags.morelord-journeys.waterUnits": 0, "flags.morelord-journeys.waterState": "empty" });
     }
     return plan;
   }

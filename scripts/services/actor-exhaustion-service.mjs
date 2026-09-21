@@ -1,3 +1,4 @@
+import { updateJourneyDocument } from "./journey-undo-service.mjs";
 export function exhaustionLevel(actor) {
   const exhaustion = actor?.system?.attributes?.exhaustion;
   const value = typeof exhaustion === "object" && exhaustion !== null ? exhaustion.value : exhaustion;
@@ -14,6 +15,6 @@ export async function adjustActorExhaustion(actor, change) {
   const path = typeof exhaustion === "object" && exhaustion !== null
     ? "system.attributes.exhaustion.value"
     : "system.attributes.exhaustion";
-  await actor.update({ [path]: after });
+  await updateJourneyDocument(actor, { [path]: after });
   return { before, after, change: after - before };
 }

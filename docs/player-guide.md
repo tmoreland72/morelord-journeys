@@ -4,7 +4,7 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.3.4
+version: 0.3.6
 foundry: 14
 order: 20
 ---
@@ -44,11 +44,11 @@ The Navigator rolls Survival against the route's Navigation DC. The result is re
 
 ## Encounter rolls
 
-Each participating character receives a daytime encounter request. Press its roll button to roll the die chosen in Journeys Settings once per Danger check/day. Only the GM sees the dice and encounter count. A 1 adds an encounter and a maximum result cancels one across the party. These requests do not show a public result or a dice configuration dialog.
+Each participating character receives one daytime encounter die selected by Danger (0–5: d20, d12, d10, d8, d6, d4). Only the GM sees the dice and encounter count. A 1 triggers an encounter; maximums cancel encounters except on d4 and d6.
 
 ## Camp watches
 
-Journeys makes one night encounter roll for camp. If it selects your character's watch, a Perception request opens on your client.
+Journeys rolls once per watch, or once per hour if the GM enables hourly night checks. After cancellation, each affected watch receives a Perception request with the surviving encounter times. One Perception result covers that watch.
 
 Roll Perception to determine whether your character notices a surprise encounter or finds a boon. The total returns to the GM and appears beside that watch.
 
@@ -68,13 +68,15 @@ If Craft is selected, the GM will tell the assigned player to open Morelord Craf
 
 ## Sleep and shelter
 
-The GM reviews each traveler's tent, bedroll, and blanket before rolling sleep checks. Your own inventory supplies the default choices.
+Journeys uses 2024 Long Rest timing without a sleep check. A normal rest needs eight hours, including at least six hours asleep and at most two hours of light activity such as standing watch. Trance uses four hours of meditation; the GM can override the character's required hours.
 
-Sleep checks are private. The GM interface records the result and explains the consequence:
+The GM confirms eligibility at the start (at least 1 HP and sixteen hours since the previous Long Rest ended). Camp assignments determine when each traveler sleeps, watches, or works. Enter the encounter's duration, number of rest-breaking interruptions, and time within its watch. Initiative, damage, a leveled spell, or an hour of physical exertion interrupt an unfinished rest. Each interruption adds one recovery hour; time spent interrupted does not count as rest. Add extra sleep or meditation after Watch 4 when needed. Unknown event timing defaults to the beginning of its watch.
 
-- Safe sleep can reduce Exhaustion when the character was fed and watered.
-- Supply shortages can prevent recovery even after a successful check.
-- Journeys tracks sleep hours and interruptions. Missing a Long Rest can trigger an escalating Xanathar-style Constitution save against Exhaustion unless the GM disables that consequence.
+A later event cannot cancel a completed rest. For example, an elf standing Watch 1 and meditating through Watches 2 and 3 finishes before a Watch 4 encounter. Rest Results explain sleep received, interruptions, missing rest time, and Exhaustion in bullet points. Saved results from earlier rules remain labeled historical results and are not recalculated.
+
+Shelter equipment is recorded for camp planning and does not change rest timing. The existing supply rule still prevents Exhaustion recovery when food or water is missing. The optional Xanathar-style deprivation save remains separate: a missed rest starts at DC 10 and increases by 5 on consecutive missed rests. Enable **Do not add Exhaustion for lack of sleep** to disable that save and its Exhaustion. Offline or disconnected players' pending saves can be resolved by the GM.
+
+Journeys applies its recorded Exhaustion change and Heroic Inspiration selections. Apply HP, spell-slot, and other native Long Rest recovery through the character sheet, avoiding a second Exhaustion reduction. Other Peaceful Rest choices remain manual; the world clock is not advanced.
 
 ## If a request does not appear
 
@@ -85,6 +87,6 @@ Sleep checks are private. The GM interface records the result and explains the c
 
 ## Automatic checks and personal activity time
 
-When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Equipment can reduce the Sleep check to zero, but the character must still meet the Long Rest requirements. Ordinary foraging rewards and food or water consequences continue to apply.
+When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Rest uses 2024 timing without a sleep check. Ordinary foraging rewards and food or water consequences continue to apply.
 
 The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. Character portraits help distinguish assignments when you control more than one traveler.

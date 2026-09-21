@@ -127,7 +127,7 @@ test("arrival clamps progress to the route length", () => {
 test("camp watch order and sleep choices carry into the next day", () => {
   let current = beginTravelDay(readyJourney(makeJourney()));
   current.currentDay.campWatches = [{ index: 0, actorUuid: "Actor.a", action: "Take a Watch" }];
-  current.currentDay.campSleepPlan = { entries: [{ actorUuid: "Actor.a", equipment: { tent: true } }], coldWeather: true };
+  current.currentDay.campSleepPlan = { entries: [{ actorUuid: "Actor.a", equipment: { tent: true }, sleepHours: 4, interruptionHours: 1, interruptionSources: [{ hours: 1 }], restAssessment: { longRestCompleted: false }, extraRestHours: 2, eligibleToStart: false }], coldWeather: true };
   for (const phase of TRAVEL_PHASES.slice(0, -1)) {
     const result = phase === "pace" ? { pace: "normal" } : phase === "navigation" ? { outcome: "success" } : {};
     current = recordPhase(current, phase, result);
@@ -136,6 +136,9 @@ test("camp watch order and sleep choices carry into the next day", () => {
   assert.equal(next.currentDay.campWatches[0].actorUuid, "Actor.a");
   assert.equal(next.currentDay.campWatches[0].action, "Take a Watch");
   assert.equal(next.currentDay.campSleepPlan.entries[0].equipment.tent, true);
+  for (const key of ["sleepHours", "interruptionHours", "interruptionSources", "restAssessment", "extraRestHours", "eligibleToStart"]) {
+    assert.equal(key in next.currentDay.campSleepPlan.entries[0], false, `${key} must be reassessed each night`);
+  }
 });
 
 test("unnamed routes and journeys derive their identity from endpoints", () => {

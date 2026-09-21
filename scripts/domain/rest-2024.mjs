@@ -68,6 +68,7 @@ export function evaluateRest2024({ assignment, requiredSleepHours = 6, sleepHour
 }
 
 export function restResultBullets(result) {
+  const hourLabel = value => `${value} hour${value === 1 ? "" : "s"}`;
   const timing = result.restAssessment;
   const needed = result.requiredSleepHours ?? 6;
   const enough = Number(result.sleepHours ?? 0) >= needed;
@@ -76,10 +77,10 @@ export function restResultBullets(result) {
     : `You did not get enough sleep or meditation: ${result.sleepHours ?? 0} hours; ${needed} required.`];
   if (timing) {
     if (timing.awakeActivities?.length) bullets.push(`Time awake: ${timing.awakeActivities.join("; ")}.`);
-    if (timing.lostSleepHours) bullets.push(`Interruptions took away ${timing.lostSleepHours} hours of scheduled sleep.`);
-    if (timing.interruptionCount) bullets.push(`${timing.interruptionCount} interruption(s) before completion added ${timing.interruptionCount} hours to the required rest, in addition to time spent interrupted.`);
-    if (timing.ignoredInterruptions.length) bullets.push("The later encounter happened after your rest was complete and did not cancel it.");
-    if (timing.missingRestHours) bullets.push(`You still needed ${timing.missingRestHours} more hours of rest${timing.missingSleepHours ? `, including ${timing.missingSleepHours} hours of sleep or meditation` : ""}.`);
+    if (timing.lostSleepHours) bullets.push(`Interruptions took away ${hourLabel(timing.lostSleepHours)} of scheduled sleep.`);
+    if (timing.interruptionCount) bullets.push(`${timing.interruptionCount} interruption${timing.interruptionCount === 1 ? "" : "s"} before completion added ${hourLabel(timing.interruptionCount)} to the required rest, in addition to time spent interrupted.`);
+    if (timing.ignoredInterruptions.length) bullets.push("Later encounters or camp activities happened after your rest was complete and did not cancel it.");
+    if (timing.missingRestHours) bullets.push(`You still needed ${hourLabel(timing.missingRestHours)} more rest${timing.missingSleepHours ? `, including ${hourLabel(timing.missingSleepHours)} of sleep or meditation` : ""}.`);
     if (!timing.eligibleToStart) bullets.push("You were not eligible to start: you need at least 1 HP and 16 hours since finishing your previous Long Rest.");
     bullets.push("No sleep check is required under the 2024 rest rules.");
   } else {
@@ -91,6 +92,6 @@ export function restResultBullets(result) {
   if (result.longRestCompleted && (result.fed === false || result.watered === false)) bullets.push("Food or water is still missing; the existing supply rules prevent Exhaustion recovery.");
   if (result.deprivation && !result.deprivation.suppressed) bullets.push(`You ${result.deprivation.succeeded ? "passed" : "failed"} the optional sleep-deprivation save${result.deprivation.total != null ? ` (${result.deprivation.total} against DC ${result.deprivation.dc})` : " (GM result)"}.`);
   const change = Number(result.exhaustionChange ?? 0);
-  bullets.push(change > 0 ? `You gained ${change} Exhaustion level(s).` : change < 0 ? `You recovered ${-change} Exhaustion level(s).` : "Your Exhaustion did not change.");
+  bullets.push(change > 0 ? `You gained ${change} Exhaustion level${change === 1 ? "" : "s"}.` : change < 0 ? `You recovered ${-change} Exhaustion level${change === -1 ? "" : "s"}.` : "Your Exhaustion did not change.");
   return bullets;
 }

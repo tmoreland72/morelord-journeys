@@ -1,6 +1,8 @@
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
+import { nightEncounterTiming } from "../domain/encounter-rules.mjs";
+import { campWatchTiming } from "../domain/camp-watch-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-import { requestRecipientForActor } from "./client-request-routing-service.mjs";
+import { requestRecipientForActor, activeGM } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { clientRollButton } from "../ui/client-roll-dialog.mjs";
 import { sendClientRollResult } from "./client-roll-result-service.mjs";
@@ -14,9 +16,29 @@ class CampPerceptionRollService extends EventTarget {
     if (this.#started) return;
     this.#started = true;
     this.#channel = getMorelordSocketChannel();
-    this.#channel.on("campPerception.request", data => this.#receive({ type: "campPerception.request", ...data }));
-    this.#channel.on("campPerception.result", data => this.#receive({ type: "campPerception.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
+    this.#channel.on("campPerception.request", (data, execution) => {
+      if (game.users.get(execution.senderUserId)?.isGM) return this.#receive({ type: "campPerception.request", ...data });
+    });
+    this.#channel.on("campPerception.result", (data, execution) => this.#receive({ type: "campPerception.result", ...data }, execution), { serialize: JOURNEY_STATE_SERIAL_KEY });
+    this.#channel.on("campPerception.resend", async ({ requestId }, execution) => {
+      if (!game.user.isGM || !game.users.get(execution.senderUserId)?.isGM) throw new Error("Only a GM may resend watch checks.");
+      const journey = await getActiveJourney();
+      const request = journey?.currentDay?.pendingCampPerceptionRolls?.find(entry => entry.id === requestId);
+      if (!request || journey.phase !== "camp") return;
+      const recipient = requestRecipientForActor(await fromUuid(request.actorUuid));
+      if (!recipient) throw new Error("No active user can roll this watch check.");
+      request.userId = recipient.user.id;
+      request.fallbackToGM = recipient.fallbackToGM;
+      await saveActiveJourney(journey);
+      if (request.userId === game.user.id) await this.#open(request);
+      else await this.#channel.executeAsUser("campPerception.request", { request }, request.userId);
+    }, { serialize: JOURNEY_STATE_SERIAL_KEY });
     this.#channel.on("campPerception.resolved", data => this.#receive({ type: "campPerception.resolved", ...data }));
+  }
+
+  async resend(requestId) {
+    if (!game.user.isGM) throw new Error("Only a GM may resend watch checks.");
+    return this.#channel.executeAsUser("campPerception.resend", { requestId }, activeGM()?.id ?? game.user.id);
   }
 
   async request({ watchIndex, actorUuid, action = "Take a Watch" }) {
@@ -24,9 +46,13 @@ class CampPerceptionRollService extends EventTarget {
     const journey = await getActiveJourney();
     const actor = await fromUuid(actorUuid);
     if (!journey?.currentDay || journey.phase !== "camp" || !actor) throw new Error("The assigned watcher could not be found.");
+    const existing = journey.currentDay.pendingCampPerceptionRolls?.find(entry => entry.watchIndex === watchIndex);
+    if (existing) return this.resend(existing.id);
+    if (journey.currentDay.campPerceptionResults?.some(entry => entry.watchIndex === watchIndex)) return;
     const recipient = requestRecipientForActor(actor);
     if (!recipient) throw new Error(`${actor.name} has no active user available to make the roll.`);
     const request = { id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber, watchIndex, actorUuid, actorName: actor.name, userId: recipient.user.id, fallbackToGM: recipient.fallbackToGM, action, disadvantage: action !== "Take a Watch", requestedAt: Date.now() };
+    request.timing = journey.currentDay.nightEncounterCheck?.encounters?.filter(entry => entry.watchIndex === watchIndex).map(nightEncounterTiming).join("; ") || campWatchTiming(watchIndex);
     journey.currentDay.pendingCampPerceptionRolls ??= [];
     journey.currentDay.pendingCampPerceptionRolls = journey.currentDay.pendingCampPerceptionRolls.filter(entry => entry.watchIndex !== watchIndex);
     journey.currentDay.pendingCampPerceptionRolls.push(request);
@@ -37,13 +63,14 @@ class CampPerceptionRollService extends EventTarget {
     return request;
   }
 
-  async #receive(message) {
+  async #receive(message, execution) {
     if (message?.type === "campPerception.request" && message.request?.userId === game.user.id) return this.#open(message.request);
     if (message?.type === "campPerception.result" && game.user.isGM) {
       const journey = await getActiveJourney();
       const pending = journey?.currentDay?.pendingCampPerceptionRolls ?? [];
       const request = pending.find(entry => entry.id === message.requestId);
-      if (!request) return { accepted: false, reason: "That camp Perception check is no longer pending." };
+      if (!request || journey.phase !== "camp" || request.journeyId !== journey.id || request.dayNumber !== journey.dayNumber) return { accepted: false, reason: "That camp Perception check is no longer pending." };
+      if (execution?.senderUserId !== request.userId || !Number.isFinite(message.result?.total)) return { accepted: false, reason: "Invalid watch result or recipient." };
       journey.currentDay.campPerceptionResults ??= [];
       journey.currentDay.campPerceptionResults = journey.currentDay.campPerceptionResults.filter(entry => entry.watchIndex !== request.watchIndex);
       journey.currentDay.campPerceptionResults.push({ ...message.result, watchIndex: request.watchIndex, actorUuid: request.actorUuid, actorName: request.actorName, resolvedAt: Date.now() });
@@ -65,28 +92,17 @@ class CampPerceptionRollService extends EventTarget {
     const dialog = new foundry.applications.api.DialogV2({
       classes: ["ml-window", "ml-journeys-dialog"],
       window: { title: `Morelord Journeys — Watch ${request.watchIndex + 1}`, icon: "fa-solid fa-eye" },
-      content: `<p>${actorIdentity(request)} must roll Perception for Watch ${request.watchIndex + 1}. Camp action: ${foundry.utils.escapeHTML(request.action)}.${request.disadvantage ? " Roll with disadvantage because attention is divided." : " Roll normally."}</p>`,
+      content: `<div class="ml-app ml-app-shell ml-dialog-shell"><p><strong>Night encounter — ${foundry.utils.escapeHTML(request.timing ?? campWatchTiming(request.watchIndex))}.</strong></p><p>${actorIdentity(request)} must roll Perception for this watch. Camp action: ${foundry.utils.escapeHTML(request.action)}.${request.disadvantage ? " Roll with disadvantage because attention is divided." : " Roll normally."}</p></div>`,
       modal: false,
       buttons: [clientRollButton(async () => {
-        const native = await actor.rollSkill({ skill: "prc", disadvantage: request.disadvantage }, { configure: true, title: `${request.actorName} — Camp Watch Perception${request.disadvantage ? " (Disadvantage)" : ""}` }, { create: true, data: { flavor: `Morelord Journeys — Watch ${request.watchIndex + 1} Perception` } });
+        const native = await actor.rollSkill({ skill: "prc", disadvantage: request.disadvantage }, { configure: true, title: `${request.actorName} — Camp Watch Perception${request.disadvantage ? " (Disadvantage)" : ""}` }, { create: true, data: { flavor: `Morelord Journeys — ${campWatchTiming(request.watchIndex)} Perception` } });
         if (!native) return null;
         const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
         const total = Number(roll?.total ?? native?.total ?? Number.NaN);
         if (!Number.isFinite(total)) throw new Error("The Perception check did not return a numeric total.");
         const result = { total, userId: game.user.id, action: request.action, disadvantage: request.disadvantage };
-        if (game.user.isGM) {
-          const journey = await getActiveJourney();
-          const pending = journey?.currentDay?.pendingCampPerceptionRolls ?? [];
-          const current = pending.find(entry => entry.id === request.id);
-          if (current) {
-            journey.currentDay.campPerceptionResults ??= [];
-            journey.currentDay.campPerceptionResults = journey.currentDay.campPerceptionResults.filter(entry => entry.watchIndex !== current.watchIndex);
-            journey.currentDay.campPerceptionResults.push({ ...result, watchIndex: current.watchIndex, actorUuid: current.actorUuid, actorName: current.actorName, resolvedAt: Date.now() });
-            journey.currentDay.pendingCampPerceptionRolls = pending.filter(entry => entry.id !== current.id);
-            await saveActiveJourney(journey);
-            this.#updated();
-          }
-        } else { await sendClientRollResult(this.#channel, "campPerception.result", request, result); this.#dialogs.delete(request.id); }
+        await sendClientRollResult(this.#channel, "campPerception.result", request, result);
+        this.#dialogs.delete(request.id);
         return total;
       })]
     });

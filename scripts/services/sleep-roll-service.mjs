@@ -3,6 +3,7 @@ import { campPeriods, availableCampSleepHours } from "../domain/camp-watch-rules
 import { evaluateRest2024 } from "../domain/rest-2024.mjs";
 import { getDCConfiguration, suppressSleepDeprivationExhaustion } from "../core/journey-settings.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
+import { updateJourneyDocument } from "./journey-undo-service.mjs";
 import { qualifiesForLongRest, sleepDeprivationDC } from "../domain/sleep-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
@@ -30,13 +31,13 @@ class SleepRollService extends EventTarget {
   }
 
   async requestParty(plan) {
-    if (!game.user.isGM) throw new Error("Only the GM can request sleep checks.");
-    if (this.#requestingParty) throw new Error("Sleep check requests are already being sent.");
+    if (!game.user.isGM) throw new Error("Only the GM can resolve party rest.");
+    if (this.#requestingParty) throw new Error("Party rest is already being resolved.");
     this.#requestingParty = true;
     try {
       const journey = await getActiveJourney();
       if (journey?.phase !== "sleep") throw new Error("The journey is not in the Sleep & Shelter phase.");
-      if (journey.currentDay?.pendingSleepRolls?.length || journey.currentDay?.campSleepResults?.length) throw new Error("Sleep checks have already been requested for this travel day.");
+      if (journey.currentDay?.pendingSleepRolls?.length || journey.currentDay?.campSleepResults?.length) throw new Error("Rest outcomes have already been requested for this travel day.");
       const requests = [];
       const seenActors = new Set();
       for (const entry of plan?.entries ?? []) {
@@ -53,7 +54,7 @@ class SleepRollService extends EventTarget {
         const recipient = { user: game.user, fallbackToGM: false };
         requests.push(this.#requestData({ journey, entry, actor, recipient, kind: "sleep", dc: 0 }));
       }
-      if (!requests.length) throw new Error("No active user is available to make the sleep checks.");
+      if (!requests.length) throw new Error("No travelers are available to resolve rest.");
       journey.currentDay.pendingSleepRolls = requests;
       journey.currentDay.campSleepResults = [];
       journey.currentDay.completedSleepRequestIds = [];
@@ -210,7 +211,7 @@ class SleepRollService extends EventTarget {
     const consequences = journey.currentDay?.supplyConsequences ?? { foodActorUuids: [], waterActorUuids: [] };
     const wasFedAndWatered = !consequences.foodActorUuids.includes(entry.actorUuid) && !consequences.waterActorUuids.includes(entry.actorUuid);
     let daysWithoutLongRest = sleepResult.longRestCompleted ? 0 : Number(sleepResult.daysWithoutLongRest ?? Number(actor.getFlag(MODULE_ID, "daysWithoutLongRest") ?? 0) + 1);
-    await actor.setFlag(MODULE_ID, "daysWithoutLongRest", daysWithoutLongRest);
+    await updateJourneyDocument(actor, { "flags.morelord-journeys.daysWithoutLongRest": daysWithoutLongRest }, () => actor.setFlag(MODULE_ID, "daysWithoutLongRest", daysWithoutLongRest));
     let requestedExhaustionChange = sleepResult.longRestCompleted && wasFedAndWatered ? -1 : 0;
     if (deprivation && !deprivation.succeeded) requestedExhaustionChange += 1;
     const exhaustionUpdate = await adjustActorExhaustion(actor, requestedExhaustionChange);
@@ -218,7 +219,7 @@ class SleepRollService extends EventTarget {
     const consequence = sleepResult.longRestCompleted
       ? wasFedAndWatered ? exhaustionChange < 0 ? "completed a Long Rest; Exhaustion reduced by 1" : "completed a Long Rest; no Exhaustion level remained to remove" : "completed a Long Rest, but food or water shortage prevents Exhaustion recovery"
       : deprivation?.succeeded ? "did not complete a Long Rest; passed the sleep-deprivation save"
-        : deprivation ? "did not complete a Long Rest; failed the sleep-deprivation save and gained 1 Exhaustion"
+        : deprivation ? `did not complete a Long Rest; failed the sleep-deprivation save${exhaustionChange > 0 ? ` and gained ${exhaustionChange} Exhaustion` : "; Exhaustion was already at its maximum"}`
           : "did not complete a Long Rest; no Long Rest benefits and sleep-deprivation Exhaustion is disabled";
     journey.currentDay.campSleepResults ??= [];
     journey.currentDay.campSleepResults = journey.currentDay.campSleepResults.filter(item => item.actorUuid !== actor.uuid);

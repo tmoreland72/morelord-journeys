@@ -1,4 +1,5 @@
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
+import { updateJourneyDocument } from "./journey-undo-service.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
 import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
@@ -102,7 +103,7 @@ class PeacefulRestService extends EventTarget {
     if (choice === "inspiration") {
       const actor = await fromUuid(request.actorUuid);
       if (!actor) throw new Error("The character is unavailable; the benefit remains pending.");
-      await actor.update({ "system.attributes.inspiration": true });
+      await updateJourneyDocument(actor, { "system.attributes.inspiration": true });
     }
     journey.currentDay.peacefulRestChoices ??= [];
     journey.currentDay.peacefulRestChoices = journey.currentDay.peacefulRestChoices.filter(item => item.actorUuid !== request.actorUuid);

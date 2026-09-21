@@ -1,6 +1,12 @@
 import { JourneySettingsApplication } from "../apps/journey-settings-app.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
-import { DAY_ENCOUNTER_DICE } from "../domain/encounter-rules.mjs";
+import { DAY_ENCOUNTER_DICE, DEFAULT_NIGHT_ENCOUNTER_CONFIGURATION, nightEncounterConfiguration } from "../domain/encounter-rules.mjs";
+
+export const NIGHT_CHECK_INTERVAL_SETTING = "nightCheckIntervalHours";
+export const getNightCheckInterval = () => game.settings.get(MODULE_ID, NIGHT_CHECK_INTERVAL_SETTING) === 1 ? 1 : 2;
+
+export const NIGHT_ENCOUNTER_CONFIGURATION_SETTING = "nightEncounterConfiguration";
+export const getNightEncounterConfiguration = () => nightEncounterConfiguration(game.settings.get(MODULE_ID, NIGHT_ENCOUNTER_CONFIGURATION_SETTING) ?? {});
 
 export const DAY_ENCOUNTER_DIE_SETTING = "dayEncounterDie";
 export function getDayEncounterDie() {
@@ -32,6 +38,11 @@ export const PHASE_SETTING_KEYS = Object.freeze({
 });
 
 export function registerJourneySettings() {
+  game.settings.register(MODULE_ID, NIGHT_CHECK_INTERVAL_SETTING, { name: "Night encounter frequency", scope: "world", config: false, type: Number, default: 2, restricted: true });
+  game.settings.register(MODULE_ID, NIGHT_ENCOUNTER_CONFIGURATION_SETTING, {
+    name: "Night Encounter Base Values", scope: "world", config: false, type: Object,
+    default: DEFAULT_NIGHT_ENCOUNTER_CONFIGURATION, restricted: true
+  });
   game.settings.register(MODULE_ID, DAY_ENCOUNTER_DIE_SETTING, {
     name: "Daytime Encounter Die", scope: "world", config: false, type: Number, default: 6,
     choices: Object.fromEntries(DAY_ENCOUNTER_DICE.map(faces => [faces, `d${faces}`]))
@@ -57,7 +68,7 @@ export function registerJourneySettings() {
     scope: "world", config: false, type: Boolean, default: false, restricted: true
   });
   game.settings.register(MODULE_ID, NIGHT_ENCOUNTERS_SETTING, {
-    name: "Enable Night Encounters", hint: "Include the single nightly d100 encounter check during Camp.",
+    name: "Enable Night Encounters", hint: "Check for encounters during Camp using the Danger die.",
     scope: "world", config: false, type: Boolean, default: true, restricted: true
   });
   game.settings.register(MODULE_ID, SLEEP_AND_SHELTER_SETTING, {

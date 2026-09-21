@@ -23,9 +23,11 @@
   </details>
 
   <details class="ml-surface ml-collapsible-section" data-ml-section-key="morelord-journeys.settings.day-encounters" open>
-    <summary><div class="ml-section-heading"><div><h2>Daytime Encounters</h2><p>Each traveler rolls this die once per Danger level. Ones add encounters; maximum results cancel them across the party, to a minimum of zero. Rolls are visible only to GMs.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+    <summary><div class="ml-section-heading"><div><h2>Encounter Dice</h2><p>Danger selects the die for both day and night.</p></div></div><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
     <div class="ml-collapsible-section__body ml-stack">
-    <label><span>Daytime Encounter Die</span><select name="dayEncounterDie">{{#each dayEncounterDice}}<option value="{{faces}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <p>Danger 0: d20 · 1: d12 · 2: d10 · 3: d8 · 4: d6 · 5: d4.</p>
+      <p>Each traveler rolls once during the day. Each 1 triggers an encounter; maximum results cancel encounters across the pool, except on d4 and d6. A campfire makes night rolls of 1 or 2 trigger encounters.</p>
+      <label class="ml-setting-row"><span><strong>Night encounter frequency</strong><small>Roll the entire eight-hour night together. Maximums cancel the latest triggered periods first; remaining encounters retain their time and watch.</small></span><select name="nightCheckIntervalHours">{{#each nightIntervals}}<option value="{{hours}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
     </div>
   </details>
 

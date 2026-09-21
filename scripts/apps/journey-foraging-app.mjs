@@ -1,4 +1,5 @@
 import { actorIdentity, decorateActorSelect } from "../../../morelord-core/scripts/ui/actor-identity.js";
+import { updateJourneyDocument } from "../services/journey-undo-service.mjs";
 import { prepareJourneySections } from "../ui/journey-sections.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { foragingRollService } from "../services/foraging-roll-service.mjs";
@@ -23,6 +24,8 @@ const SLEEP_MODIFIER_LABELS = Object.freeze({ tent: "Tent", bedroll: "Bedroll", 
 const supplyConsumption = new SupplyConsumptionService();
 const supplyManifest = new SupplyManifestService();
 const campSupplies = new CampSupplyService();
+let advancingPhase = false;
+let resolvingSupplies = false;
 
 function readRestInputs(entry, row, day) {
   entry.sleepHours = Math.max(0, Math.min(Number(row?.querySelector("[data-sleep-hours]")?.value ?? 8), availableCampSleepHours(day?.campWatches, entry.actorUuid)));
@@ -53,7 +56,7 @@ function shelterOptions(owned) {
 function describeInterruptionSources(result, currentDay) {
   const sources = (result.interruptionSources?.length ? result.interruptionSources : (currentDay?.sleepInterruptions ?? [])
     .filter(item => item.actorUuid === result.actorUuid)
-    .map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null })));
+    .map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: item.watchIndex != null && Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null })));
   const describedHours = sources.reduce((total, source) => total + Number(source.hours ?? 0), 0);
   const interruptedHours = Number(result.interruptionHours ?? Number(result.interruptionMinutes ?? 0) / 60);
   const complete = [...sources];
@@ -64,6 +67,8 @@ function describeInterruptionSources(result, currentDay) {
 
 export class JourneyForagingApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = { actions: {
+    advancePhase: this.advancePhase,
+    goBack: this.goBack,
     requestForagingRolls: this.requestForagingRolls,
     autoForagingSuccess: this.autoForagingSuccess,
     autoForagingFailure: this.autoForagingFailure,
@@ -86,6 +91,40 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     autoForcedMarchFailure: this.autoForcedMarchFailure,
     setWaterState: this.setWaterState
   } };
+
+  static async goBack(event, target) {
+    if (advancingPhase || resolvingSupplies) return ui.notifications.warn("Wait for the current step to finish before going back.");
+    advancingPhase = true;
+    try { await BaseJourneyApplication.goBack.call(this, event, target); }
+    finally { advancingPhase = false; }
+  }
+
+  static async advancePhase(event, target) {
+    event?.preventDefault();
+    if (advancingPhase) return;
+    advancingPhase = true;
+    if (target) target.disabled = true;
+    try {
+      if (!game.user.isGM) throw new Error("Only the GM can advance a journey.");
+      let journey = await getActiveJourney();
+      if (journey.phase === "foraging") {
+        if (!journey.currentDay?.foragingResolution || journey.currentDay.pendingForagingRolls?.length
+            || (journey.currentDay.foragingResults?.length ?? 0) < journey.travelers.length) throw new Error("Resolve every traveler's foraging check before continuing.");
+        if (!journey.currentDay.supplyResolution && !await JourneyForagingApplication.consumeTravelSupplies.call(this, event)) return;
+        await supplyConsequenceService.begin();
+        journey = await getActiveJourney();
+        if (!journey.currentDay.supplyConsequences?.resolved) {
+          await this.render({ force: true });
+          return;
+        }
+      }
+      await BaseJourneyApplication.advancePhase.call(this, event, target);
+    } catch (error) { ui.notifications.error(error.message); }
+    finally {
+      advancingPhase = false;
+      if (target) target.disabled = false;
+    }
+  }
 
   #foragingUpdated = () => { if (this.rendered) void this.render({ force: true }); };
   #supplyUpdated = () => { if (this.rendered) void this.render({ force: true }); };
@@ -217,8 +256,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const anchor = this.element.querySelector(".journey-phase-card > [data-action='advancePhase']");
     if (!anchor) return;
     anchor.disabled = true;
-    anchor.dataset.tooltip = "Complete every sleep check before continuing.";
-    const sleepBaseDC = getDCConfiguration().sleepBase;
+    anchor.dataset.tooltip = "Resolve every rest outcome before continuing.";
     const section = document.createElement("section");
     section.className = "ml-stack journey-camp-sleep";
     const night = context.journey.currentDay?.nightEncounterCheck;
@@ -240,7 +278,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         row.innerHTML = `<header class="journey-sleep-character"><strong>${actorIdentity(traveler)}</strong><span class="journey-sleep-dc">${traveler.longRestHours ?? 6}h sleep / meditation required · No sleep check</span></header><div class="journey-sleep-controls"><div class="journey-shelter-group"><span class="journey-control-label">Camp equipment</span><div class="journey-shelter-choices"><select data-shelter-select aria-label="Camp equipment for ${foundry.utils.escapeHTML(traveler.name)}">${options}</select><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-shelter-help aria-label="Explain camp equipment" data-tooltip="Explain camp equipment"><i class="fa-solid fa-circle-question"></i></button></div></div><label class="journey-sleep-hours"><span>Planned sleep / meditation hours</span><input type="number" data-sleep-hours min="0" max="8" step="0.5" value="8"></label><div class="journey-readonly-value"><span>Encounter duration</span><strong data-interruption-display>0 hours</strong></div></div>`;
         row.querySelector("[data-shelter-help]").addEventListener("click", event => {
           event.preventDefault();
-          void foundry.applications.api.DialogV2.prompt({ window: { title: "Shelter and Sleep DC", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><p>Only equipment owned by this character is listed. Equipment is recorded for camp planning; it does not impose a sleep check or change 2024 Long Rest timing.</p></div>", ok: { label: "Close" } });
+          void foundry.applications.api.DialogV2.prompt({ window: { title: "Shelter and Rest", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><p>Only equipment owned by this character is listed. Equipment is recorded for camp planning; it does not impose a sleep check or change 2024 Long Rest timing.</p></div>", ok: { label: "Close" } });
         });
         const restControls = document.createElement("div");
         restControls.className = "ml-stack";
@@ -249,16 +287,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         list.append(row);
     }
     const recalculate = () => {
-      const cold = section.dataset.cold === "true";
       for (const row of list.children) {
-        const equipment = selectedShelter(row);
-        let dc = sleepBaseDC;
-        if (equipment.tent) dc -= 5;
-        if (equipment.bedroll) dc -= 2;
-        if (cold && equipment.blanket) dc -= 1;
-        const extreme = Boolean(row.closest(".journey-camp-sleep")?.dataset.extreme === "true");
-        if (extreme) dc += 5;
-        if (row.closest(".journey-camp-sleep")?.dataset.peaceful === "true") dc -= 5;
         row.querySelector(".journey-sleep-dc").textContent = `${row.dataset.requiredSleepHours}h sleep / meditation required · No sleep check`;
       }
     };
@@ -347,7 +376,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
         && pendingSleep.length === 0
         && (active.currentDay?.pendingPeacefulRestChoices?.length ?? 0) === 0;
       anchor.disabled = !sleepComplete;
-      anchor.dataset.tooltip = sleepComplete ? "Continue to the next phase." : "Complete every sleep check and Peaceful Rest choice before continuing.";
+      anchor.dataset.tooltip = sleepComplete ? "Continue to the next phase." : "Resolve every rest outcome and Peaceful Rest choice before continuing.";
     });
   }
 
@@ -442,10 +471,9 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     if (continueButton) {
       const complete = results.length >= context.journey.travelers.length
         && pending.length === 0
-        && Boolean(context.journey.currentDay?.supplyResolution)
-        && Boolean(context.journey.currentDay?.supplyConsequences?.resolved);
+        && (!context.journey.currentDay?.supplyResolution || !context.journey.currentDay?.supplyConsequences || Boolean(context.journey.currentDay.supplyConsequences.resolved));
       continueButton.disabled = !complete;
-      continueButton.dataset.tooltip = complete ? "Continue to Camp" : "Resolve every traveler's foraging check before continuing.";
+      continueButton.dataset.tooltip = complete ? "Apply daily supplies and continue" : "Resolve pending foraging checks or shortage saves before continuing.";
     }
     (craftworks ?? notes).before(panel);
   }
@@ -515,7 +543,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const heading = document.createElement("h4");
     heading.textContent = "Allocate Daily Supplies";
     const explanation = document.createElement("p");
-    explanation.textContent = "Food and water are pooled across traveler and Group inventories. Review every source before confirming consumption.";
+    explanation.textContent = "Food and water are pooled across traveler and Group inventories. Continuing applies these supplies automatically.";
     section.append(heading, explanation);
     if (availableFood > 0 && availableFood < foodNeeded.length) {
       const chooser = document.createElement("fieldset");
@@ -567,14 +595,10 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       if (plan.shortageActorUuids.water.includes(actorUuid)) manual.innerHTML += `<label class="ml-toggle"><input type="checkbox" data-manual-water="${actorUuid}"> ${actorIdentity({ ...traveler, actorUuid })} receives 4 manual pints</label>`;
       section.append(manual);
     }
-    const apply = document.createElement("button");
-    apply.type = "button";
-    apply.dataset.action = "consumeTravelSupplies";
-    apply.innerHTML = '<i class="fa-solid fa-utensils"></i> Confirm & Consume Supplies';
     const exception = document.createElement("details");
     exception.className = "ml-details journey-supply-exception";
     exception.innerHTML = `<summary>Resolve an Exception</summary><div class="ml-details__body"><p>Use this when supplies were handled outside tracked inventories or the proposed consumption should not be applied. Journeys will record the selected outcomes without changing inventory.</p><div class="ml-stack journey-manual-outcome-list">${context.journey.travelers.map(traveler => `<div class="ml-card ml-grid journey-manual-outcome-row"><strong>${actorIdentity(traveler)}</strong><label class="ml-toggle"><input type="checkbox" data-exception-food="${traveler.actorUuid}" checked> Ate a full day’s food</label><label class="ml-toggle"><input type="checkbox" data-exception-water="${traveler.actorUuid}" checked> Drank the required water</label></div>`).join("")}</div><button type="button" data-action="resolveTravelSuppliesManually"><i class="fa-solid fa-clipboard-check"></i> Record Manual Supply Outcomes</button></div>`;
-    section.append(apply, exception);
+    section.append(exception);
     panel.append(section);
   }
 
@@ -605,9 +629,14 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
   }
 
   static async consumeTravelSupplies(event) {
-    event.preventDefault();
+    event?.preventDefault();
+    if (resolvingSupplies) return false;
+    resolvingSupplies = true;
     try {
+      if (!game.user.isGM) throw new Error("Only the GM can consume daily supplies.");
       const journey = await getActiveJourney();
+      if (journey.phase !== "foraging") throw new Error("Daily supplies can only be resolved during Foraging.");
+      if (journey.currentDay?.supplyResolution) return true;
       const requirements = journey.currentDay?.foragingResolution;
       if (!requirements) throw new Error("Resolve foraging before consuming supplies.");
       journey.supplies = await supplyManifest.build({
@@ -644,15 +673,20 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       });
       await saveActiveJourney(journey);
       await supplyConsequenceService.begin();
-      ui.notifications.info("Daily supplies and their hunger and water outcomes were resolved.");
       await this.render({ force: true });
-    } catch (error) { ui.notifications.error(error.message); }
+      return true;
+    } catch (error) { ui.notifications.error(error.message); return false; }
+    finally { resolvingSupplies = false; }
   }
 
   static async resolveTravelSuppliesManually(event) {
     event.preventDefault();
+    if (resolvingSupplies) return;
+    resolvingSupplies = true;
     try {
+      if (!game.user.isGM) throw new Error("Only the GM can record daily supply outcomes.");
       const journey = await getActiveJourney();
+      if (journey.phase !== "foraging" || journey.currentDay?.supplyResolution) return;
       const requirements = journey.currentDay?.foragingResolution;
       if (!requirements) throw new Error("Resolve foraging before recording supply outcomes.");
       const fed = new Set(Array.from(this.element.querySelectorAll("[data-exception-food]:checked"), input => input.dataset.exceptionFood));
@@ -667,6 +701,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       ui.notifications.info("Manual daily supply outcomes were recorded without changing inventory.");
       await this.render({ force: true });
     } catch (error) { ui.notifications.error(error.message); }
+    finally { resolvingSupplies = false; }
   }
 
   static async resendSupplySave(event, target) {
@@ -813,7 +848,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       if (!item) throw new Error("That water container could not be found.");
       const full = target.dataset.waterState === "full";
       const capacity = SupplyManifestService.waterContainerPints(item);
-      await item.update({
+      await updateJourneyDocument(item, {
       "flags.morelord-journeys.waterState": full ? "full" : "empty",
       "flags.morelord-journeys.waterUnits": full ? capacity : 0
       });

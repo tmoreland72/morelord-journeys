@@ -1,3 +1,15 @@
+<!-- Historical design sections below are superseded where noted. -->
+
+## Current encounter and undo implementation
+
+Danger selects the encounter die: 0 → d20, 1 → d12, 2 → d10, 3 → d8, 4 → d6, 5 → d4. Each traveler rolls once during the day, including at Danger 0. Each 1 triggers an encounter. Maximums cancel encounters across the pool, except on d4 and d6. The count cannot be negative. Stopped travel skips daytime checks. There is no configurable encounter die.
+
+Use the same Danger die at night. By default, roll four dice, one for each two-hour watch. **Journeys Settings → Encounter Dice → Night encounter frequency** can instead select eight hourly checks. Roll the whole night as a pool before playing it out: a 1 triggers an encounter, or a 1 or 2 with a visible campfire. Maximums cancel the latest triggered periods first, except on d4 and d6. Surviving encounters retain their hour range and watch. Each affected watch gets one Perception check; Send Perception / GM Roll supports offline or disconnected owners. The GM chooses combat or non-combat and records each encounter’s actual rest interruptions. Weather, tents, and stopped travel do not modify these dice. The old d100 Peaceful Rest result is no longer generated; saved historical outcomes and existing rest benefits remain supported.
+
+Go Back uses recorded phase entry checkpoints and inverse document updates. The GM manual describes the 24-checkpoint history, external-edit protection, pending-request requirement, and limits. Older d100 tables and configurable die requirements below are historical design notes, not current behavior.
+
+> Historical design plan: the sleep-check and interruption rules below are superseded by the 2024 rest implementation documented in [the GM manual](gm-manual.md#sleep--shelter).
+
 <!-- Historical implementation plan; current behavior is documented in gm-manual.md and gm-travel-rules-reference.md. -->
 
 > Superseded daytime encounter design: daytime checks now use a configurable die per traveler per Danger check/day, with player-triggered GM-only results. Ones add encounters and maximum rolls cancel them. Route Traffic has been removed. Daily route ratings can change before each travel day. Older d100 daytime proposals below are retained as design history, not current rules.
@@ -254,6 +266,8 @@ Camp uses one night encounter roll, not one roll per watch.
 - Weather and route Danger.
 
 #### Base table
+
+Night encounter values below are defaults. GMs can change outcome cutoffs and Danger, weather, camp, and stopped-travel modifiers in Journeys Settings. Changes apply only to future rolls.
 
 | Modified d100 | Outcome |
 | --- | --- |

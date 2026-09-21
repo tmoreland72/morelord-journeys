@@ -33,12 +33,12 @@ export function routeOptionsWithDCs(options, values = []) {
 }
 
 export const DANGER_OPTIONS = Object.freeze([
-  { value: 0, label: "None — no encounter checks" },
-  { value: 1, label: "Safe or civilized — 1 check/day" },
-  { value: 2, label: "Untamed wilderness — 2 checks/day" },
-  { value: 3, label: "Hostile territory — 3 checks/day" },
-  { value: 4, label: "Extremely dangerous — 4 checks/day" },
-  { value: 5, label: "Lethal or otherworldly — 5 checks/day" }
+  { value: 0, label: "Minimal danger — d20" },
+  { value: 1, label: "Safe or civilized — d12" },
+  { value: 2, label: "Untamed wilderness — d10" },
+  { value: 3, label: "Hostile territory — d8" },
+  { value: 4, label: "Extremely dangerous — d6" },
+  { value: 5, label: "Lethal or otherworldly — d4" }
 ]);
 
 export const LENGTH_OPTIONS = Object.freeze(

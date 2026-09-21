@@ -3,7 +3,7 @@ title: Morelord Journeys Documentation
 description: Plan and run structured D&D 5e travel days with supplies, player checks, encounters, foraging, and camp.
 slug: morelord-journeys
 product: morelord-journeys
-version: 0.3.5
+version: 0.3.6
 foundry: 14
 order: 0
 ---

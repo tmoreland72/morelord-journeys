@@ -16,6 +16,7 @@ import { supplySyncService } from "./services/supply-sync-service.mjs";
 import { sleepRollService } from "./services/sleep-roll-service.mjs";
 import { SupplyManifestService } from "./services/supply-manifest-service.mjs";
 import { dayEncounterService } from "./services/day-encounter-service.mjs";
+import { startJourneyUndo } from "./services/journey-undo-service.mjs";
 import { getJourneyTravelContext, updateJourneyTravelContext } from "./domain/travel-context.mjs";
 
 Hooks.once("init", () => { registerSettings(); registerJourneySettings(); });
@@ -26,6 +27,8 @@ Hooks.on("getSceneControlButtons", controls => {
     onChange: () => { const api = globalThis.MorelordJourneys ?? game.modules.get(MODULE_ID)?.api; if (!api?.open) return ui.notifications.warn("Morelord Journeys is still initializing."); api.open(); } };
 });
 Hooks.once("ready", async () => {
+  globalThis.MorelordCore?.telemetry?.windows(MODULE_ID, { "morelord-journeys-dashboard": "dashboard.opened" });
+  startJourneyUndo();
   roleRollService.start();
   campPerceptionRollService.start();
   foragingRollService.start();

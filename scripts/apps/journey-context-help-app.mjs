@@ -18,7 +18,7 @@ const HELP = Object.freeze({
   },
   danger: {
     title: "Danger",
-    content: sections(["Modifier", ["Danger 0: no daytime checks", "Danger 1–5: that many checks per traveler each day"]], ["Effect", ["Daytime ones add encounters; maximum rolls cancel them. Night encounters retain their separate Danger modifiers."]])
+    content: sections(["Modifier", ["Danger 0–5 selects d20, d12, d10, d8, d6, d4", "Each traveler makes one daytime check"]], ["Effect", ["Ones trigger encounters. Maximums cancel encounters except on d4 and d6. Campfire night checks also trigger on 2."]])
   },
   discoveryDC: {
     title: "Discovery DC",
@@ -34,12 +34,12 @@ const HELP = Object.freeze({
   },
   weather: { title: "Weather", content: sections(["Extreme Check", ["Roll 1d20.", "Natural 1: use an extreme forecast.", "Any other result: use an ordinary forecast."]], ["Warm Forecast", ["Fair weather", "Rain showers", "Humid haze", "Overcast", "Strong warm winds", "Clear and hot"]], ["Cold Forecast", ["Cold and clear", "Snow flurries", "Freezing drizzle", "Overcast", "Strong cold winds", "Sleet"]], ["Warm Extreme", ["Thunderstorm", "Heat wave", "Flash flood", "Tornado", "Wildfire smoke", "Dust storm"]], ["Cold Extreme", ["Blizzard", "Ice storm", "Extreme cold", "Avalanche conditions", "Freezing fog", "Whiteout"]], ["Effects", ["Extreme weather costs ⅓ day.", "Navigation rolls with disadvantage.", "Sleep DC increases by 5.", "Clear or fair weather cannot be extreme."]]) },
   pace: { title: "Pace", content: sections(["Options", ["Stopped: no progress; advantage on foraging and sleep.", "Slow: ⅔ day; advantage on foraging.", "Normal: 1 day.", "Fast: 1⅓ days; disadvantage on foraging; −5 passive Perception."]]) },
-  encounters: { title: "Day Encounters", content: sections(["Party Checks", ["Each traveler rolls the configured encounter die once per Danger check/day.", "Players trigger their rolls; only the GM sees the results."]], ["Encounter Count", ["Each 1 adds an encounter; each maximum die result cancels one.", "Combine all travelers’ dice and stop at zero encounters."]]) },
+  encounters: { title: "Day Encounters", content: sections(["Party Checks", ["Each traveler rolls the Danger die once.", "Players trigger their rolls; only the GM sees the results."]], ["Encounter Count", ["Each 1 adds an encounter; maximums cancel one except on d4 and d6.", "Combine all travelers’ dice and stop at zero encounters."]]) },
   discovery: { title: "Discovery", content: sections(["Check", ["The Observer rolls Perception.", "Success reveals a clue and enables the optional d100 lead.", "Failure costs no time."]], ["Investigating", ["Close Journeys and run the discovery.", "Reopen Journeys when travel resumes.", "Record the actual elapsed days and thirds."]]) },
   navigation: { title: "Navigation", content: sections(["Results", ["Success: apply progress.", "Natural 1: turned around; lose one day.", "Natural 20: shortcut; gain ⅓ day.", "Other failure: lost; no progress."]], ["Weather", ["Extreme weather imposes disadvantage."]]) },
   pressOn: { title: "Press On", content: sections(["Benefit", ["Gain ⅓ day of progress."]], ["Cost", ["Every traveler makes the configured Constitution save.", "Failure adds one Exhaustion.", "Resolve every request before continuing."]]) },
   foraging: { title: "Foraging & Supplies", content: sections(["Food", ["Success supplies that traveler's full meal.", "20+ or natural 20 finds food for two.", "Failure consumes a pooled ration."]], ["Water", ["Any success supplies everyone and refills containers.", "Otherwise each Medium traveler needs 4 pints."]]) },
-  camp: { title: "Camp", content: sections(["Actions", ["Assignments save automatically.", "Craft, Cook, and Prepare require a fire."]], ["Camp Setup", ["Fire: excellent setup, but visible.", "No fire and no tents: poor setup."]], ["Encounter", ["One d100 determines the night result.", "Record encounter interruption hours before continuing."]]) },
+  camp: { title: "Camp", content: sections(["Actions", ["Assignments save automatically.", "Craft, Cook, and Prepare require a fire."]], ["Camp Setup", ["Fire: night checks trigger on 1 or 2.", "Without fire: night checks trigger on 1."]], ["Encounter", ["Roll the Danger die per watch or per hour for the whole night.", "Record encounter interruption hours before continuing."]]) },
   sleep: { title: "Sleep & Shelter", content: sections(["Setup", ["Sleeping equipment must be personally owned.", "Interruption hours come from Night Encounters."]], ["Long Rest", ["Pass the sleep check.", "Meet the character's required sleep hours.", "Have less than one interrupted hour."]]) }
 });
 

@@ -79,6 +79,7 @@
         {{#if isDayComplete}}<button type="button" data-action="completeDay">{{localize "MORELORD_JOURNEYS.Actions.CompleteDay"}}</button>{{else}}<button type="button" data-action="advancePhase">{{localize "MORELORD_JOURNEYS.Actions.Continue"}}</button>{{/if}}
       </section>
     {{/if}}
+    {{#if canGoBack}}<footer class="ml-page-footer ml-actions"><button type="button" data-action="goBack"><i class="fa-solid fa-arrow-left"></i> Go Back</button></footer>{{/if}}
     {{#if recentLog.length}}<section class="ml-surface ml-stack journey-log"><div class="ml-section-heading"><h2>{{localize "MORELORD_JOURNEYS.Log.Title"}}</h2></div><ol>{{#each recentLog}}<li><span><strong>{{label}}</strong>{{#if result}} — {{result}}{{/if}}</span><small>{{localize "MORELORD_JOURNEYS.Day"}} {{dayNumber}}</small></li>{{/each}}</ol></section>{{/if}}
   {{/unless}}
 </section>

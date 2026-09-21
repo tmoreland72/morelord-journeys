@@ -1,3 +1,4 @@
+import { checkpointJourney, registerJourneyUndo, assertUndoComplete } from "../services/journey-undo-service.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 import { validateJourney } from "../domain/journey.mjs";
 import { publishJourneyProgress } from "../services/progress-chat-service.mjs";
@@ -5,6 +6,7 @@ import { publishJourneyProgress } from "../services/progress-chat-service.mjs";
 const ACTIVE_JOURNEY_KEY = "activeJourney";
 
 export function registerSettings() {
+  registerJourneyUndo();
   game.settings.register(MODULE_ID, ACTIVE_JOURNEY_KEY, {
     name: "MORELORD_JOURNEYS.Settings.ActiveJourney.Name",
     hint: "MORELORD_JOURNEYS.Settings.ActiveJourney.Hint",
@@ -35,10 +37,17 @@ export async function getActiveJourney() {
 }
 
 export async function saveActiveJourney(journey) {
+  assertUndoComplete();
   validateJourney(journey);
   const stored = game.settings.get(MODULE_ID, ACTIVE_JOURNEY_KEY);
+  if (stored?.id === journey.id && (stored.undoGeneration ?? 0) !== (journey.undoGeneration ?? 0)) throw new Error("This step was undone. Reopen Journeys before retrying.");
   const prior = stored === null ? null : structuredClone(stored);
   await game.settings.set(MODULE_ID, ACTIVE_JOURNEY_KEY, journey);
+  const telemetry = globalThis.MorelordCore?.telemetry;
+  if (prior?.id !== journey.id) telemetry?.track(MODULE_ID, "journey.created");
+  else if (prior.status !== journey.status && journey.status === "arrived") telemetry?.track(MODULE_ID, "journey.arrived");
+  if (prior?.phase !== journey.phase && journey.phase) telemetry?.track(MODULE_ID, "phase.changed");
+  await checkpointJourney(journey);
   await publishJourneyProgress(prior, journey);
   return journey;
 }

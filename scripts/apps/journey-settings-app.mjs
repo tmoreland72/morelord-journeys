@@ -1,7 +1,7 @@
 import { MODULE_ID } from "../domain/constants.mjs";
-import { DAY_ENCOUNTER_DIE_SETTING, getDayEncounterDie } from "../core/journey-settings.mjs";
-import { DAY_ENCOUNTER_DICE } from "../domain/encounter-rules.mjs";
-import { DC_CONFIGURATION_SETTING, getDCConfiguration, SKIP_DICE_ANIMATION_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
+
+
+import { NIGHT_CHECK_INTERVAL_SETTING, getNightCheckInterval, DC_CONFIGURATION_SETTING, getDCConfiguration, SKIP_DICE_ANIMATION_SETTING, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING } from "../core/journey-settings.mjs";
 import { EntitlementService } from "../services/entitlement-service.mjs";
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -21,6 +21,7 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     const context = await super._prepareContext(options);
     const access = EntitlementService.status();
     const dc = getDCConfiguration();
+
     return {
       ...context,
       settings: {
@@ -28,12 +29,12 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
         skipDiceAnimation: game.settings.get(MODULE_ID, SKIP_DICE_ANIMATION_SETTING),
         dc
       },
+      nightIntervals: [2, 1].map(hours => ({ hours, label: hours === 2 ? "Every watch (4 checks)" : "Every hour (8 checks)", selected: hours === getNightCheckInterval() })),
       dcGroups: {
         discovery: ["Very likely", "Likely", "Possible", "Unlikely", "Very unlikely"].map((label, index) => ({ label, index, value: dc.discovery[index] })),
         navigation: ["Simple", "Routine", "Normal", "Challenging", "Very challenging", "Extreme"].map((label, index) => ({ label, index, value: dc.navigation[index] })),
         foraging: ["Lush forest or meadow", "Productive woodland or grassland", "Typical mixed wilderness", "Traveled or heavily settled land", "Desert, tundra, or sparse badlands", "Barren or extreme environment"].map((label, index) => ({ label, index, value: dc.foraging[index] }))
       },
-      dayEncounterDice: DAY_ENCOUNTER_DICE.map(faces => ({ faces, label: `d${faces}`, selected: faces === getDayEncounterDie() })),
       access: {
         ...access,
         tierLabel: access.tier === "champion" ? "Tools Champion" : access.tier === "premium" ? "Tools Premium" : "Standard",
@@ -63,9 +64,9 @@ export class JourneySettingsApplication extends HandlebarsApplicationMixin(Appli
     target.disabled = true;
     try {
       if (!game.user.isGM) throw new Error("Only the GM can change Journey settings.");
-      const faces = Number(this.element.querySelector('[name="dayEncounterDie"]')?.value);
-      if (!DAY_ENCOUNTER_DICE.includes(faces)) throw new Error("Choose a supported daytime encounter die.");
-      await game.settings.set(MODULE_ID, DAY_ENCOUNTER_DIE_SETTING, faces);
+      const interval = Number(this.element.querySelector('[name="nightCheckIntervalHours"]')?.value ?? getNightCheckInterval());
+      if (![1, 2].includes(interval)) throw new Error("Choose hourly or per-watch night checks.");
+      await game.settings.set(MODULE_ID, NIGHT_CHECK_INTERVAL_SETTING, interval);
       await game.settings.set(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING, Boolean(this.element.querySelector('[name="suppressSleepDeprivationExhaustion"]')?.checked));
       await game.settings.set(MODULE_ID, SKIP_DICE_ANIMATION_SETTING, Boolean(this.element.querySelector('[name="skipDiceAnimation"]')?.checked));
       const priorDC = getDCConfiguration();

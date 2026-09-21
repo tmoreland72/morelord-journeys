@@ -34,9 +34,9 @@ globalThis.Roll = class {
   constructor(formula) {this.formula=formula;}
   async evaluate(options) {
     assert.equal(options.allowInteractive, false);
-    assert.equal(this.formula,"4d6");
+    assert.equal(this.formula,"1d6");
     rolled++;
-    this.dice=[{results:[1,1,6,2].map(result=>({result,active:true}))}]; return this;
+    this.dice=[{results:[1].map(result=>({result,active:true}))}]; return this;
   }
   async toMessage(data,options) {messages.push({data,options});}
 };
@@ -48,7 +48,7 @@ function reset(danger=4) {
 }
 dayEncounterService.start();
 
-test("players trigger 16 GM-only dice; duplicates and wrong users cannot resolve requests", async()=>{
+test("players trigger four Danger-selected GM-only dice; duplicates and wrong users cannot resolve requests", async()=>{
   reset();
   await dayEncounterService.requestParty();
   assert.equal(sent.length,4);
@@ -68,7 +68,7 @@ test("players trigger 16 GM-only dice; duplicates and wrong users cannot resolve
   }
   game.user=gm;
   assert.equal(rolled,4);
-  assert.equal(stored.currentDay.encounterCheck.totalRolls,16);
+  assert.equal(stored.currentDay.encounterCheck.totalRolls,4);
   assert.equal(stored.currentDay.encounterCheck.encounterCount,4);
   assert.equal(stored.currentDay.pendingDayEncounterRolls.length,0);
   assert.equal(messages.length,4);
@@ -77,12 +77,12 @@ test("players trigger 16 GM-only dice; duplicates and wrong users cannot resolve
   assert.equal(stale.accepted,false);
   assert.equal(rolled,4);
 });
-test("Danger zero creates no player requests or dice; non-GMs cannot request checks", async()=>{
+test("Danger zero requests one d20 per traveler; non-GMs cannot request checks", async()=>{
   reset(0);
   await dayEncounterService.requestParty();
-  assert.equal(sent.length,0);
+  assert.equal(sent.length,4);
   assert.equal(rolled,0);
-  assert.equal(stored.currentDay.encounterCheck.encounterCount,0);
+  assert.ok(sent.every(packet => packet.data.request.checks === 1 && packet.data.request.dieFaces === 20));
   game.user=users[1];
   await assert.rejects(dayEncounterService.requestParty(),/Only a GM/);
   game.user=gm;

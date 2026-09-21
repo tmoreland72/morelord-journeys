@@ -1,6 +1,9 @@
+import { nightEncounterTiming } from "../domain/encounter-rules.mjs";
+import { readNightInterruptions } from "../ui/night-interruption-controls.mjs";
+import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { nightEncountersEnabled } from "../core/journey-settings.mjs";
-import { assignedWatchIndexes, availableCampSleepHours, campPeriods, campWatchAction, normalizeCampAssignments, watchCoverage } from "../domain/camp-watch-rules.mjs";
+import { assignedWatchIndexes, campWatchTiming, availableCampSleepHours, campPeriods, campWatchAction, normalizeCampAssignments, watchCoverage } from "../domain/camp-watch-rules.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { roleRollService } from "../services/role-roll-service.mjs";
 import { JourneyActionApplication as BaseJourneyApplication } from "./journey-action-fix-app.mjs";
@@ -54,12 +57,20 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     panel.innerHTML = `<header class="ml-stack" data-gap="1"><h3>Plan the Eight-Hour Night</h3><p>Each column is two hours. Assign one watcher per period, then choose their activity. Everyone else can sleep or take camp actions. Keeping watch rolls Perception normally; other watch activities roll at disadvantage. Changes save automatically.</p></header><div><label class="ml-toggle journey-check"><input type="checkbox" name="campfire" ${context.journey.currentDay?.campfire ? "checked" : ""}><span>Camp has a visible fire</span></label><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-campfire-help aria-label="Explain campfire effects" data-tooltip="Explain campfire effects"><i class="fa-solid fa-circle-question"></i></button></div>`;
     panel.querySelector("[data-campfire-help]").addEventListener("click", event => {
       event.preventDefault();
-        void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>Required For</h3><ul><li>Craft</li><li>Cook</li><li>Prepare</li></ul></section><section><h3>Night Encounter</h3><ul><li>Excellent setup: −10</li><li>Visible fire: +5</li><li>Net modifier: −5</li><li>No fire and no tents: +10</li></ul></section></div>", ok: { label: "Close" } });
+        void foundry.applications.api.DialogV2.prompt({ window: { title: "Campfire Effects", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-journeys-help-content'><section><h3>Required For</h3><ul><li>Craft</li><li>Cook</li><li>Prepare</li></ul></section><section><h3>Night Encounter</h3><ul><li>A visible fire makes a night die result of 1 or 2 trigger an encounter.</li><li>Without a fire, only 1 triggers an encounter.</li></ul></section></div>", ok: { label: "Close" } });
     });
     const watches = document.createElement("div");
     watches.className = "ml-stack journey-watch-list";
     const nightEncounter = context.journey.currentDay?.nightEncounterCheck;
-    const nightOutcomeLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[nightEncounter?.outcome] ?? null;
+    const nightOutcomeLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[nightEncounter?.outcome] ?? (nightEncounter?.outcome === "encounter" ? "Night Encounter" : null);
+    if (["minor", "nightAttack"].includes(nightEncounter?.outcome)) {
+      const notice = document.createElement("div");
+      notice.className = "ml-callout ml-journeys-night-timing";
+      notice.dataset.tone = "warning";
+      notice.setAttribute("role", "status");
+      notice.innerHTML = `<i class="fa-solid fa-moon" aria-hidden="true"></i><div><strong>${nightOutcomeLabel} — ${campWatchTiming(nightEncounter.watchIndex)}</strong><p>${nightEncounter.unwatched ? "This period is unwatched; no Perception check is requested." : `${actorIdentity({ actorUuid: nightEncounter.watcherActorUuid, actorName: nightEncounter.watcherActorName })} is on watch.`}</p><p>Resolve this encounter during the indicated period before continuing to Sleep & Shelter.</p></div>`;
+      panel.prepend(notice);
+    }
     for (let index = 0; index < assignments.length; index += 1) {
       const prior = assignments[index];
       const row = document.createElement("div");
@@ -118,14 +129,14 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       result.className = "journey-watch-result";
       const perception = context.journey.currentDay?.campPerceptionResults?.find(entry => entry.actorUuid === prior.actorUuid);
       const pendingPerception = context.journey.currentDay?.pendingCampPerceptionRolls?.some(entry => entry.actorUuid === prior.actorUuid);
-      const selectedWatch = assignedWatchIndexes(prior).includes(Number(nightEncounter?.watchIndex));
+      const selectedWatch = nightEncounter?.method === "nightDice" ? nightEncounter.encounters.some(entry => entry.watcherActorUuid === prior.actorUuid) : assignedWatchIndexes(prior).includes(Number(nightEncounter?.watchIndex));
       result.textContent = selectedWatch && perception
         ? `Perception ${perception.total} · ${nightOutcomeLabel}`
         : selectedWatch && pendingPerception ? `Waiting for Perception · ${nightOutcomeLabel}`
           : selectedWatch ? `${nightOutcomeLabel} · Perception not requested`
             : nightEncounter && ["minor", "nightAttack"].includes(nightEncounter.outcome) ? "Not the affected watch"
               : nightOutcomeLabel ?? "Night encounter not rolled";
-      result.hidden = !nightEncounter;
+      result.hidden = !nightEncounter || nightEncounter.method === "nightDice";
       row.append(header, schedule, result);
       watches.append(row);
     }
@@ -161,7 +172,8 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       panel.append(nightControls);
     }
     const night = nightEncounter;
-    if (night) {
+    if (night?.method === "nightDice") this.#renderNightDice(panel, context);
+    else if (night) {
       const label = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[night.outcome] ?? night.outcome;
       const descriptions = {
         peacefulRest: "The camp remains exceptionally calm. Continue to Sleep & Shelter to confirm each traveler’s rest; this result reduces the sleep DC by 5.",
@@ -192,7 +204,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
         { label: "Final result", value: night.modified },
         { label: "Outcome", value: label },
         { label: "Affected watch roll", value: night.watchRoll },
-        { label: "Affected watch", value: Number.isInteger(night.watchIndex) ? `Watch ${night.watchIndex + 1}` : null },
+        { label: "Affected watch", value: Number.isInteger(night.watchIndex) ? campWatchTiming(night.watchIndex) : null },
         { label: "Watch coverage", value: Number.isInteger(night.watchIndex) ? night.unwatched ? "Unwatched — no Perception check is requested" : night.watcherActorName : null, actor: !night.unwatched && night.watcherActorUuid ? { actorUuid: night.watcherActorUuid, name: night.watcherActorName } : null }
       ] }] }));
       if (["minor", "nightAttack"].includes(night.outcome)) {
@@ -236,6 +248,72 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       if (event.target.matches("select[name^='watchAction'], input[name^='campWatch']")) syncValidity();
     });
     syncValidity();
+  }
+
+  #renderNightDice(panel, context) {
+    const day = context.journey.currentDay;
+    const night = day.nightEncounterCheck;
+    const summary = document.createElement("div");
+    summary.className = "ml-callout ml-journeys-night-timing";
+    summary.dataset.tone = night.encounterCount ? "warning" : "info";
+    summary.setAttribute("role", "status");
+    summary.innerHTML = '<strong>' + night.encounterCount + ' Night Encounter(s)</strong><p>' + (night.encounterCount ? 'Resolve each encounter below before continuing. The GM chooses combat or non-combat; record actual rest interruptions.' : 'No encounters remain after cancellation. Continue to Sleep & Shelter.') + '</p>';
+    panel.prepend(summary);
+    if (night.encounters.length) {
+      const times = document.createElement("p");
+      times.textContent = night.encounters.map(nightEncounterTiming).join("; ");
+      summary.append(times);
+    }
+    for (const encounter of night.encounters) {
+      const section = document.createElement("section");
+      section.className = "ml-card ml-stack";
+      section.dataset.nightEncounterId = encounter.id;
+      const saved = day.sleepInterruptions?.find(entry => entry.encounterId === encounter.id);
+      const perception = day.campPerceptionResults?.find(entry => entry.watchIndex === encounter.watchIndex);
+      const pending = day.pendingCampPerceptionRolls?.find(entry => entry.watchIndex === encounter.watchIndex);
+      section.innerHTML = '<h4>' + nightEncounterTiming(encounter) + '</h4><p>' + (encounter.unwatched ? 'Unwatched — no Perception check.' : actorIdentity({ actorUuid: encounter.watcherActorUuid, actorName: encounter.watcherActorName }) + (perception ? ': Perception ' + perception.total : pending ? ': awaiting Perception' : ': Perception not yet requested')) + '</p>';
+      if (!encounter.unwatched && !perception) {
+        const request = document.createElement("button");
+        request.type = "button";
+        request.textContent = "Send Perception / GM Roll";
+        request.addEventListener("click", async () => {
+          request.disabled = true;
+          try {
+            if (pending) await campPerceptionRollService.resend(pending.id);
+            else await campPerceptionRollService.request({ watchIndex: encounter.watchIndex, actorUuid: encounter.watcherActorUuid, action: encounter.campAction });
+            await this.render({ force: true });
+          } catch (error) { ui.notifications.error(error.message); }
+          finally { request.disabled = false; }
+        });
+        section.append(request);
+      }
+      const fields = document.createElement("fieldset");
+      fields.className = "ml-field-group";
+      fields.innerHTML = '<legend>Rest Interruption</legend><div class="ml-grid" data-columns="3"><label><span>Duration (hours)</span><input data-night-hours type="number" min="0" max="8" step="0.25" value="' + (saved?.hours ?? 0) + '"></label><label><span>Rest-breaking events</span><input data-night-count type="number" min="0" max="100" step="1" value="' + (saved?.count ?? 0) + '"></label><label><span>Hours into this period</span><input data-night-offset type="number" min="0" max="' + night.intervalHours + '" step="0.25" value="' + (saved?.offsetHours ?? 0) + '"></label></div><small>Leave zero for an encounter that does not interrupt rest. Enter actual combat or other rest-breaking activity.</small>';
+      section.append(fields);
+      fields.addEventListener("change", async () => {
+        try {
+          const current = await getActiveJourney();
+          if (current?.id !== context.journey.id || current.dayNumber !== context.journey.dayNumber || current.phase !== "camp") return;
+          current.currentDay.sleepInterruptions = readNightInterruptions(panel, current);
+          await saveActiveJourney(current);
+        } catch (error) { ui.notifications.error(error.message); }
+      });
+      const open = document.createElement("button");
+      open.type = "button";
+      open.dataset.action = "openMorelordEncounters";
+      open.dataset.nightEncounterId = encounter.id;
+      open.textContent = "Open Morelord Encounters";
+      section.append(open);
+      panel.append(section);
+    }
+    panel.append(createOutcomeDetails({ cards: [{ title: "Night Encounter Dice", rows: [
+      { label: "Danger / die", value: night.danger + " / d" + night.dieFaces },
+      { label: "Checks", value: "Every " + night.intervalHours + " hour(s): " + night.results.join(", ") },
+      { label: "Encounter results", value: night.campfire ? "1 or 2 (campfire)" : "1" },
+      { label: "Triggered", value: night.triggers }, { label: "Cancelled", value: night.cancellations },
+      { label: "Maximum cancellation", value: night.dieFaces > 6 ? "Enabled; latest triggered periods cancelled first" : "Disabled on d4 and d6" }
+    ] }] }));
   }
 
   static async resendRoleRoll(event) {

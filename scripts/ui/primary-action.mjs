@@ -50,7 +50,7 @@ export function primaryActionSelectors(context) {
   }
   const selectors = {
     pace: ["[data-action='advancePhase']"],
-    foraging: ["[data-action='requestForagingRolls']", "[data-action='consumeTravelSupplies']", "[data-action='advancePhase']"],
+    foraging: ["[data-action='requestForagingRolls']", "[data-action='advancePhase']"],
     pressOn: ["[data-action='requestForcedMarchRolls']", "[data-action='advancePhase']"],
   };
   return selectors[phase] ?? ["[data-action='advancePhase']"];

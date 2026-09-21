@@ -147,3 +147,53 @@ test("positive forced-march DC still sends a player request", async () => {
   assert.equal(stored.currentDay.pendingForcedMarchRolls[0].dc, 12);
   assert.deepEqual(stored.currentDay.forcedMarchResults, []);
 });
+
+test("Bufoma's completed Trance survives a later encounter and recovers Exhaustion once", async () => {
+  const actor = setup("sleep");
+  stored.currentDay.campWatches = [{ actorUuid: actor.uuid, periods: [
+    { action: "Take a Watch", watch: true }, { action: "Slumber" }, { action: "Slumber" }, { action: "Task" }
+  ] }];
+  await sleepRollService.requestParty({ entries: [{ actorUuid: actor.uuid, actorName: actor.name, dc: 99,
+    sleepHours: 4, requiredSleepHours: 4, interruptionSources: [{ watchIndex: 3, hours: 1 }] }] });
+  const result = stored.currentDay.campSleepResults[0];
+  assert.equal(result.longRestCompleted, true);
+  assert.equal(result.restAssessment.completedAt, 6);
+  assert.equal(actor.flags.daysWithoutLongRest, 0);
+  assert.equal(actor.system.attributes.exhaustion, 1);
+  await assert.rejects(sleepRollService.requestParty({ entries: [] }), /already been requested/);
+  assert.equal(actor.system.attributes.exhaustion, 1);
+  noRolls();
+});
+
+test("optional deprivation reroutes disconnected players to GM and resolves once", async () => {
+  const actor = setup("sleep");
+  config.sleepDeprivationBase = 10;
+  config.sleepDeprivationIncrease = 5;
+  const player = { id: "sleep-player", active: true, character: { uuid: actor.uuid } };
+  game.users.unshift(player);
+  sleepRollService.start();
+  await sleepRollService.requestParty({ entries: [{ actorUuid: actor.uuid, actorName: actor.name, sleepHours: 2, requiredSleepHours: 6 }] });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const request = stored.currentDay.pendingSleepRolls[0];
+  assert.equal(request.kind, "deprivation");
+  assert.equal(request.userId, player.id);
+  player.active = false;
+  await sleepRollService.resend(request.id);
+  assert.equal(stored.currentDay.pendingSleepRolls[0].userId, "gm");
+  await Promise.all([sleepRollService.autoResolve(request.id, false), sleepRollService.autoResolve(request.id, false)]);
+  assert.equal(stored.currentDay.campSleepResults.length, 1);
+  assert.equal(stored.currentDay.pendingSleepRolls.length, 0);
+  assert.equal(actor.flags.daysWithoutLongRest, 1);
+  assert.equal(actor.system.attributes.exhaustion, 3);
+});
+
+test("disabled deprivation records failed rest without a save or Exhaustion", async () => {
+  const actor = setup("sleep");
+  const get = game.settings.get;
+  game.settings.get = (module, key) => key === "suppressSleepDeprivationExhaustion" ? true : get(module, key);
+  await sleepRollService.requestParty({ entries: [{ actorUuid: actor.uuid, sleepHours: 2, requiredSleepHours: 6 }] });
+  assert.equal(stored.currentDay.campSleepResults[0].longRestCompleted, false);
+  assert.equal(stored.currentDay.campSleepResults[0].deprivation.suppressed, true);
+  assert.equal(actor.system.attributes.exhaustion, 2);
+  noRolls();
+});

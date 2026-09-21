@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.3.4
+version: 0.3.6
 foundry: 14
 order: 10
 ---
@@ -39,7 +39,7 @@ Enter the origin and destination in **Journey Distance**, then choose the planne
 ### Route ratings
 
 - **Length** is entered as whole days plus 0, ⅓, or ⅔.
-- **Danger** sets daytime encounter checks per traveler per day.
+- **Danger** selects the encounter die for day and night.
 - **Discovery DC** is used by the Observer's Perception check.
 - **Resources DC** is used by traveler foraging checks.
 - **Navigation DC** is used by the Navigator's Survival check.
@@ -89,7 +89,7 @@ Choose Slow (⅔ day and foraging advantage), Normal (1 day), Fast (1⅓ days, f
 
 ## Encounters
 
-Choose the daytime encounter die in Journeys Settings (d6 by default). Each traveler rolls that die once for every check/day shown by Danger. At Extreme (Danger 4), four travelers make 16 rolls. Each 1 adds one encounter, and each maximum die result cancels one encounter across the entire party; the total cannot be negative. Danger 0 requires no rolls.
+Danger selects the encounter die: 0 → d20, 1 → d12, 2 → d10, 3 → d8, 4 → d6, 5 → d4. Each traveler rolls once during the day, including at Danger 0. Each 1 triggers an encounter. Maximums cancel encounters across the pool, except on d4 and d6. The count cannot be negative. Stopped travel skips daytime checks. There is no configurable encounter die.
 
 Select **Request Party Day Encounter Rolls**. Each active owning player receives a roll button for their character; the GM receives requests for absent players. Results are hidden from players and private roll cards are visible only to GMs. Wait for all requests to resolve before continuing; use Resend for an outstanding request. Route Traffic is no longer used.
 
@@ -110,9 +110,9 @@ Each traveler makes a Survival check against the route's Resources DC. Player di
 After all checks resolve:
 
 1. Review the food and water required.
-2. Confirm the proposed personal and Group allocations.
-3. Consume supplies.
-4. Journeys immediately applies water consequences, updates hunger, and sends starvation Constitution saves after supplies are confirmed. Days 1�4 without food request a daily Constitution save (default DC 10); failure adds one Exhaustion. Day 5 and each subsequent day without food automatically add one Exhaustion without a roll. Constitution does not alter this threshold. Send Save / GM Roll resends a pending request to the player or opens it for the GM when the player is offline, including after disconnecting.
+2. Choose food recipients if rations are scarce, or record manual supply exceptions when needed.
+3. Click **Continue**. Journeys consumes the allocated supplies and advances without a separate confirmation; if hunger saves are required, resolve them before continuing.
+4. Journeys immediately applies water consequences, updates hunger, and sends starvation Constitution saves when you continue. Days 1�4 without food request a daily Constitution save (default DC 10); failure adds one Exhaustion. Day 5 and each subsequent day without food automatically add one Exhaustion without a roll. Constitution does not alter this threshold. Send Save / GM Roll resends a pending request to the player or opens it for the GM when the player is offline, including after disconnecting.
 
 **Optional Exploration Activities** appears only after every traveler's foraging check is resolved and no requests remain pending. Successful, failed, and automatically resolved checks all count. **Launch Morelord Craftworks** opens the optional gathering integration when available. Gathering crafting materials does not replace Journeys' food and water resolution.
 
@@ -141,23 +141,23 @@ Available camp actions include:
 
 Selecting Craft displays a GM reminder and an orange **Open Morelord Craftworks - Craft** button.
 
-### Rolling a watch
+### Rolling night encounters
 
-Camp makes one night d100 roll. Danger, weather, and derived camp quality modify the result. A fire is required for Craft, Cook, and Prepare; it indicates excellent setup but also advertises the camp. No fire and no tents indicates poor setup. Assignments save automatically. Anyone not assigned to Take a Watch receives Slumber's rest treatment.
+Use the same Danger die at night. By default, roll four dice, one for each two-hour watch. **Journeys Settings → Encounter Dice → Night encounter frequency** can instead select eight hourly checks. Roll the whole night as a pool before playing it out: a 1 triggers an encounter, or a 1 or 2 with a visible campfire. Maximums cancel the latest triggered periods first, except on d4 and d6. Surviving encounters retain their hour range and watch. Each affected watch gets one Perception check; Send Perception / GM Roll supports offline or disconnected owners. The GM chooses combat or non-combat and records each encounter’s actual rest interruptions. Weather, tents, and stopped travel do not modify these dice. The old d100 Peaceful Rest result is no longer generated; saved historical outcomes and existing rest benefits remain supported.
 
-Journeys Settings can disable the nightly d100 independently from Sleep & Shelter. Camp must resolve its enabled nightly check before advancing. Sleep checks and pending Peaceful Rest choices are completed on the following Sleep & Shelter phase.
+A fire remains required for Craft, Cook, and Prepare. Night encounters can be disabled independently from Sleep & Shelter using journey step choices.
 
 ### Sleep & Shelter
 
-Sleep & Shelter is separate from watch planning. Tents, bedrolls, and blankets default from each traveler's own inventory. Prior selections carry into the next day.
+Journeys uses 2024 Long Rest timing without a sleep check. A normal rest needs eight hours, including at least six hours asleep and at most two hours of light activity such as standing watch. Trance uses four hours of meditation; the GM can override the character's required hours.
 
-- A traveler-owned tent reduces that traveler's sleep DC by 5.
-- A bedroll supports one traveler and reduces the sleep DC by 2.
-- A blanket supports one traveler and reduces the DC by 1 in cold weather.
-- Extreme weather increases the sleep DC by 5.
-- A Peaceful Rest night result reduces the sleep DC by 5.
+The GM confirms eligibility at the start (at least 1 HP and sixteen hours since the previous Long Rest ended). Camp assignments determine when each traveler sleeps, watches, or works. Enter the encounter's duration, number of rest-breaking interruptions, and time within its watch. Initiative, damage, a leveled spell, or an hour of physical exertion interrupt an unfinished rest. Each interruption adds one recovery hour; time spent interrupted does not count as rest. Add extra sleep or meditation after Watch 4 when needed. Unknown event timing defaults to the beginning of its watch.
 
-Select **Roll Party Sleep Checks** to roll privately. Cold weather is inherited from the forecast. Sleep begins at eight hours minus two hours for each watch taken. Journeys tracks interruptions in hours; a Night Attack prefills one combat-interruption hour for the affected watcher, while Minor encounters add no interruption unless the GM determines that combat occurred. Six hours of sleep and less than one interrupted hour are required. Player-submitted Peaceful Rest selections are shown to the GM and committed when the phase advances; Heroic Inspiration is applied to the character sheet when selected; the other benefits remain manual. Missed Long Rests use escalating Xanathar-style deprivation saves unless the GM enables **Do not add Exhaustion level for lack of sleep**.
+A later event cannot cancel a completed rest. For example, an elf standing Watch 1 and meditating through Watches 2 and 3 finishes before a Watch 4 encounter. Rest Results explain sleep received, interruptions, missing rest time, and Exhaustion in bullet points. Saved results from earlier rules remain labeled historical results and are not recalculated.
+
+Shelter equipment is recorded for camp planning and does not change rest timing. The existing supply rule still prevents Exhaustion recovery when food or water is missing. The optional Xanathar-style deprivation save remains separate: a missed rest starts at DC 10 and increases by 5 on consecutive missed rests. Enable **Do not add Exhaustion for lack of sleep** to disable that save and its Exhaustion. Offline or disconnected players' pending saves can be resolved by the GM.
+
+Journeys applies its recorded Exhaustion change and Heroic Inspiration selections. Apply HP, spell-slot, and other native Long Rest recovery through the character sheet, avoiding a second Exhaustion reduction. Other Peaceful Rest choices remain manual; the world clock is not advanced.
 
 ## Journey progress
 
@@ -189,7 +189,7 @@ Confirm the corresponding Morelord module is installed and active. Reload the wo
 
 The GM can select a shared Core Location, set personal activity hours for the travel day, and add temporary capabilities available during the journey. Manage Locations opens Core's shared registry. Temporary capabilities do not permanently change the Location. Optional Downtime integration uses completed days and personal activity hours; Journeys remains usable when Downtime is absent.
 
-A check with an effective DC of zero succeeds automatically without a player roll dialog. Sleep applies equipment modifiers before deciding whether a roll is needed. Automatic success does not waive Long Rest requirements, create extra foraging rewards, or erase ordinary food and water consequences.
+A check with an effective DC of zero succeeds automatically without a player roll dialog. Long Rest timing does not require a sleep check. Automatic success does not waive Long Rest requirements, create extra foraging rewards, or erase ordinary food and water consequences.
 
 Character portraits identify travelers in assignments, checks, supplies, and results. Changing a travel phase returns its page to the top; ordinary updates retain the page position.
 
@@ -199,8 +199,19 @@ Journeys records Long Rest sleep eligibility and applies its documented Exhausti
 
 ### Current journey display and progress
 
-The subtitle shows the day, remaining time, traveled time, and original route length. Ready for the Road is the first idle section, followed by Daily Route Ratings before supplies. Weather checks and forecasts use two columns. Pace options express this module’s travel scale in miles: Slow 2/hour and 16/day, Normal 3/hour and 24/day, Fast 4/hour and 32/day, Stopped 0.
+The header shows the current or upcoming travel day, beginning at Day 1. Above Ready for the Road, Journey Progress displays Days Traveled, Days Remaining, Original Duration, and Current Duration in four Core cards. Current Duration is traveled plus remaining time.
+
+Before starting a new day, the GM can expand **Adjust Remaining Travel**, enter whole days and thirds, and select **Apply Adjustment**. This changes remaining time and current duration, preserves original duration and earned progress, and records the old and new values in the Expedition Log. Zero remaining time marks arrival. Adjustments are unavailable while a travel day is underway.
+
+Daily Route Ratings precede supplies. Weather checks and forecasts use two columns. Pace options express this module’s travel scale in miles: Slow 2/hour and 16/day, Normal 3/hour and 24/day, Fast 4/hour and 32/day, Stopped 0.
 
 A triggered encounter is highlighted as combat or non-combat; the GM may close Journeys while resolving it and return afterward. Dice-count arithmetic is in Outcome Details, and phase help stays beside the section title.
 
 Lost navigation removes base pace progress but balances delays against extra travel, with a minimum of zero travel credit. Thus a ⅓-day encounter delay plus ⅓-day Press On produces zero credit after a lost-navigation day. Previously completed historical logs are retained.
+
+
+## Go Back
+
+The GM’s **Go Back** button restores the previous recorded step to its entry state, including journey progress, rolls, delays, and Journey-applied inventory, hunger, Exhaustion, and automatic Inspiration changes. It also undoes changes already applied in the current step. Resolve pending player requests first. Repeat the step to recalculate; old chat messages remain historical and are not deleted. Manually applied effects and activities in other modules are outside this undo record.
+
+Undo history starts when this version first opens or saves the journey; earlier actions cannot be reconstructed. It retains the latest 24 step checkpoints across reloads. If an affected value or a generated item has since changed elsewhere, Go Back stops before changing anything. Resolve the conflicting edit before retrying. If a document write fails during restoration, retry Go Back to finish; normal journey changes are blocked until restoration completes.
