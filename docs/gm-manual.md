@@ -15,7 +15,7 @@ order: 10
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.3.7 or later
+- Morelord Core 0.3.14 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.

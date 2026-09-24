@@ -25,7 +25,7 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 ## Platform
 
 - Foundry Virtual Tabletop v14 only
-- Morelord Core 0.3.7 or later
+- Morelord Core 0.3.14 or later
 - D&D 5e adapter first, with a system-neutral journey engine
 
 ## Development
@@ -71,7 +71,7 @@ When a compatible Morelord Core is active, its explicit reporting choices can sh
 
 ## Release dependency
 
-This release requires Morelord Core 0.3.10 or newer for the shared UI and service updates. Optional integrations remain optional.
+This release requires Morelord Core 0.3.14 or newer for the shared UI and service updates. Optional integrations remain optional.
 
 
 Foraging pending rows show status only; resolve checks on the grouped chat card rather than Resend/Fail/Succeed controls. A clicked chat row immediately shows centered **Completed** text without buttons, and other characters can roll while earlier dice animate. Rejected submissions restore their controls. Outcomes still wait for dice animations; pending evaluated dice are saved and recovered after reload without rerolling. Night encounters are direct GM rolls from Roll Night Encounter; only the resulting watch checks use player requests.
