@@ -29,7 +29,7 @@ function setup(phase) {
     get: (_module, key) => key === "activeJourney" ? stored : key === "dcConfiguration" ? config : false,
     set: async (_module, _key, value) => { stored = structuredClone(value); }
   } };
-  globalThis.MorelordCore = { socket: { createChannel: () => ({ on() {}, executeAsUser: async (...args) => sent.push(args) }) } };
+  globalThis.MorelordCore = { chatRequests:{register(){},create:async request=>sent.push(request)}, socket: { runSerialized: async (_key, callback) => callback(), createChannel: () => ({ on() {}, executeAsUser: async (...args) => sent.push(args) }) } };
   globalThis.fromUuid = async uuid => actors.find(a => a.uuid === uuid);
   globalThis.ui = { notifications: { error: message => { throw new Error(message); } } };
   const route = createRoute({ id: "route", name: "Road", origin: { name: "Start" }, destination: { name: "End" }, lengthSteps: 3, navigationDC: 0, discoveryDC: 0, resourcesDC: 0 });

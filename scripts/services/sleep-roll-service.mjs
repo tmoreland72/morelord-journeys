@@ -1,3 +1,4 @@
+import { createJourneyChatRequest, registerJourneyChatRoll } from "./chat-roll-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { campPeriods, availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
 import { evaluateRest2024 } from "../domain/rest-2024.mjs";
@@ -25,6 +26,7 @@ class SleepRollService extends EventTarget {
     if (this.#started) return;
     this.#started = true;
     this.#channel = getMorelordSocketChannel();
+    registerJourneyChatRoll("sleep", {pendingKey:"pendingSleepRolls", phase:"sleep", options:request => ({advantage:request.advantage,title:"Sleep Deprivation Save"}), apply:async (journey,request,result) => { await this.#recordResult(request.id,result); } });
     this.#channel.on("sleepRoll.request", data => this.#receive({ type: "sleepRoll.request", ...data }));
     this.#channel.on("sleepRoll.result", data => this.#receive({ type: "sleepRoll.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
     this.#channel.on("sleepRoll.resolved", data => this.#receive({ type: "sleepRoll.resolved", ...data }));
@@ -100,8 +102,7 @@ class SleepRollService extends EventTarget {
   async #dispatch(request, { replace = false } = {}) {
     if (request.kind === "sleep" && request.entry.restAssessment) return this.#recordResult(request.id, { total: null, succeeded: true, automatic: true, automaticReason: "rules2024", resolvedBy: game.user.id });
     if (request.dc === 0) return this.#recordResult(request.id, { total: null, succeeded: true, automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
-    if (request.userId === game.user.id) await this.#open(request, { replace });
-    else await this.#channel.executeAsUser("sleepRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    await this.#open(request);
   }
 
   async #receive(message) {
@@ -116,44 +117,8 @@ class SleepRollService extends EventTarget {
     }
   }
 
-  async #open(request, { replace = false } = {}) {
-    if ((this.#dialogs.has(request.id) || this.#openingDialogs.has(request.id)) && !replace) return;
-    this.#openingDialogs.add(request.id);
-    try {
-      if (replace) await this.#dialogs.get(request.id)?.close();
-      const actor = await fromUuid(request.actorUuid);
-      if (!actor) return;
-      const label = request.kind === "sleep" ? "Camp Sleep Check" : "Separate Sleep-Deprivation Save";
-      const dialog = new foundry.applications.api.DialogV2({
-      classes: ["ml-window", "ml-journeys-dialog"],
-      window: { title: `Morelord Journeys — ${label}`, icon: "fa-solid fa-bed" },
-      content: `<p>${actorIdentity(request)} must make a DC ${request.dc} Constitution saving throw for ${label.toLowerCase()}.</p>`,
-      modal: false,
-      buttons: [clientRollButton(async () => {
-        const native = await actor.rollSavingThrow(
-          { ability: "con", target: request.dc, advantage: request.advantage },
-          { configure: true, title: `${request.actorName} — ${label} DC ${request.dc}` },
-          { create: true, data: { flavor: `${request.actorName} — ${label} DC ${request.dc}` } }
-        );
-        if (!native) return null;
-        const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
-        const total = Number(roll?.total ?? native?.total ?? Number.NaN);
-        if (!Number.isFinite(total)) throw new Error("The Constitution saving throw did not return a numeric total.");
-        const result = { total, succeeded: total >= request.dc, automatic: false, resolvedBy: game.user.id };
-        if (game.user.isGM) {
-          await this.#recordResult(request.id, result);
-        } else {
-          await sendClientRollResult(this.#channel, "sleepRoll.result", request, result);
-          this.#dialogs.delete(request.id);
-        }
-        return total;
-      })]
-    });
-      this.#dialogs.set(request.id, dialog);
-      await dialog.render({ force: true });
-    } finally {
-      this.#openingDialogs.delete(request.id);
-    }
+  async #open(request) {
+    return createJourneyChatRequest("sleep",request,"Sleep Deprivation Save");
   }
 
   async #recordResult(requestId, result) {

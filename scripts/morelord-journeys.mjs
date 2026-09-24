@@ -1,4 +1,5 @@
 import { JourneyForagingApplication as JourneyApplication } from "./apps/journey-foraging-app.mjs";
+import { registerNightEncounterRequests } from "./apps/journey-final-app.mjs";
 import { registerJourneySettings } from "./core/journey-settings.mjs";
 import { MorelordCoreAccessService } from "./core/morelord-core-access-service.mjs";
 import { MODULE_ID } from "./domain/constants.mjs";
@@ -29,6 +30,7 @@ Hooks.on("getSceneControlButtons", controls => {
 Hooks.once("ready", async () => {
   globalThis.MorelordCore?.telemetry?.windows(MODULE_ID, { "morelord-journeys-dashboard": "dashboard.opened" });
   startJourneyUndo();
+  registerNightEncounterRequests();
   roleRollService.start();
   campPerceptionRollService.start();
   foragingRollService.start();

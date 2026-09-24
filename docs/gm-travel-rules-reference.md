@@ -156,7 +156,7 @@ Example: the party chooses Fast pace for four thirds, pursues a discovery for a 
 
 After Navigation, the party may travel for two additional hours. Pressing on adds one progress third.
 
-Every traveler makes a DC 12 Constitution saving throw. A failed traveler gains one Exhaustion. Journeys sends each owning player a private roll request and shows you when all results are complete. You can resolve a request for an absent player.
+Every traveler makes a DC 12 Constitution saving throw. A failed traveler gains one Exhaustion. Journeys posts one public group request card with a separate Constitution save for each traveler and shows when all results are complete. Any GM can roll for a traveler, including after their player disconnects.
 
 Pressing on is not available while Stopped. The save-request control appears only after the GM selects Press On. Every pending request can be resent or resolved manually by the GM.
 

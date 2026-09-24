@@ -124,7 +124,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
         }
       }
     } else {
-      const request = button("requestRoleRoll", dc === 0 ? "Resolve Automatic Success" : `Request ${skill} Check`, dc === 0 ? "fa-check" : "fa-dice-d20");
+      const request = button("requestRoleRoll", dc === 0 ? "Resolve Automatic Success" : `Request ${phase === "navigation" ? "Navigation" : "Discovery"} Check`, dc === 0 ? "fa-check" : "fa-dice-d20");
       request.disabled = !traveler;
       panel.append(request);
     }
@@ -143,7 +143,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     const panel = document.createElement("div");
     panel.className = "ml-stack journey-encounter-check";
     if (!context.journey.currentDay?.encounterCheck && !context.journey.currentDay?.pendingDayEncounterRolls?.length) {
-      const roll = button("rollEncounterChecks", "Request Party Day Encounter Rolls");
+      const roll = button("rollEncounterChecks", "Request Encounters Roll");
       roll.disabled = !game.user.isGM;
       roll.disabled ||= context.journey.currentDay?.pace === "stopped";
       panel.append(roll);

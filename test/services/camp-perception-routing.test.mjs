@@ -26,11 +26,12 @@ test("watch checks reroute after disconnect and resolve once through the seriali
       finally { game.user = prior; }
     }
   };
-  globalThis.game = { user: gm, users, modules: new Map(), settings: {
-    get: (module, key) => key === "activeJourney" ? structuredClone(stored) : undefined,
+  globalThis.game = { user: gm, users, modules: new Map(), messages: new Map(), settings: {
+    get: (module, key) => key === "activeJourney" ? structuredClone(stored) : key === "skipDiceAnimation" ? true : undefined,
     set: async (module, key, value) => { if (key === "activeJourney") stored = structuredClone(value); }
   } };
-  globalThis.MorelordCore = { socket: { createChannel: () => channel } };
+  globalThis.MorelordCore = {rolls:{skill:async()=>({roll:{total:12}})},chatRequests:{register:(type,handler,options)=>handlers.set(type,{handler,options}),create:async card=>sent.push(card)}, socket: { runSerialized: async (_key, callback) => callback(), createChannel: () => channel } };
+  globalThis.ChatMessage = {getSpeaker:({actor})=>({actor:actor.id})};
   globalThis.fromUuid = async () => actor;
   service.start();
   await service.request({ watchIndex: 1, actorUuid: actor.uuid });
@@ -41,7 +42,8 @@ test("watch checks reroute after disconnect and resolve once through the seriali
   await service.resend(request.id);
   assert.equal(stored.currentDay.pendingCampPerceptionRolls[0].userId, gm.id);
   assert.equal(handlers.get("campPerception.result").options.serialize, "morelord-journeys:journey-state");
-  await dialogs.at(-1).buttons[0].callback();
+  await handlers.get("journeys.watch").handler({requestId:request.id,journeyId:stored.id,dayNumber:stored.dayNumber},{actor,mode:"normal",senderUserId:gm.id});
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(stored.currentDay.pendingCampPerceptionRolls.length, 0);
   assert.equal(stored.currentDay.campPerceptionResults.length, 1);
   assert.equal(stored.currentDay.campPerceptionResults[0].total, 12);

@@ -28,7 +28,7 @@ globalThis.game = { user: gm, users, modules: new Map(), settings: {
   get: (_module,key) => key === "activeJourney" ? stored : key === "dayEncounterDie" ? faces : key === "skipDiceAnimation" ? skip : undefined,
   set: async (_module,key,value) => { if(key === "activeJourney") stored=structuredClone(value); }
 } };
-globalThis.MorelordCore = {socket:{createChannel:()=>channel}};
+globalThis.MorelordCore = {chatRequests:{register:(type,handler,options)=>handlers.set(type,{handler,options}),create:async card=>{const request=stored.currentDay.pendingDayEncounterRolls.find(r=>r.id===card.data.requestId);sent.push({data:{request},id:request.userId});}},socket:{createChannel:()=>channel}};
 globalThis.fromUuid = async uuid=>actors.find(actor=>actor.uuid===uuid);
 globalThis.Roll = class {
   constructor(formula) {this.formula=formula;}
@@ -60,11 +60,7 @@ test("players trigger four Danger-selected GM-only dice; duplicates and wrong us
   assert.equal(rejected.accepted,false);
   assert.equal(rolled,0);
   for (const packet of sent) {
-    game.user=users.get(packet.id);
-    await handlers.get("dayEncounter.request").handler(packet.data,{senderUserId:"gm"});
-    const dialog=dialogs.at(-1);
-    assert.match(dialog.content,/Only the GM sees/);
-    await dialog.buttons[0].callback();
+    await handlers.get("journeys.dayEncounter").handler({requestId:packet.data.request.id},{actor:actors.find(a=>a.uuid===packet.data.request.actorUuid)});
   }
   game.user=gm;
   assert.equal(rolled,4);

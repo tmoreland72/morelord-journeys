@@ -72,3 +72,10 @@ When a compatible Morelord Core is active, its explicit reporting choices can sh
 ## Release dependency
 
 This release requires Morelord Core 0.3.10 or newer for the shared UI and service updates. Optional integrations remain optional.
+
+
+Foraging pending rows show status only; resolve checks on the grouped chat card rather than Resend/Fail/Succeed controls. A clicked chat row immediately shows centered **Completed** text without buttons, and other characters can roll while earlier dice animate. Rejected submissions restore their controls. Outcomes still wait for dice animations; pending evaluated dice are saved and recovered after reload without rerolling. Night encounters are direct GM rolls from Roll Night Encounter; only the resulting watch checks use player requests.
+
+Journey Progress separates elapsed time from route distance: Days Completed counts finished travel days, Estimated Days Remaining assumes normal pace, and Estimated Total Duration adds those two figures. Route covered is shown separately in normal-pace travel-day equivalents. Before Day 7, six days are complete; with 1⅔ days of travel remaining, the total estimate is 7⅔ days. The original route estimate remains unchanged.
+
+This release requires Morelord Core 0.3.14 or newer for shared roll requests, outcome scheduling, and consistent UI.

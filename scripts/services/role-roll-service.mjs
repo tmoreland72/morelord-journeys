@@ -1,3 +1,4 @@
+import { createJourneyChatRequest, registerJourneyChatRoll } from "./chat-roll-service.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { requestRecipientForActor } from "./client-request-routing-service.mjs";
@@ -24,6 +25,7 @@ class RoleRollService extends EventTarget {
     if (this.#started) return;
     this.#started = true;
     this.#channel = getMorelordSocketChannel();
+    registerJourneyChatRoll("role", {pendingKey:"pendingRoleRoll", phase:null, options:request => ({skill:request.skillId,disadvantage:request.disadvantage,title:request.phase === "navigation" ? "Navigation Check" : "Discovery Check"}), apply:async (journey,request,result) => { await this.#saveResult(journey,request,{...result,outcome:roleRollOutcome({phase:request.phase,total:result.total,dc:request.dc,natural:result.natural})}); } });
     this.#channel.on("roleRoll.request", data => this.#receive({ type: "roleRoll.request", ...data }));
     this.#channel.on("roleRoll.result", data => this.#receive({ type: "roleRoll.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
     this.#channel.on("roleRoll.resolved", data => this.#receive({ type: "roleRoll.resolved", ...data }));
@@ -63,8 +65,7 @@ class RoleRollService extends EventTarget {
     }
     journey.currentDay.pendingRoleRoll = request;
     await saveActiveJourney(journey);
-    if (request.targetUserIds.includes(game.user.id)) await this.#openClientRoll(request);
-    else await this.#channel.executeAsUser("roleRoll.request", { request }, request.targetUserIds[0], { context: { journeyId: request.journeyId, requestId: request.id } });
+    await this.#openClientRoll(request);
     this.#updated();
     return request;
   }
@@ -104,8 +105,7 @@ class RoleRollService extends EventTarget {
     request.resentAt = Date.now();
     request.resendCount = Number(request.resendCount ?? 0) + 1;
     await saveActiveJourney(journey);
-    if (request.targetUserIds.includes(game.user.id)) await this.#openClientRoll(request, { replace: true });
-    else await this.#channel.executeAsUser("roleRoll.request", { request }, request.targetUserIds[0], { context: { journeyId: request.journeyId, requestId: request.id } });
+    await this.#openClientRoll(request);
     this.#updated();
   }
 
@@ -135,55 +135,8 @@ class RoleRollService extends EventTarget {
     }
   }
 
-  async #openClientRoll(request, { replace = false } = {}) {
-    if (this.#dialogs.has(request.id) && !replace) return;
-    if (replace) await this.#dialogs.get(request.id)?.close();
-    const actor = await fromUuid(request.actorUuid);
-    if (!actor) return;
-    ui.notifications.info(`${request.actorName} has a pending ${request.role} check.`);
-    const content = document.createElement("div");
-    const text = document.createElement("p");
-    text.innerHTML = `${actorIdentity(request)} must make a ${request.skillId === "sur" ? "Survival" : "Perception"} check against DC ${request.dc}.${request.disadvantage ? " Extreme weather imposes disadvantage." : ""}`;
-    content.append(text);
-    const dialog = new foundry.applications.api.DialogV2({
-      classes: ["ml-window", "ml-journeys-dialog"],
-      window: { title: `Morelord Journeys — ${request.role === "navigator" ? "Navigator" : "Observer"}` },
-      content,
-      modal: false,
-      buttons: [clientRollButton(async () => {
-          const native = await actor.rollSkill(
-            { skill: request.skillId, target: request.dc, disadvantage: request.disadvantage },
-            { configure: true, title: `${request.actorName} — DC ${request.dc}` },
-            { create: true, data: { flavor: `Morelord Journeys ${request.role} check — DC ${request.dc}` } }
-          );
-          if (!native) return null;
-          const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
-          const total = Number(roll?.total ?? native?.total ?? Number.NaN);
-          if (!Number.isFinite(total)) throw new Error("The role check did not return a numeric total.");
-          const natural = naturalD20(roll);
-          const result = {
-              automatic: false,
-              total,
-              natural,
-              outcome: roleRollOutcome({ phase: request.phase, total, dc: request.dc, natural }),
-              resolvedBy: game.user.id
-          };
-          if (game.user.isGM) {
-            const current = await getActiveJourney();
-            const pending = current?.currentDay?.pendingRoleRoll;
-            if (pending?.id === request.id) await this.#saveResult(current, pending, result);
-          } else {
-            const gm = activeGM();
-            if (!gm) throw new Error("No active GM is available to receive the Navigation result.");
-            const acknowledgement = await this.#channel.executeAsUser("roleRoll.result", { requestId: request.id, result }, gm.id, { context: { journeyId: request.journeyId, requestId: request.id } });
-            if (acknowledgement?.accepted === false) throw new Error(acknowledgement.reason || "The GM did not accept the Navigation result.");
-            this.#dialogs.delete(request.id);
-          }
-          return total;
-        })]
-    });
-    this.#dialogs.set(request.id, dialog);
-    await dialog.render({ force: true });
+  async #openClientRoll(request) {
+    return createJourneyChatRequest("role",request,request.phase === "navigation" ? "Navigation Check" : "Discovery Check");
   }
 
   async #saveResult(journey, request, result) {

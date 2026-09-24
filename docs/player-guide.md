@@ -11,7 +11,7 @@ order: 20
 
 # Morelord Journeys: Player Guide
 
-Morelord Journeys gives players direct responsibility for the checks their characters make during travel. When the GM requests a check, a dialog opens automatically on the client of the player who owns the assigned character.
+Morelord Journeys gives players direct responsibility for the checks their characters make during travel. When the GM requests checks, a persistent public chat card lists the participating characters together. Each player can use the controls for their assigned character; the GM can roll for any character, including after a player disconnects.
 
 ## Before departure
 
@@ -26,9 +26,9 @@ You may place `Water (Pint)` inside a waterskin. Journeys counts the contained w
 
 ## Player roll requests
 
-Keep the Foundry world open during the expedition. A request dialog identifies the character, skill, purpose, and DC when applicable.
+Keep the Foundry world open during the expedition. One grouped request card identifies the characters, purpose, and each applicable DC. Day encounter, foraging, Press On, sleep deprivation, and watch checks use this grouped layout. Single-character navigation and discovery checks use the same controls.
 
-Select the roll button and complete the normal D&D 5e configuration dialog. The result is posted through D&D 5e and returned to the GM's Journeys interface automatically.
+Choose DIS, Roll, or ADV on your character’s row (encounter dice use a single Roll button). Your controls immediately become centered **Completed** text, and other characters can roll while your dice animate. If a request is rejected or cancelled, your controls return for retry. The result returns to Journeys after the dice finish; a reload recovers saved dice without rerolling. Resending a pending request reuses its card. Request cards are public; encounter outcomes remain GM-only.
 
 ## Discovery checks
 
@@ -48,7 +48,7 @@ Each participating character receives one daytime encounter die selected by Dang
 
 ## Camp watches
 
-Journeys rolls once per watch, or once per hour if the GM enables hourly night checks. After cancellation, each affected watch receives a Perception request with the surviving encounter times. One Perception result covers that watch.
+The GM uses Roll Night Encounter directly in Journeys; no player request is created for the night encounter dice. Journeys rolls once per watch, or once per hour if the GM enables hourly night checks. After cancellation, each affected watch receives a Perception request with the surviving encounter times. One Perception result covers that watch.
 
 Roll Perception to determine whether your character notices a surprise encounter or finds a boon. The total returns to the GM and appears beside that watch.
 

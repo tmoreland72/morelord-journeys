@@ -295,7 +295,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const roll = document.createElement("button");
     roll.type = "button";
     roll.dataset.action = "rollCampSleep";
-    roll.textContent = "Resolve Party Rest";
+    roll.textContent = "Request Sleep Deprivation Roll";
     section.append(roll);
     anchor.before(section);
     recalculate();
@@ -331,7 +331,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       if (sleepWasRequested) section.querySelectorAll(".journey-camp-sleep-row input, .journey-camp-sleep-row select").forEach(input => { input.disabled = true; });
       roll.hidden = sleepWasRequested;
       roll.disabled = sleepWasRequested;
-      roll.textContent = pendingSleep.length > 0 ? "Rest Resolution Pending" : "Resolve Party Rest";
+      roll.textContent = pendingSleep.length > 0 ? "Rest Resolution Pending" : "Request Sleep Deprivation Roll";
       if (pendingSleep.length) {
         const pending = document.createElement("div");
         pending.className = "ml-stack journey-sleep-result-list";
@@ -416,19 +416,6 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       if (result) status.dataset.tone = result.succeeded ? "success" : "danger";
       status.textContent = request ? "Pending" : result ? `${result.succeeded ? "Success" : "Failure"}${result.automaticReason === "zeroDC" ? " · No roll needed" : result.automatic ? " · GM" : ` · ${result.total}`}` : context.route.resourcesDC === 0 ? "Automatic success ready" : "Not requested";
       row.append(name, status);
-      if (request) {
-        const actions = document.createElement("div");
-        actions.className = "ml-actions journey-forager-actions";
-        for (const [action, label] of [["resendForagingRoll", "Resend"], ["autoForagingFailure", "Fail"], ["autoForagingSuccess", "Succeed"]]) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.dataset.action = action;
-          button.dataset.requestId = request.id;
-          button.textContent = label;
-          actions.append(button);
-        }
-        row.append(actions);
-      }
       list.append(row);
     }
     panel.append(list);
@@ -446,7 +433,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       const request = document.createElement("button");
       request.type = "button";
       request.dataset.action = "requestForagingRolls";
-      request.innerHTML = context.route.resourcesDC === 0 ? '<i class="fa-solid fa-check"></i> Resolve Automatic Foraging' : '<i class="fa-solid fa-paper-plane"></i> Request Party Foraging Rolls';
+      request.innerHTML = context.route.resourcesDC === 0 ? '<i class="fa-solid fa-check"></i> Resolve Automatic Foraging' : '<i class="fa-solid fa-paper-plane"></i> Request Foraging Rolls';
       panel.append(request);
     }
     if (saved) {

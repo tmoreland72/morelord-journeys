@@ -41,11 +41,12 @@
     <section class="ml-surface ml-stack journey-progress-dashboard" aria-label="Journey progress">
       <div class="ml-section-heading"><h2>Journey Progress</h2></div>
       <div class="ml-grid" data-columns="4">
-        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Days Traveled</span><strong>{{progress.daysCurrent}}</strong></div>
-        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Days Remaining</span><strong>{{progress.daysRemaining}}</strong></div>
-        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Original Duration</span><strong>{{progress.originalDaysTotal}} days</strong></div>
-        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Current Duration</span><strong>{{progress.daysTotal}} days</strong></div>
+        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Days Completed</span><strong>{{progress.daysCurrent}}</strong></div>
+        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Estimated Days Remaining</span><strong>{{progress.daysRemaining}}</strong></div>
+        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Original Estimate</span><strong>{{progress.originalDaysTotal}} days</strong></div>
+        <div class="ml-card ml-stack" data-gap="1"><span class="ml-eyebrow">Estimated Total Duration</span><strong>{{progress.daysTotal}} days</strong></div>
       </div>
+      <p>Route covered: {{progress.routeCovered}} normal-pace travel days. Remaining travel assumes normal pace; delays and pace changes affect the estimate. The current day is counted when completed.</p>
       {{#if canAdjustRemaining}}
       <details class="ml-details"><summary>Adjust Remaining Travel</summary><div class="ml-details__body ml-stack">
         <p>Change the remaining travel before the next day begins. Original duration and days already traveled stay the same. Setting zero marks the destination reached.</p>

@@ -1,3 +1,4 @@
+import { createJourneyChatRequest, registerJourneyChatRoll } from "./chat-roll-service.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { SupplyManifestService } from "./supply-manifest-service.mjs";
@@ -18,6 +19,7 @@ class ForagingRollService extends EventTarget {
     if (this.#started) return;
     this.#started = true;
     this.#channel = getMorelordSocketChannel();
+    registerJourneyChatRoll("foraging", {pendingKey:"pendingForagingRolls", phase:"foraging", options:request => ({skill:"sur",advantage:request.rollMode === "advantage",disadvantage:request.rollMode === "disadvantage",title:"Foraging Check"}), apply:async (journey,request,result) => { await this.#record(journey,request,result); } });
     this.#channel.on("foragingRoll.request", data => this.#receive({ type: "foragingRoll.request", ...data }));
     this.#channel.on("foragingRoll.result", data => this.#receive({ type: "foragingRoll.result", ...data }), { serialize: JOURNEY_STATE_SERIAL_KEY });
     this.#channel.on("foragingRoll.resolved", data => this.#receive({ type: "foragingRoll.resolved", ...data }));
@@ -43,13 +45,13 @@ class ForagingRollService extends EventTarget {
       });
     }
     if (!requests.length) throw new Error("No active player owns a traveler in this journey.");
+    for (const request of requests) request.chatGroupId = requests[0].id;
     journey.currentDay.pendingForagingRolls = requests;
     journey.currentDay.foragingResults = [];
     await saveActiveJourney(journey);
     for (const request of requests) {
       if (request.dc === 0) await this.#record(journey, request, { total: null, succeeded: true, automatic: true, automaticReason: "zeroDC", resolvedBy: game.user.id });
-      else if (request.userId === game.user.id) await this.#open(request);
-      else await this.#channel.executeAsUser("foragingRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+      else await this.#open(request);
     }
     this.#updated();
   }
@@ -75,8 +77,7 @@ class ForagingRollService extends EventTarget {
     request.resentAt = Date.now();
     request.resendCount = Number(request.resendCount ?? 0) + 1;
     await saveActiveJourney(journey);
-    if (request.userId === game.user.id) await this.#open(request, { replace: true });
-    else await this.#channel.executeAsUser("foragingRoll.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    await this.#open(request);
     this.#updated();
   }
 
@@ -96,39 +97,8 @@ class ForagingRollService extends EventTarget {
     }
   }
 
-  async #open(request, { replace = false } = {}) {
-    if (this.#dialogs.has(request.id) && !replace) return;
-    if (replace) await this.#dialogs.get(request.id)?.close();
-    const actor = await fromUuid(request.actorUuid);
-    if (!actor) return;
-    ui.notifications.info(`${request.actorName} has a pending foraging check.`);
-    const dialog = new foundry.applications.api.DialogV2({
-      classes: ["ml-window", "ml-journeys-dialog"],
-      window: { title: "Morelord Journeys — Forage", icon: "fa-solid fa-basket-shopping" },
-      content: `<p>${actorIdentity(request)} must make a Survival check against Resources DC ${request.dc}. Pace requires ${request.rollMode}.</p>`,
-      modal: false,
-      buttons: [clientRollButton(async () => {
-        const native = await actor.rollSkill(
-          { skill: "sur", target: request.dc, advantage: request.rollMode === "advantage", disadvantage: request.rollMode === "disadvantage" },
-          { configure: true, title: `${request.actorName} — Foraging DC ${request.dc}` },
-          { create: true, data: { flavor: `Morelord Journeys foraging check — DC ${request.dc}` } }
-        );
-        if (!native) return;
-        const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
-        const total = Number(roll?.total ?? native?.total);
-        const natural = naturalD20(roll);
-        const succeeded = total >= request.dc;
-        const result = { total, natural, succeeded, foodFound: foragingFoodFound({ succeeded, total, natural }), automatic: false, resolvedBy: game.user.id };
-        if (game.user.isGM) {
-          const current = await getActiveJourney();
-          const pending = current?.currentDay?.pendingForagingRolls?.find(candidate => candidate.id === request.id);
-          if (pending) await this.#record(current, pending, result);
-        } else { await sendClientRollResult(this.#channel, "foragingRoll.result", request, result); this.#dialogs.delete(request.id); }
-        return total;
-      })]
-    });
-    this.#dialogs.set(request.id, dialog);
-    await dialog.render({ force: true });
+  async #open(request) {
+    return createJourneyChatRequest("foraging",request,"Foraging Check");
   }
 
   async #record(journey, request, result) {

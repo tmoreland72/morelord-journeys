@@ -6,6 +6,7 @@ import { campPerceptionRollService } from "../services/camp-perception-roll-serv
 import { JourneyV14Application as BaseJourneyApplication } from "./journey-v14-app.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
+import { JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 
 let rollingNight = false;
 
@@ -39,11 +40,11 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
         Object.assign(encounter, { watcherActorUuid: selected?.actorUuid ?? null, watcherActorName: selected?.actorName ?? "Unwatched", campAction: campWatchAction(selected, encounter.watchIndex) ?? null, unwatched: !selected });
       }
       journey.currentDay.nightEncounterCheck = { ...result, pendingSleepConfirmation: true, rolledAt: Date.now() };
+      try {
+        await displayJourneyRoll(roll, { flavor: "Morelord Journeys night checks — " + result.encounterCount + " encounter(s)" + (result.encounters.length ? ": " + result.encounters.map(nightEncounterTiming).join("; ") : ""), flags: { "morelord-journeys": { journeyRoll: { journeyId: journey.id, dayNumber: journey.dayNumber, kind: "night" } } } }, { messageMode: "gm" });
+      } catch (error) { console.error("Night chat display failed; recording the results.", error); }
       await saveActiveJourney(journey);
       await this.render({ force: true });
-      try {
-        await displayJourneyRoll(roll, { flavor: "Morelord Journeys night checks — " + result.encounterCount + " encounter(s)" + (result.encounters.length ? ": " + result.encounters.map(nightEncounterTiming).join("; ") : ""), rollMode: "gmroll" });
-      } catch (error) { console.error("Night results saved; chat display failed.", error); }
       const requested = new Set();
       for (const encounter of result.encounters) {
         if (!encounter.watcherActorUuid || requested.has(encounter.watchIndex)) continue;
@@ -51,7 +52,14 @@ export class JourneyFinalApplication extends BaseJourneyApplication {
         await campPerceptionRollService.request({ watchIndex: encounter.watchIndex, actorUuid: encounter.watcherActorUuid, action: encounter.campAction });
       }
       await this.render({ force: true });
-    } catch (error) { if (rollButton) rollButton.disabled = false; ui.notifications.error(error.message); }
+    } catch (error) { if (rollButton) rollButton.disabled = false; if(event.fromChat) throw error; ui.notifications.error(error.message); }
     finally { rollingNight = false; }
   }
 }
+
+export function registerNightEncounterRequests() { MorelordCore.chatRequests.register("journeys.night", async data => {
+  const journey=await getActiveJourney();
+  if(journey?.id!==data.journeyId || journey.dayNumber!==data.dayNumber || journey.phase!=="camp" || journey.currentDay?.nightEncounterCheck) return {accepted:false,reason:"This night encounter request is no longer pending."};
+  await JourneyFinalApplication.rollNightEncounter.call({element:document.createElement("div"),render:async()=>{}},{fromChat:true,preventDefault(){},target:document.createElement("button")});
+  return {accepted:true};
+},{serialize:JOURNEY_STATE_SERIAL_KEY}); }

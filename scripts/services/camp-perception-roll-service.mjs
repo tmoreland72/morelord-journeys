@@ -1,3 +1,4 @@
+import { createJourneyChatRequest, registerJourneyChatRoll } from "./chat-roll-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { nightEncounterTiming } from "../domain/encounter-rules.mjs";
 import { campWatchTiming } from "../domain/camp-watch-rules.mjs";
@@ -16,6 +17,7 @@ class CampPerceptionRollService extends EventTarget {
     if (this.#started) return;
     this.#started = true;
     this.#channel = getMorelordSocketChannel();
+    registerJourneyChatRoll("watch", {pendingKey:"pendingCampPerceptionRolls", phase:"camp", options:request => ({skill:"prc",disadvantage:request.disadvantage,title:`Watch Perception � ${request.timing}`}), apply:async (journey,request,result) => { return this.#receive({type:"campPerception.result",requestId:request.id,result:{...result,userId:result.resolvedBy,action:request.action,disadvantage:request.disadvantage}},{senderUserId:request.userId}); } });
     this.#channel.on("campPerception.request", (data, execution) => {
       if (game.users.get(execution.senderUserId)?.isGM) return this.#receive({ type: "campPerception.request", ...data });
     });
@@ -30,8 +32,7 @@ class CampPerceptionRollService extends EventTarget {
       request.userId = recipient.user.id;
       request.fallbackToGM = recipient.fallbackToGM;
       await saveActiveJourney(journey);
-      if (request.userId === game.user.id) await this.#open(request);
-      else await this.#channel.executeAsUser("campPerception.request", { request }, request.userId);
+      await this.#open(request);
     }, { serialize: JOURNEY_STATE_SERIAL_KEY });
     this.#channel.on("campPerception.resolved", data => this.#receive({ type: "campPerception.resolved", ...data }));
   }
@@ -57,8 +58,7 @@ class CampPerceptionRollService extends EventTarget {
     journey.currentDay.pendingCampPerceptionRolls = journey.currentDay.pendingCampPerceptionRolls.filter(entry => entry.watchIndex !== watchIndex);
     journey.currentDay.pendingCampPerceptionRolls.push(request);
     await saveActiveJourney(journey);
-    if (request.userId === game.user.id) await this.#open(request);
-    else await this.#channel.executeAsUser("campPerception.request", { request }, request.userId, { context: { journeyId: request.journeyId, requestId: request.id } });
+    await this.#open(request);
     this.#updated();
     return request;
   }
@@ -86,28 +86,7 @@ class CampPerceptionRollService extends EventTarget {
   }
 
   async #open(request) {
-    if (this.#dialogs.has(request.id)) return;
-    const actor = await fromUuid(request.actorUuid);
-    if (!actor) return;
-    const dialog = new foundry.applications.api.DialogV2({
-      classes: ["ml-window", "ml-journeys-dialog"],
-      window: { title: `Morelord Journeys — Watch ${request.watchIndex + 1}`, icon: "fa-solid fa-eye" },
-      content: `<div class="ml-app ml-app-shell ml-dialog-shell"><p><strong>Night encounter — ${foundry.utils.escapeHTML(request.timing ?? campWatchTiming(request.watchIndex))}.</strong></p><p>${actorIdentity(request)} must roll Perception for this watch. Camp action: ${foundry.utils.escapeHTML(request.action)}.${request.disadvantage ? " Roll with disadvantage because attention is divided." : " Roll normally."}</p></div>`,
-      modal: false,
-      buttons: [clientRollButton(async () => {
-        const native = await actor.rollSkill({ skill: "prc", disadvantage: request.disadvantage }, { configure: true, title: `${request.actorName} — Camp Watch Perception${request.disadvantage ? " (Disadvantage)" : ""}` }, { create: true, data: { flavor: `Morelord Journeys — ${campWatchTiming(request.watchIndex)} Perception` } });
-        if (!native) return null;
-        const roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
-        const total = Number(roll?.total ?? native?.total ?? Number.NaN);
-        if (!Number.isFinite(total)) throw new Error("The Perception check did not return a numeric total.");
-        const result = { total, userId: game.user.id, action: request.action, disadvantage: request.disadvantage };
-        await sendClientRollResult(this.#channel, "campPerception.result", request, result);
-        this.#dialogs.delete(request.id);
-        return total;
-      })]
-    });
-    this.#dialogs.set(request.id, dialog);
-    await dialog.render({ force: true });
+    return createJourneyChatRequest("watch",request,`Watch Perception � ${request.timing}`);
   }
 
   #updated() { this.dispatchEvent(new Event("updated")); }

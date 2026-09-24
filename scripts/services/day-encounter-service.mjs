@@ -1,3 +1,4 @@
+import { createJourneyChatRequest } from "./chat-roll-service.mjs";
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 
 import { resolveDayEncounterChecks, dangerDie, resolveDangerDice } from "../domain/encounter-rules.mjs";
@@ -14,6 +15,12 @@ class DayEncounterService extends EventTarget {
   start() {
     if (this.#channel) return;
     this.#channel = getMorelordSocketChannel();
+    MorelordCore.chatRequests.register("journeys.dayEncounter",async (data,context) => {
+      const journey=await getActiveJourney();
+      const request=journey?.currentDay?.pendingDayEncounterRolls?.find(r=>r.id===data.requestId);
+      if (!request || request.actorUuid!==context.actor?.uuid) return {accepted:false,reason:"This encounter request is no longer pending."};
+      return this.#roll(request.id,{senderUserId:request.userId});
+    },{serialize:JOURNEY_STATE_SERIAL_KEY});
     globalThis.Hooks?.on("updateSetting", setting => {
       if (game.user.isGM && setting.key === "morelord-journeys.activeJourney") this.dispatchEvent(new Event("updated"));
     });
@@ -49,6 +56,7 @@ class DayEncounterService extends EventTarget {
       requests.push({ id: crypto.randomUUID(), journeyId: journey.id, dayNumber: journey.dayNumber,
         actorUuid: traveler.actorUuid, actorName: traveler.name, userId: recipient.user.id, checks, dieFaces, danger, rulesVersion: 2 });
     }
+    for (const request of requests) request.chatGroupId = requests[0].id;
     journey.currentDay.pendingDayEncounterRolls = requests;
     journey.currentDay.dayEncounterResults = [];
     await saveActiveJourney(journey);
@@ -58,8 +66,7 @@ class DayEncounterService extends EventTarget {
   }
 
   async #send(request) {
-    if (request.userId === game.user.id) return this.#open(request);
-    return this.#channel.executeAsUser("dayEncounter.request", { request }, request.userId);
+    return createJourneyChatRequest("dayEncounter",request,`Day Encounters · ${request.checks}d${request.dieFaces}`,{modes:false});
   }
 
   async resend(requestId) {
@@ -123,11 +130,11 @@ class DayEncounterService extends EventTarget {
       const pacePenalty = journey.currentDay.pace === "fast" ? -5 : 0;
       journey.currentDay.encounterCheck = { ...outcome, highestPassivePerception: (passives.length ? Math.max(...passives) : 0) + pacePenalty, pacePenalty, rolledAt: Date.now() };
     }
-    await saveActiveJourney(journey);
-    this.dispatchEvent(new Event("updated"));
     try {
       await displayJourneyRoll(roll, { flavor: `Morelord Journeys daytime checks — ${foundry.utils.escapeHTML(request.actorName)}` }, { messageMode: "blind" });
-    } catch (error) { console.error("Morelord Journeys | Encounter recorded, but its private roll card could not be displayed.", error); }
+    } catch (error) { console.error("Morelord Journeys | Encounter chat display failed; recording the result.", error); }
+    await saveActiveJourney(journey);
+    this.dispatchEvent(new Event("updated"));
     return { accepted: true };
   }
 }

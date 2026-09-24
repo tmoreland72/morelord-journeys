@@ -5,7 +5,7 @@ import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.
 import { TRAVEL_PHASES } from "../domain/constants.mjs";
 import { getDCConfiguration, readJourneySteps, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
 import { addProgressModifier, adjustRemainingTravel, beginTravelDay, completeTravelDay, readyJourney, recordPhase } from "../domain/engine.mjs";
-import { createJourney } from "../domain/journey.mjs";
+import { createJourney, journeyDuration } from "../domain/journey.mjs";
 import { createRoute } from "../domain/route.mjs";
 import { clearActiveJourney, getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
 import { forcedMarchRollService } from "../services/forced-march-roll-service.mjs";
@@ -106,6 +106,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     if (!journey) return { ...context, hasJourney: false };
     await checkpointJourney(journey);
     const length = journey.progressSteps + journey.remainingSteps;
+    const duration = journeyDuration(journey);
     const phase = journey.phase;
     const phaseIndex = phase ? TRAVEL_PHASES.indexOf(phase) : -1;
     const canBeginDay = journey.status === "ready" || (journey.status === "active" && !journey.currentDay);
@@ -126,8 +127,9 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         current: journey.progressSteps,
         total: length,
         percent: length ? Math.min(100, Math.round((journey.progressSteps / length) * 100)) : 0,
-        daysCurrent: formatSteps(journey.progressSteps),
-        daysTotal: formatSteps(length),
+        daysCurrent: duration.completedDays,
+        routeCovered: formatSteps(journey.progressSteps),
+        daysTotal: formatSteps(duration.estimatedTotalSteps),
         daysRemaining: formatSteps(journey.remainingSteps),
         originalDaysTotal: formatSteps(journey.routeSnapshot.lengthSteps),
         extended: journey.remainingSteps > Math.max(0, journey.routeSnapshot.lengthSteps - journey.progressSteps)

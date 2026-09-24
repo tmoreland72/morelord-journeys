@@ -2,6 +2,11 @@ import { JOURNEY_STATUS, SCHEMA_VERSION, TRAVEL_PHASES } from "./constants.mjs";
 import { validateRoute } from "./route.mjs";
 import { JourneyValidationError, requireString } from "./validation.mjs";
 
+export function journeyDuration(journey) {
+  const completedDays = Math.max(0, journey.dayNumber - (journey.currentDay ? 1 : 0));
+  return { completedDays, estimatedTotalSteps: completedDays * 3 + journey.remainingSteps };
+}
+
 export function createJourney({ id, name, route, travelers = [], steps = {}, rulesProfileId = "core", activityHoursPerDay = 2, currentLocationId = null, temporaryCapabilities = [] }) {
   const issues = [];
   name ||= `${route?.origin?.name ?? ""} → ${route?.destination?.name ?? ""}`;
