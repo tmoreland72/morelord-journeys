@@ -4,7 +4,7 @@ description: Detailed rules for movement, weather, encounters, discoveries, supp
 slug: morelord-journeys/gm-travel-rules
 product: morelord-journeys
 audience: game-master
-version: 0.3.6
+version: 0.3.8
 foundry: 14
 order: 15
 ---

@@ -3,7 +3,7 @@ title: Morelord Journeys Documentation
 description: Plan and run structured D&D 5e travel days with supplies, player checks, encounters, foraging, and camp.
 slug: morelord-journeys
 product: morelord-journeys
-version: 0.3.7
+version: 0.3.8
 foundry: 14
 order: 0
 ---
@@ -23,3 +23,5 @@ Journey distance uses exact thirds of a normal travel day. Routes can begin with
 These guides describe Morelord Journeys 0.3.4 for Foundry Virtual Tabletop v14 and D&D 5e 5.3 or later.
 
 Developer regression: in Dev1, import `plannerFooterCheck` from `scripts/testing/planner-footer.mjs` and pass it to Core's `runChecks([plannerFooterCheck])` or `runInGameTests({ checks: [plannerFooterCheck] })`. It renders the planner with harmless fixture actions, checks footer scrolling and click routing at 720px/400px, and verifies new and previously posted watch labels without changing world data.
+
+Version 0.3.8 adds Long Rest chat actions after Sleep & Shelter, keeps planner actions visible, and corrects watch request labels. Requires Morelord Core 0.3.15 or later.

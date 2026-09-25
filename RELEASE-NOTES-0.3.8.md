@@ -1,10 +1,12 @@
 # Morelord Journeys 0.3.8
 
-## Added
+## What Changed
+
+### Added
 
 - Send Long Rest Buttons after Sleep & Shelter resolves, using Core's shared chat requests for eligible travelers with GM fallback and without repeating Exhaustion recovery.
 
-## Fixed
+### Fixed
 
 - Planner Save as Default and Create Journey actions remain visible in the shared footer while setup content scrolls.
 - Watch Perception labels use a readable dash, including previously posted requests when rendered.
