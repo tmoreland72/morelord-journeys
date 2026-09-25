@@ -1,3 +1,4 @@
+import { startLongRestRequests } from "./services/long-rest-service.mjs";
 import { JourneyForagingApplication as JourneyApplication } from "./apps/journey-foraging-app.mjs";
 import { registerNightEncounterRequests } from "./apps/journey-final-app.mjs";
 import { registerJourneySettings } from "./core/journey-settings.mjs";
@@ -37,6 +38,7 @@ Hooks.once("ready", async () => {
   forcedMarchRollService.start();
   peacefulRestService.start();
   sleepRollService.start();
+  startLongRestRequests();
   dayEncounterService.start();
   supplyConsequenceService.start();
   supplySyncService.start();

@@ -8,6 +8,17 @@ import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/more
 import { clientRollButton } from "../ui/client-roll-dialog.mjs";
 import { sendClientRollResult } from "./client-roll-result-service.mjs";
 
+export const watchPerceptionTitle = timing => `Watch Perception - ${timing}`;
+
+// Previously posted cards retain their original title in the ChatMessage.
+export function repairWatchRequestLabel(message, html) {
+  if (message.getFlag("morelord-core", "rollRequest")?.type !== "journeys.watch") return;
+  const text = document.createTreeWalker(html, NodeFilter.SHOW_TEXT);
+  while (text.nextNode()) {
+    text.currentNode.textContent = text.currentNode.textContent.replaceAll("Watch Perception \uFFFD ", "Watch Perception - ");
+  }
+}
+
 class CampPerceptionRollService extends EventTarget {
   #started = false;
   #dialogs = new Map();
@@ -16,8 +27,9 @@ class CampPerceptionRollService extends EventTarget {
   start() {
     if (this.#started) return;
     this.#started = true;
+    Hooks.on("renderChatMessageHTML", repairWatchRequestLabel);
     this.#channel = getMorelordSocketChannel();
-    registerJourneyChatRoll("watch", {pendingKey:"pendingCampPerceptionRolls", phase:"camp", options:request => ({skill:"prc",disadvantage:request.disadvantage,title:`Watch Perception · ${request.timing}`}), apply:async (journey,request,result) => { return this.#receive({type:"campPerception.result",requestId:request.id,result:{...result,userId:result.resolvedBy,action:request.action,disadvantage:request.disadvantage}},{senderUserId:request.userId}); } });
+    registerJourneyChatRoll("watch", {pendingKey:"pendingCampPerceptionRolls", phase:"camp", options:request => ({skill:"prc",disadvantage:request.disadvantage,title:watchPerceptionTitle(request.timing)}), apply:async (journey,request,result) => { return this.#receive({type:"campPerception.result",requestId:request.id,result:{...result,userId:result.resolvedBy,action:request.action,disadvantage:request.disadvantage}},{senderUserId:request.userId}); } });
     this.#channel.on("campPerception.request", (data, execution) => {
       if (game.users.get(execution.senderUserId)?.isGM) return this.#receive({ type: "campPerception.request", ...data });
     });
@@ -86,7 +98,7 @@ class CampPerceptionRollService extends EventTarget {
   }
 
   async #open(request) {
-    return createJourneyChatRequest("watch",request,`Watch Perception · ${request.timing}`);
+    return createJourneyChatRequest("watch",request,watchPerceptionTitle(request.timing));
   }
 
   #updated() { this.dispatchEvent(new Event("updated")); }

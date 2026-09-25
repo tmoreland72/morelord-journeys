@@ -1,3 +1,4 @@
+import { eligibleLongRests, sendLongRestRequests } from "../services/long-rest-service.mjs";
 import { actorIdentity, decorateActorSelect } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { updateJourneyDocument } from "../services/journey-undo-service.mjs";
 import { prepareJourneySections } from "../ui/journey-sections.mjs";
@@ -80,6 +81,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     autoSupplySaveFailure: this.autoSupplySaveFailure,
     saveCampSleepPlan: this.saveCampSleepPlan,
     rollCampSleep: this.rollCampSleep,
+    sendLongRests: this.sendLongRests,
     resendSleepRoll: this.resendSleepRoll,
     autoSleepSuccess: this.autoSleepSuccess,
     autoSleepFailure: this.autoSleepFailure,
@@ -243,7 +245,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     cook.className = "ml-grid ml-card journey-cook-resolution";
     const travelers = Array.from(panel.querySelectorAll(".journey-watch-row")).map(row => ({ value: row.dataset.actorUuid, label: row.querySelector("strong")?.textContent ?? "" }));
     const options = `<option value="">No recipient</option>${travelers.map(option => `<option value="${option.value}">${foundry.utils.escapeHTML(option.label)}</option>`).join("")}`;
-    cook.innerHTML = `<p>After verbally resolving a successful Cook action, select up to two recipients.</p><label><span>First recipient</span><select name="cookRecipient1">${options}</select></label><label><span>Second recipient</span><select name="cookRecipient2">${options}</select></label><button type="button" data-action="resolveCookSuccess">Record Successful Cooking (-1 Exhaustion each)</button>`;
+    cook.innerHTML = `<p class="notes">After verbally resolving a successful Cook action, select up to two recipients.</p><label><span>First recipient</span><select name="cookRecipient1">${options}</select></label><label><span>Second recipient</span><select name="cookRecipient2">${options}</select></label><button type="button" data-action="resolveCookSuccess">Record Successful Cooking (-1 Exhaustion each)</button>`;
     cook.querySelectorAll("select").forEach(decorateActorSelect);
     const syncCook = () => { cook.hidden = !Array.from(panel.querySelectorAll("select[name^='watchAction']")).some(select => select.value === "Cook"); };
     panel.querySelectorAll("select[name^='watchAction']").forEach(select => select.addEventListener("change", syncCook));
@@ -262,10 +264,10 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const night = context.journey.currentDay?.nightEncounterCheck;
     const nightLabel = { peacefulRest: "Peaceful Rest", uneventful: "Uneventful Night", minor: "Minor Encounter", nightAttack: "Night Attack" }[night?.outcome] ?? "Night result unavailable";
     section.dataset.cold = String(Boolean(context.journey.currentDay?.phases?.weather?.cold));
-    section.innerHTML = `<div class="journey-sleep-intro"><p>2024 Long Rest rules use time and interruptions; no sleep check is required. Confirm starting eligibility and enter any extra rest after the four watches. Equipment remains recorded for camp planning.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="ml-audit-card journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="ml-stack journey-camp-sleep-list"></div>`;
+    section.innerHTML = `<div class="journey-sleep-intro"><p class="notes">2024 Long Rest rules use time and interruptions; no sleep check is required. Confirm starting eligibility and enter any extra rest after the four watches. Equipment remains recorded for camp planning.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="ml-audit-card journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="ml-stack journey-camp-sleep-list"></div>`;
     section.querySelector("[data-sleep-help]").addEventListener("click", event => {
       event.preventDefault();
-      void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><h3>2024 Long Rests</h3><ul><li>A normal rest needs 8 hours, including at least 6 hours asleep and no more than 2 hours of light activity.</li><li>Trance can finish after 4 hours of meditation. Later encounters do not cancel completed rests.</li><li>Initiative, damage, a leveled spell, or an hour of exertion interrupts a rest. Each interruption adds 1 recovery hour, plus time spent interrupted.</li><li>Night encounter timing uses the selected watch and start offset. Extra rest after Watch 4 is sleeping or meditation time.</li><li>Confirm at least 1 HP at the start and 16 hours since the last Long Rest.</li><li>No sleep check or shelter DC is required. The existing optional Xanathar deprivation setting and nutrition rules remain separate.</li><li>Journeys records eligibility and adjusts Exhaustion. Apply HP, Hit Dice, and feature recovery using the character sheet.</li></ul></div>", ok: { label: "Close" } });
+      void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><h3>2024 Long Rests</h3><ul><li>A normal rest needs 8 hours, including at least 6 hours asleep and no more than 2 hours of light activity.</li><li>Trance can finish after 4 hours of meditation. Later encounters do not cancel completed rests.</li><li>Initiative, damage, a leveled spell, or an hour of exertion interrupts a rest. Each interruption adds 1 recovery hour, plus time spent interrupted.</li><li>Night encounter timing uses the selected watch and start offset. Extra rest after Watch 4 is sleeping or meditation time.</li><li>Confirm at least 1 HP at the start and 16 hours since the last Long Rest.</li><li>No sleep check or shelter DC is required. The existing optional Xanathar deprivation setting and nutrition rules remain separate.</li><li>Journeys records eligibility and adjusts Exhaustion. After all rolls resolve, use Send Long Rest Buttons to let eligible characters apply HP, Hit Dice, and feature recovery without a second Exhaustion reduction.</li></ul></div>", ok: { label: "Close" } });
     });
     const list = section.querySelector(".journey-camp-sleep-list");
       for (const traveler of context.journey.travelers) {
@@ -364,6 +366,12 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
           { label: "Exhaustion change", value: result.exhaustionChange > 0 ? `+${result.exhaustionChange}` : result.exhaustionChange }
         ] })) }));
         section.append(summary);
+      }
+      if (game.user.isGM && eligibleLongRests(active).length) {
+        const actions = document.createElement("div");
+        actions.className = "ml-actions";
+        actions.innerHTML = '<button type="button" data-action="sendLongRests">Send Long Rest Buttons</button>';
+        section.append(actions);
       }
       const eligible = active.currentDay?.peacefulRestEligible ?? [];
       if (eligible.length) {
@@ -530,12 +538,13 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     const heading = document.createElement("h4");
     heading.textContent = "Allocate Daily Supplies";
     const explanation = document.createElement("p");
+    explanation.className = "notes";
     explanation.textContent = "Food and water are pooled across traveler and Group inventories. Continuing applies these supplies automatically.";
     section.append(heading, explanation);
     if (availableFood > 0 && availableFood < foodNeeded.length) {
       const chooser = document.createElement("fieldset");
       chooser.className = "ml-field-group journey-food-recipient-choice";
-      chooser.innerHTML = `<legend>Who Receives Food?</legend><p>${availableFood} ration(s) are available for ${foodNeeded.length} travelers. Select up to ${availableFood}.</p>${foodNeeded.map(actorUuid => { const traveler = context.journey.travelers.find(item => item.actorUuid === actorUuid); return `<label class="ml-toggle"><input type="checkbox" data-food-recipient="${actorUuid}" ${selectedFoodRecipients.includes(actorUuid) ? "checked" : ""}> ${actorIdentity({ ...traveler, actorUuid })}</label>`; }).join("")}`;
+      chooser.innerHTML = `<legend>Who Receives Food?</legend><p class="notes">${availableFood} ration(s) are available for ${foodNeeded.length} travelers. Select up to ${availableFood}.</p>${foodNeeded.map(actorUuid => { const traveler = context.journey.travelers.find(item => item.actorUuid === actorUuid); return `<label class="ml-toggle"><input type="checkbox" data-food-recipient="${actorUuid}" ${selectedFoodRecipients.includes(actorUuid) ? "checked" : ""}> ${actorIdentity({ ...traveler, actorUuid })}</label>`; }).join("")}`;
       chooser.addEventListener("change", async event => {
         if (!event.target.matches("[data-food-recipient]")) return;
         const selected = Array.from(chooser.querySelectorAll("[data-food-recipient]:checked"), input => input.dataset.foodRecipient);
@@ -732,6 +741,15 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
       ui.notifications.info("Camp sleep plan saved.");
       await this.render({ force: true });
     } catch (error) { ui.notifications.error(error.message); }
+  }
+
+  static async sendLongRests(event, target) {
+    if (target) target.disabled = true;
+    try {
+      await sendLongRestRequests();
+      ui.notifications.info("Long Rest buttons sent to chat for eligible characters.");
+    } catch (error) { ui.notifications.error(error.message); }
+    finally { if (target) target.disabled = false; }
   }
 
   static async rollCampSleep(event) {

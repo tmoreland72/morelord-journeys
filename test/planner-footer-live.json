@@ -1,0 +1,12 @@
+{
+  "world": "dev1",
+  "foundry": "14.368",
+  "results": [
+    {
+      "id": "journeys.planner-footer-and-watch-label",
+      "status": "pass",
+      "durationMs": 56461
+    }
+  ],
+  "legacyWatchLabel": "pass"
+}

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createJourney } from "../../scripts/domain/journey.mjs";
 import { createRoute } from "../../scripts/domain/route.mjs";
 const handlers = new Map(), dialogs = [], sent = [];
+globalThis.Hooks = { on: () => {} };
 globalThis.foundry = { utils: { escapeHTML: value => value }, applications: { api: {
   ApplicationV2: class {}, HandlebarsApplicationMixin: cls => cls,
   DialogV2: class { constructor(options) { dialogs.push(options); } async render() {} async close() {} }
@@ -38,6 +39,8 @@ test("watch checks reroute after disconnect and resolve once through the seriali
   assert.equal(sent.length, 1);
   const request = stored.currentDay.pendingCampPerceptionRolls[0];
   assert.match(request.timing, /2–3 hours.*3–4 hours/);
+  assert.equal(sent[0].title, `Watch Perception - ${request.timing}`);
+  assert.ok(!sent[0].title.includes("\uFFFD"));
   player.active = false;
   await service.resend(request.id);
   assert.equal(stored.currentDay.pendingCampPerceptionRolls[0].userId, gm.id);

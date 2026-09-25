@@ -21,3 +21,5 @@ Journey distance uses exact thirds of a normal travel day. Routes can begin with
 - [Player Guide](player-guide.md) — responding to roll requests, managing supplies, keeping watch, and understanding expedition results.
 
 These guides describe Morelord Journeys 0.3.4 for Foundry Virtual Tabletop v14 and D&D 5e 5.3 or later.
+
+Developer regression: in Dev1, import `plannerFooterCheck` from `scripts/testing/planner-footer.mjs` and pass it to Core's `runChecks([plannerFooterCheck])` or `runInGameTests({ checks: [plannerFooterCheck] })`. It renders the planner with harmless fixture actions, checks footer scrolling and click routing at 720px/400px, and verifies new and previously posted watch labels without changing world data.

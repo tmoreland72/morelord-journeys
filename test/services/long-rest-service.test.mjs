@@ -1,0 +1,36 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createJourney } from "../../scripts/domain/journey.mjs";
+import { createRoute } from "../../scripts/domain/route.mjs";
+import { eligibleLongRests, sendLongRestRequests, startLongRestRequests } from "../../scripts/services/long-rest-service.mjs";
+
+test("long rests target only completed eligible travelers and reject stale requests", async () => {
+  const journey = createJourney({ id: "rest", route: createRoute({ id: "route", origin: { name: "A" }, destination: { name: "B" }, lengthSteps: 6 }) });
+  journey.travelers = [{ actorUuid: "Actor.a", name: "A" }, { actorUuid: "Actor.b", name: "B" }];
+  journey.currentDay = { campSleepResults: [{ actorUuid: "Actor.a", requestId: "a", longRestCompleted: true }] };
+  assert.deepEqual(eligibleLongRests(journey), []);
+  journey.currentDay.campSleepResults.push({ actorUuid: "Actor.b", requestId: "b", longRestCompleted: false });
+  journey.currentDay.pendingSleepRolls = [{}];
+  assert.deepEqual(eligibleLongRests(journey), []);
+  journey.currentDay.pendingSleepRolls = [];
+  const cards = [];
+  let resolve, config;
+  globalThis.game = { user: { isGM: true }, settings: { get: () => journey } };
+  globalThis.MorelordCore = { chatRequests: { register: (_type, handler) => { resolve = handler; }, create: async card => cards.push(card) } };
+  startLongRestRequests();
+  await sendLongRestRequests();
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].actorUuid, "Actor.a");
+  assert.equal(cards[0].actionLabel, "Long Rest");
+  await sendLongRestRequests();
+  assert.equal(cards[1].key, cards[0].key);
+  const actor = { uuid: "Actor.a", longRest: async options => { config = options; return {}; } };
+  assert.equal((await resolve(cards[0].data, { actor })).accepted, true);
+  assert.deepEqual(config, { dialog: false, exhaustionDelta: 0, advanceTime: false, advanceBastionTurn: false });
+  assert.equal((await resolve(cards[0].data, { actor: { uuid: "Actor.b" } })).accepted, false);
+  assert.equal((await resolve(cards[0].data, { actor: { uuid: actor.uuid, longRest: async () => undefined } })).accepted, false);
+  journey.undoGeneration = 1;
+  assert.equal((await resolve(cards[0].data, { actor })).accepted, false);
+  game.user.isGM = false;
+  await assert.rejects(sendLongRestRequests(), /Only the GM/);
+});

@@ -25,7 +25,7 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 ## Platform
 
 - Foundry Virtual Tabletop v14 only
-- Morelord Core 0.3.14 or later
+- Morelord Core 0.3.15 or later
 - D&D 5e adapter first, with a system-neutral journey engine
 
 ## Development
@@ -71,11 +71,15 @@ When a compatible Morelord Core is active, its explicit reporting choices can sh
 
 ## Release dependency
 
-This release requires Morelord Core 0.3.14 or newer for the shared UI and service updates. Optional integrations remain optional.
+This release requires Morelord Core 0.3.15 or newer for the shared UI and service updates. Optional integrations remain optional.
 
 
 Foraging pending rows show status only; resolve checks on the grouped chat card rather than Resend/Fail/Succeed controls. A clicked chat row immediately shows centered **Completed** text without buttons, and other characters can roll while earlier dice animate. Rejected submissions restore their controls. Outcomes still wait for dice animations; pending evaluated dice are saved and recovered after reload without rerolling. Night encounters are direct GM rolls from Roll Night Encounter; only the resulting watch checks use player requests.
 
 Journey Progress separates elapsed time from route distance: Days Completed counts finished travel days, Estimated Days Remaining assumes normal pace, and Estimated Total Duration adds those two figures. Route covered is shown separately in normal-pace travel-day equivalents. Before Day 7, six days are complete; with 1⅔ days of travel remaining, the total estimate is 7⅔ days. The original route estimate remains unchanged.
 
-This release requires Morelord Core 0.3.14 or newer for shared roll requests, outcome scheduling, and consistent UI.
+This release requires Morelord Core 0.3.15 or newer for shared roll requests, outcome scheduling, and consistent UI.
+
+### Sending Long Rest buttons
+
+After all Sleep & Shelter rolls resolve, the GM can select **Send Long Rest Buttons**. The shared chat card includes only travelers who qualified. Players click **Long Rest** to apply native D&D 5e recovery; the GM can also act for them, including offline players. Re-sending reuses the card and preserves completed actions. Use the buttons before advancing to another travel day. Journeys has already handled Exhaustion, so these rests do not reduce it again or advance world time. Native rest recovery is not reversed by Journeys Go Back.

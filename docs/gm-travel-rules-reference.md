@@ -240,7 +240,7 @@ A later event cannot cancel a completed rest. For example, an elf standing Watch
 
 Shelter equipment is recorded for camp planning and does not change rest timing. The existing supply rule still prevents Exhaustion recovery when food or water is missing. The optional Xanathar-style deprivation save remains separate: a missed rest starts at DC 10 and increases by 5 on consecutive missed rests. Enable **Do not add Exhaustion for lack of sleep** to disable that save and its Exhaustion. Offline or disconnected players' pending saves can be resolved by the GM.
 
-Journeys applies its recorded Exhaustion change and Heroic Inspiration selections. Apply HP, spell-slot, and other native Long Rest recovery through the character sheet, avoiding a second Exhaustion reduction. Other Peaceful Rest choices remain manual; the world clock is not advanced.
+Journeys applies its recorded Exhaustion change and Heroic Inspiration selections. After all Sleep & Shelter rolls resolve, select **Send Long Rest Buttons** to post Core chat actions for eligible travelers. Each player (or the GM) can apply native Long Rest recovery once, without reducing Exhaustion again. Re-sending retains completed actions. Use these buttons before the next travel day; native recovery is not reversed by Go Back. Other Peaceful Rest choices remain manual; the world clock is not advanced.
 
 ## Reading the help buttons
 
