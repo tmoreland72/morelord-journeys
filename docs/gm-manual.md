@@ -185,7 +185,7 @@ Confirm the player is active and owns the assigned Actor. Reload both GM and pla
 
 ### An integration button is unavailable
 
-Confirm the corresponding Morelord module is installed and active. Reload the world after enabling modules so their public APIs are available.
+Confirm the corresponding Morelord Gaming module is installed and active. Reload the world after enabling modules so their public APIs are available.
 
 ## Shared travel context and automatic checks
 
