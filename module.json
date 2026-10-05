@@ -57,5 +57,6 @@
   "socket": true,
   "download": "https://github.com/tmoreland72/morelord-journeys/releases/download/v0.3.8/morelord-journeys.zip",
   "url": "https://github.com/tmoreland72/morelord-journeys",
+  "changelog": "https://github.com/tmoreland72/morelord-journeys/releases",
   "manifest": "https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json"
 }

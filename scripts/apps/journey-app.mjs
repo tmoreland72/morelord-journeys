@@ -86,11 +86,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     documentation.register({
       id: "morelord-journeys", title: "Morelord Journeys", icon: "fa-solid fa-compass",
       subtitle: "Define a route and begin a stateful expedition.",
-      sections: [
-        { id: "planning", title: "Plan a Journey", icon: "fa-solid fa-route", introduction: "Choose the journey steps, origin and destination, and route length in days and thirds. Set Danger and the Discovery, Resources, and Navigation DCs. Daily Route Ratings can be changed before each travel day." },
-        { id: "travel", title: "Travel and Camp", icon: "fa-solid fa-person-hiking", introduction: "Follow the active journey's phases to resolve each travel day. Record travel progress and encounters, then arrange camp, watches, foraging, and rest using the enabled steps. Disabled steps are skipped and logged." },
-        { id: "defaults", title: "Saved Defaults", icon: "fa-solid fa-bookmark", introduction: "Use Save as Default on the planner to remember your preferred setup for future journeys." }
-      ]
+      source: { home: 'modules/morelord-journeys/docs/README.md', gm: 'modules/morelord-journeys/docs/gm-manual.md', player: 'modules/morelord-journeys/docs/player-guide.md' }
     });
     return documentation.open("morelord-journeys");
   }

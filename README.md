@@ -83,3 +83,5 @@ This release requires Morelord Core 0.3.15 or newer for shared roll requests, ou
 ### Sending Long Rest buttons
 
 After all Sleep & Shelter rolls resolve, the GM can select **Send Long Rest Buttons**. The shared chat card includes only travelers who qualified. Players click **Long Rest** to apply native D&D 5e recovery; the GM can also act for them, including offline players. Re-sending reuses the card and preserves completed actions. Use the buttons before advancing to another travel day. Journeys has already handled Exhaustion, so these rests do not reduce it again or advance world time. Native rest recovery is not reversed by Journeys Go Back.
+
+Release history lives in `release-notes/`; Foundry links to the GitHub Releases page through the manifest `changelog` URL. Use the module-local `/tmp/` directory for working files; it is ignored by Git and excluded from release packages.

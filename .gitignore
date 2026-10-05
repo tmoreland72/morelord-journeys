@@ -6,3 +6,6 @@ dist/
 .release-runner-*.ps1
 .env
 /morelord-journeys.zip
+
+# Local working files
+/tmp/
