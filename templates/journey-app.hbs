@@ -1,6 +1,7 @@
 <section class="ml-app ml-app-shell ml-journeys-dashboard ml-journeys app-shell journey-shell">
   {{#unless hasJourney}}
     <header class="ml-hero"><i class="fa-solid fa-compass ml-hero__icon"></i><div class="ml-hero__body"><h1>{{localize "MORELORD_JOURNEYS.Name"}}</h1><p>{{localize "MORELORD_JOURNEYS.Planner.Intro"}}</p></div><div class="ml-actions"><button type="button" data-action="openDocumentation"><i class="fa-solid fa-book-open"></i> Documentation</button></div></header>
+    {{#if hasSavedJourneys}}<div class="ml-toolbar journey-saved-chooser"><button type="button" data-action="selectJourneySetup">Choose Saved Journey</button></div>{{/if}}
     <details class="ml-surface ml-collapsible-section journey-step-planner" data-ml-section-key="morelord-journeys.journey-steps" open>
       <summary>
       <div class="ml-section-heading"><div>
@@ -34,6 +35,7 @@
     </section>
       <footer class="ml-page-footer ml-actions journey-planner-actions">
         <button type="button" data-action="saveJourneyDefaults">Save as Default</button>
+        <button type="button" data-action="saveJourneySetup">Save Journey</button>
         <button type="button" data-action="createJourney"><i class="fa-solid fa-route"></i> {{localize "MORELORD_JOURNEYS.Actions.Create"}}</button>
       </footer>
   {{else}}

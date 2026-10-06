@@ -1,13 +1,11 @@
 export function readNightInterruptions(root, journey) {
   return journey.currentDay.nightEncounterCheck.encounters.flatMap(encounter => {
     const row = root.querySelector(`[data-night-encounter-id="${encounter.id}"]`);
-    if (!row) return (journey.currentDay.sleepInterruptions ?? []).filter(entry => entry.encounterId === encounter.id);
-    const hours = Math.max(0, Math.min(8, Number(row.querySelector("[data-night-hours]")?.value ?? 0)));
-    const count = Math.max(0, Math.floor(Number(row.querySelector("[data-night-count]")?.value ?? 0)));
-    const offsetHours = Math.max(0, Math.min(journey.currentDay.nightEncounterCheck.intervalHours, Number(row.querySelector("[data-night-offset]")?.value ?? 0)));
-    if (![hours, count, offsetHours].every(Number.isFinite)) throw new Error("Enter valid rest interruption values.");
+    const saved = journey.currentDay.sleepInterruptions?.find(entry => entry.encounterId === encounter.id);
+    const hours = Math.max(1, Math.min(8, Math.ceil(Number(row?.querySelector("[data-night-hours]")?.value ?? saved?.hours ?? 1))));
+    if (!Number.isFinite(hours)) throw new Error("Enter a valid encounter duration.");
     return journey.travelers.map(traveler => ({ actorUuid: traveler.actorUuid, actorName: traveler.name, encounterId: encounter.id,
-      watchIndex: encounter.watchIndex, reason: "night encounter", count, interruptsRest: count > 0,
-      startHour: encounter.startHour + offsetHours, offsetHours, hours, recordedAt: Date.now() }));
+      watchIndex: encounter.watchIndex, reason: "night encounter", count: 1, interruptsRest: true,
+      startHour: encounter.startHour ?? encounter.watchIndex * 2, offsetHours: 0, hours, recordedAt: Date.now() }));
   });
 }

@@ -14,3 +14,9 @@ Follow Core's `IN-GAME-TESTING.md` in a disposable development world. Do not res
 5. Repeat with a food shortage requiring a save. Continue consumes available supplies once and stays on Foraging with the save pending. Resolve it as the player or GM fallback, then Continue must advance without consuming again. Also check already-consumed saved journeys and pending foraging requests.
 
 Retain the Core runner report and screenshots. Delete only disposable fixtures created for these checks.
+
+## Saved journey and night-control regression checks
+
+In Dev1 as GM, import `savedJourneysCheck` from `scripts/testing/saved-journeys.mjs` and `nightEncounterControlsCheck` from `scripts/testing/night-encounter-controls.mjs`, then run `runInGameTests({ checks: [savedJourneysCheck(), nightEncounterControlsCheck] })` using Core's shared runner. The checks temporarily replace the active journey, create only disposable presets/actor fixtures, click the real controls, verify persistence, and restore active journey/undo settings in `finally`. They leave world planner defaults unchanged. Do not run concurrently with other Journey activity.
+
+The saved setup check covers Save Journey, Select Journey, renaming, Delete, route/step restoration, and independent world defaults. The night check covers whole-hour duration controls, separate interruptions for multiple encounters, Reject encounter, retained dice, and the pending-watch continuation message. The player `journeyPermissionsCheck` also verifies direct Saved Journeys manager rendering is blocked. October 6, 2026 passing reports are in `test/in-game-reports/2026-10-06-*`.

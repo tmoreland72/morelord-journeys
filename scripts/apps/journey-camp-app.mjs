@@ -1,3 +1,6 @@
+import { rejectNightEncounter } from "../domain/reject-night-encounter.mjs";
+import { completeChatRoll } from "../../../morelord-core/scripts/services/chat-roll-requests.js";
+import { JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { nightEncounterTiming } from "../domain/encounter-rules.mjs";
 import { readNightInterruptions } from "../ui/night-interruption-controls.mjs";
 import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
@@ -257,8 +260,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
     summary.className = "ml-callout ml-journeys-night-timing";
     summary.dataset.tone = night.encounterCount ? "warning" : "info";
     summary.setAttribute("role", "status");
-    summary.innerHTML = '<strong>' + night.encounterCount + ' Night Encounter(s)</strong><p>' + (night.encounterCount ? 'Resolve each encounter below before continuing. The GM chooses combat or non-combat; record actual rest interruptions.' : 'No encounters remain after cancellation. Continue to Sleep & Shelter.') + '</p>';
-    panel.prepend(summary);
+    summary.innerHTML = '<strong>' + night.encounterCount + ' Night Encounter(s)</strong><p>' + (night.encounterCount ? 'Resolve each encounter above before continuing. The GM chooses combat or non-combat; record actual rest interruptions.' : 'No encounters remain after cancellation. Continue to Sleep & Shelter.') + '</p>';
     if (night.encounters.length) {
       const times = document.createElement("p");
       times.textContent = night.encounters.map(nightEncounterTiming).join("; ");
@@ -272,24 +274,54 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       const perception = day.campPerceptionResults?.find(entry => entry.watchIndex === encounter.watchIndex);
       const pending = day.pendingCampPerceptionRolls?.find(entry => entry.watchIndex === encounter.watchIndex);
       section.innerHTML = '<h4>' + nightEncounterTiming(encounter) + '</h4><p>' + (encounter.unwatched ? 'Unwatched — no Perception check.' : actorIdentity({ actorUuid: encounter.watcherActorUuid, actorName: encounter.watcherActorName }) + (perception ? ': Perception ' + perception.total : pending ? ': awaiting Perception' : ': Perception not yet requested')) + '</p>';
-      if (!encounter.unwatched && !perception) {
-        const request = document.createElement("button");
-        request.type = "button";
-        request.textContent = "Send Perception / GM Roll";
-        request.addEventListener("click", async () => {
-          request.disabled = true;
+      if (game.user.isGM) {
+        const reject = document.createElement('button');
+        reject.type = 'button';
+        reject.className = 'ml-icon-button';
+        reject.dataset.variant = 'ghost';
+        reject.setAttribute('aria-label', 'Reject encounter');
+        reject.dataset.tooltip = 'Reject encounter';
+        reject.innerHTML = '<i class="fa-solid fa-trash" aria-hidden="true"></i>';
+        section.querySelector('h4').append(reject);
+        reject.addEventListener('click', async () => {
+          reject.disabled = true;
           try {
-            if (pending) await campPerceptionRollService.resend(pending.id);
-            else await campPerceptionRollService.request({ watchIndex: encounter.watchIndex, actorUuid: encounter.watcherActorUuid, action: encounter.campAction });
+            await MorelordCore.socket.runSerialized(JOURNEY_STATE_SERIAL_KEY, async () => {
+              if (!game.user.isGM) throw new Error('Only the GM can reject encounters.');
+              const current = await getActiveJourney();
+              if (current?.id !== context.journey.id || current.dayNumber !== context.journey.dayNumber || current.phase !== 'camp') return;
+              const removed = rejectNightEncounter(current, encounter.id);
+              await saveActiveJourney(current);
+              for (const message of game.messages.contents) {
+                const flag = message.getFlag('morelord-core', 'rollRequest');
+                if (flag?.type !== 'journeys.watch') continue;
+                for (const [key, entry] of flag.entries ? Object.entries(flag.entries) : [['', flag]]) {
+                  if (!entry.completed && removed.some(request => request.id === entry.data?.requestId)) await completeChatRoll(message, key);
+                }
+              }
+            });
             await this.render({ force: true });
           } catch (error) { ui.notifications.error(error.message); }
-          finally { request.disabled = false; }
+          finally { reject.disabled = false; }
         });
-        section.append(request);
       }
       const fields = document.createElement("fieldset");
       fields.className = "ml-field-group";
-      fields.innerHTML = '<legend>Rest Interruption</legend><div class="ml-grid" data-columns="3"><label><span>Duration (hours)</span><input data-night-hours type="number" min="0" max="8" step="0.25" value="' + (saved?.hours ?? 0) + '"></label><label><span>Rest-breaking events</span><input data-night-count type="number" min="0" max="100" step="1" value="' + (saved?.count ?? 0) + '"></label><label><span>Hours into this period</span><input data-night-offset type="number" min="0" max="' + night.intervalHours + '" step="0.25" value="' + (saved?.offsetHours ?? 0) + '"></label></div><small>Leave zero for an encounter that does not interrupt rest. Enter actual combat or other rest-breaking activity.</small>';
+      const duration = Math.max(1, Math.min(8, Math.ceil(Number(saved?.hours) || 1)));
+      fields.innerHTML = '<legend>Encounter Interruption</legend><label><span>Duration (hours)</span><div class="ml-stepper"><button type="button" data-night-decrease aria-label="Decrease encounter duration">-</button><input data-night-hours type="number" min="1" max="8" step="1" readonly value="' + duration + '"><button type="button" data-night-increase aria-label="Increase encounter duration">+</button></div></label>';
+      const durationInput = fields.querySelector('[data-night-hours]');
+      const decrease = fields.querySelector('[data-night-decrease]');
+      const increase = fields.querySelector('[data-night-increase]');
+      const syncDuration = () => {
+        decrease.disabled = Number(durationInput.value) <= 1;
+        increase.disabled = Number(durationInput.value) >= 8;
+      };
+      for (const [button, delta] of [[decrease, -1], [increase, 1]]) button.addEventListener('click', () => {
+        durationInput.value = Math.max(1, Math.min(8, Number(durationInput.value) + delta));
+        syncDuration();
+        durationInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      syncDuration();
       section.append(fields);
       fields.addEventListener("change", async () => {
         try {
@@ -314,6 +346,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       { label: "Triggered", value: night.triggers }, { label: "Cancelled", value: night.cancellations },
       { label: "Maximum cancellation", value: night.dieFaces > 6 ? "Enabled; latest triggered periods cancelled first" : "Disabled on d4 and d6" }
     ] }] }));
+    panel.append(summary);
   }
 
   static async resendRoleRoll(event) {

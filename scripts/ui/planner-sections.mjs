@@ -5,6 +5,8 @@ export function preparePlannerSections(root) {
   const roles = root.querySelector(".journey-expedition-roles");
   const supplies = root.querySelector(".journey-planner-supply-panel");
   if (party?.contains(roles)) party.after(roles);
+  const ratings = root.querySelector(".journey-route-ratings");
+  if (party && ratings) party.after(ratings);
   if (roles && supplies) roles.after(supplies);
   for (const [name, title, description] of [
     ["route-planner", "Journey Distance", "Choose the origin and destination, then set the expected travel time in days and thirds of a day."],

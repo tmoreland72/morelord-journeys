@@ -38,7 +38,7 @@ npm test
 
 Production releases require the `docs` directory in the archive. Before releasing, update the manuals and set `docs/README.md` frontmatter to the target version; the shared release script rejects a missing or mismatched documentation landing page. Review all manuals as part of each code change, including behavior and compatibility requirements.
 
-Journey creation uses origin and destination as its identity, with no separate journey or route name to enter. All creation sections are collapsible and remember their state. Journey Distance is followed by Route Ratings, compact Expedition Party cards, Expedition Roles, and a Supply Manifest grouped by character and shared inventory.
+Journey creation uses origin and destination as its identity, with no separate journey or route name to enter. All creation sections are collapsible and remember their state. Journey Distance is followed by compact Expedition Party cards, Route Ratings, Expedition Roles, and a Supply Manifest grouped by character and shared inventory.
 
 
 Daytime encounters use the configured die (default d6) once per traveler per Danger check/day. Players trigger their requests; only GMs see dice and outcomes. Ones add encounters and maximum rolls cancel them across the party, with a minimum of zero. Route Traffic is removed. Daily Route Ratings can be changed before each travel day, carry forward, and are recorded in that day’s log. Active journey pages and Journey Settings use Core’s described, remembered collapsible sections. Traveler selection uses Core’s player-owned-or-party character eligibility.
@@ -60,6 +60,10 @@ The journey subtitle contains progress; daily ratings precede supplies, weather 
 ## Journey dashboard and rest
 
 The Journeys toolbar button and expedition dashboard are GM-only. Players follow public progress updates and use their characters’ chat roll controls.
+
+Disabled or skipped journey steps produce no completion chat card and are omitted from the displayed step sequence and recent activity. Completion cards count only included steps for that day, including pace-based skips. Internal skip records retain the defaults needed to advance the journey. On the next journey save, completion cards identified with this journey are removed if their step is now disabled/skipped, and remaining cards are renumbered. Historical cards without a journey identifier are retained because they cannot safely be distinguished from another journey's cards.
+
+Regression: run `runSkippedStepCardTests()` from `scripts/testing/skipped-step-cards.mjs` through Core's shared runner as GM in Dev1. It creates disposable chat cards, verifies seven disabled steps create none, checks numbering and stale-card removal, and deletes its fixtures. Release verification and results are recorded in `release-notes/RELEASE-NOTES-0.4.0.md`.
 
 The header shows the current or upcoming travel day, beginning at Day 1. Above Ready for the Road, Journey Progress displays Days Traveled, Days Remaining, Original Duration, and Current Duration in four Core cards. Current Duration is traveled plus remaining time.
 
@@ -87,3 +91,7 @@ This release requires Morelord Core 0.3.15 or newer for shared roll requests, ou
 After all Sleep & Shelter rolls resolve, the GM can select **Send Long Rest Buttons**. The shared chat card includes only travelers who qualified. Players click **Long Rest** to apply native D&D 5e recovery; the GM can also act for them, including offline players. Re-sending reuses the card and preserves completed actions. Use the buttons before advancing to another travel day. Journeys has already handled Exhaustion, so these rests do not reduce it again or advance world time. Native rest recovery is not reversed by Journeys Go Back.
 
 Release history lives in `release-notes/`; Foundry links to the GitHub Releases page through the manifest `changelog` URL. Use the module-local `/tmp/` directory for working files; it is ignored by Git and excluded from release packages.
+
+## Saved Journeys
+
+GMs can use **Save Journey** to keep named planner setups, then **Choose Saved Journey** to reuse them for a new expedition. The manager offers **Select Journey**, **Save Journey** (rename), and **Delete**. Saved setups include the route, duration, ratings, steps, party, roles, and individual rest hours; inventory quantities and expedition progress are read fresh. See the [GM manual](docs/gm-manual.md#saved-journeys).

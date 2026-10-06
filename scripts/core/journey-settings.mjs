@@ -1,3 +1,5 @@
+import { PHASE_SETTING_KEYS, JOURNEY_STEP_KEYS, isPhaseEnabled } from "./journey-step-policy.mjs";
+export { PHASE_SETTING_KEYS, JOURNEY_STEP_KEYS, isPhaseEnabled };
 import { JourneySettingsApplication } from "../apps/journey-settings-app.mjs";
 import { MODULE_ID } from "../domain/constants.mjs";
 import { DAY_ENCOUNTER_DICE, DEFAULT_NIGHT_ENCOUNTER_CONFIGURATION, nightEncounterConfiguration } from "../domain/encounter-rules.mjs";
@@ -31,13 +33,13 @@ export const DEFAULT_DC_CONFIGURATION = Object.freeze({
   sleepDeprivationIncrease: 5
 });
 export const JOURNEY_PLANNER_DEFAULTS_SETTING = "journeyPlannerDefaults";
-export const PHASE_SETTING_KEYS = Object.freeze({
-  weather: "phaseWeather", pace: "phasePace", encounters: "phaseEncounters",
-  discovery: "phaseDiscovery", navigation: "phaseNavigation", pressOn: "phasePressOn",
-  foraging: "phaseForaging", camp: "phaseCamp"
-});
+
 
 export function registerJourneySettings() {
+  game.settings.register(MODULE_ID, "savedJourneys", {
+    name: "Saved journey setups", scope: "world", config: false,
+    type: Object, default: { entries: [] }, restricted: true
+  });
   game.settings.register(MODULE_ID, NIGHT_CHECK_INTERVAL_SETTING, { name: "Night encounter frequency", scope: "world", config: false, type: Number, default: 2, restricted: true });
   game.settings.register(MODULE_ID, NIGHT_ENCOUNTER_CONFIGURATION_SETTING, {
     name: "Night Encounter Base Values", scope: "world", config: false, type: Object,
@@ -87,7 +89,7 @@ export function registerJourneySettings() {
   });
 }
 
-export const JOURNEY_STEP_KEYS = Object.freeze({ ...PHASE_SETTING_KEYS, nightEncounters: NIGHT_ENCOUNTERS_SETTING, sleep: SLEEP_AND_SHELTER_SETTING });
+
 export function getJourneyStepDefaults() {
   const fields = game.settings.get(MODULE_ID, JOURNEY_PLANNER_DEFAULTS_SETTING)?.fields ?? {};
   return Object.fromEntries(Object.entries(JOURNEY_STEP_KEYS).map(([step, key]) => [step, fields[`step-${step}`] ?? game.settings.get(MODULE_ID, key) !== false]));
@@ -96,7 +98,7 @@ export function readJourneySteps(element) {
   const defaults = getJourneyStepDefaults();
   return Object.fromEntries(Object.keys(JOURNEY_STEP_KEYS).map(step => [step, element.querySelector(`[name="step-${step}"]`)?.checked ?? defaults[step]]));
 }
-export const isPhaseEnabled = (phase, journey) => journey?.steps?.[phase] ?? (!(phase in JOURNEY_STEP_KEYS) || game.settings.get(MODULE_ID, JOURNEY_STEP_KEYS[phase]) !== false);
+
 export const suppressSleepDeprivationExhaustion = () => Boolean(game.settings.get(MODULE_ID, SUPPRESS_SLEEP_DEPRIVATION_EXHAUSTION_SETTING));
 export const nightEncountersEnabled = journey => isPhaseEnabled("nightEncounters", journey);
 export const sleepAndShelterEnabled = journey => isPhaseEnabled("sleep", journey);

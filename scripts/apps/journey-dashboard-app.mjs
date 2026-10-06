@@ -62,7 +62,7 @@ export class JourneyApplication extends BaseJourneyApplication {
       empty.className = "ml-empty-message";
       empty.textContent = "No D&D 5e character actors are available.";
       section.append(empty);
-      ratings.after(section);
+      ratings.before(section);
       return;
     }
 
@@ -131,7 +131,7 @@ export class JourneyApplication extends BaseJourneyApplication {
     };
     list.addEventListener("change", syncNavigator);
     syncNavigator();
-    ratings.after(section);
+    ratings.before(section);
   }
 
   #renderCraftworksGather(context) {

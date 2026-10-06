@@ -1,8 +1,9 @@
+import { includedJourneyPhases } from "../core/journey-step-policy.mjs";
 import { readNightInterruptions } from "../ui/night-interruption-controls.mjs";
 import { checkpointJourney, canGoBack, requestGoBack } from "../services/journey-undo-service.mjs";
 import { renderPreservingScroll } from "../../../morelord-core/scripts/ui/scroll-preservation.js";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
-import { TRAVEL_PHASES } from "../domain/constants.mjs";
+import { MODULE_ID, TRAVEL_PHASES } from "../domain/constants.mjs";
 import { getDCConfiguration, readJourneySteps, isPhaseEnabled, nightEncountersEnabled, sleepAndShelterEnabled } from "../core/journey-settings.mjs";
 import { addProgressModifier, adjustRemainingTravel, beginTravelDay, completeTravelDay, readyJourney, recordPhase } from "../domain/engine.mjs";
 import { createJourney, journeyDuration } from "../domain/journey.mjs";
@@ -109,6 +110,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     const length = journey.progressSteps + journey.remainingSteps;
     const duration = journeyDuration(journey);
     const phase = journey.phase;
+    const includedPhases = includedJourneyPhases(journey);
     const phaseIndex = phase ? TRAVEL_PHASES.indexOf(phase) : -1;
     const canBeginDay = journey.status === "ready" || (journey.status === "active" && !journey.currentDay);
     return {
@@ -135,11 +137,12 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         originalDaysTotal: formatSteps(journey.routeSnapshot.lengthSteps),
         extended: journey.remainingSteps > Math.max(0, journey.routeSnapshot.lengthSteps - journey.progressSteps)
       },
-      phases: TRAVEL_PHASES.slice(0, -1).map((name, index) => ({
+      phases: includedPhases.map((name, index) => ({
         name,
         label: game.i18n.localize(`MORELORD_JOURNEYS.Phases.${name}`),
         active: name === phase,
-        complete: phaseIndex > index || phase === "dayComplete"
+        number: index + 1,
+        complete: phaseIndex > TRAVEL_PHASES.indexOf(name) || phase === "dayComplete"
       })),
       phaseLabel: phase ? game.i18n.localize(`MORELORD_JOURNEYS.Phases.${phase}`) : "",
       phaseIs: Object.fromEntries(TRAVEL_PHASES.map(name => [name, phase === name])),
@@ -152,7 +155,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
         results: (journey.currentDay?.forcedMarchResults ?? []).map(entry => ({ ...entry, identityHtml: actorIdentity({ ...journey.travelers.find(traveler => traveler.actorUuid === entry.actorUuid), ...entry }) }))
       },
       pressOnDC: getDCConfiguration().pressOn,
-      recentLog: journey.log.slice(-12).reverse().map(entry => ({
+      recentLog: journey.log.filter(entry => entry.type !== "phaseRecorded" || includedJourneyPhases(journey, entry.dayNumber).includes(entry.data?.phase ?? entry.phase)).slice(-12).reverse().map(entry => ({
         ...entry,
         label: entry.type === "phaseRecorded"
           ? game.i18n.localize(`MORELORD_JOURNEYS.Phases.${entry.data.phase}`)
@@ -531,7 +534,6 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   #notifyError(error) {
-    globalThis.MorelordCore?.telemetry?.error(MODULE_ID, "journey.action", error);
     globalThis.MorelordCore?.telemetry?.error(MODULE_ID, "journey.action", error);
     console.error("morelord-journeys |", error);
     ui.notifications.error(error.issues?.join("; ") ?? error.message);

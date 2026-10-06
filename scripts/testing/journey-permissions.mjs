@@ -18,6 +18,12 @@ export const journeyPermissionsCheck = {
       await app.render({ force: true });
       assert(!app.rendered, 'Direct application rendering must not expose the GM dashboard.');
     } finally { await app.close(); }
+    const { SavedJourneyManager } = await import("../apps/saved-journey-manager.mjs");
+    const manager = new SavedJourneyManager();
+    try {
+      await manager.render({ force: true });
+      assert(!manager.rendered, "Players must not open the saved-journey manager directly.");
+    } finally { await manager.close(); }
     assert(JSON.stringify(game.settings.get('morelord-journeys', 'activeJourney')) === prior, 'The active journey must remain unchanged.');
   }
 };

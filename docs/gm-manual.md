@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.3.10
+version: 0.4.0
 foundry: 14
 order: 10
 ---
@@ -17,7 +17,7 @@ The Journeys toolbar button and expedition dashboard are GM-only. Players follow
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.3.14 or later
+- Morelord Core 0.3.15 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.
@@ -36,9 +36,9 @@ Open the Token scene controls and select the hiking-person button. Opening Journ
 
 ## Planning a journey
 
-**Save as Default** and **Create Journey** stay visible in the bottom footer while the planner content scrolls.
+**Save as Default**, **Save Journey**, and **Create Journey** stay visible in the bottom footer while the planner content scrolls.
 
-Enter the origin and destination in **Journey Distance**, then choose the planned travel time. The journey is identified as Origin → Destination; separate journey and route names are not needed. **Route Ratings** follows Journey Distance. Every creation section includes a description and can be collapsed; its last state is remembered per user and world in the current browser.
+Enter the origin and destination in **Journey Distance**, then choose the planned travel time. The journey is identified as Origin → Destination; separate journey and route names are not needed. The creation sections appear in this order: **Journey Distance**, **Expedition Party**, **Route Ratings**, **Expedition Roles**, and **Supply Manifest**. Every creation section includes a description and can be collapsed; its last state is remembered per user and world in the current browser.
 
 ### Route ratings
 
@@ -147,7 +147,7 @@ Selecting Craft displays a GM reminder and an orange **Open Morelord Craftworks 
 
 ### Rolling night encounters
 
-Use the same Danger die at night. By default, roll four dice, one for each two-hour watch. **Journeys Settings → Encounter Dice → Night encounter frequency** can instead select eight hourly checks. Roll the whole night as a pool before playing it out: a 1 triggers an encounter, or a 1 or 2 with a visible campfire. Maximums cancel the latest triggered periods first, except on d4 and d6. Surviving encounters retain their hour range and watch. Each affected watch gets one Perception check; Send Perception / GM Roll supports offline or disconnected owners. The GM chooses combat or non-combat and records each encounter’s actual rest interruptions. Weather, tents, and stopped travel do not modify these dice. The old d100 Peaceful Rest result is no longer generated; saved historical outcomes and existing rest benefits remain supported.
+Use the same Danger die at night. By default, roll four dice, one for each two-hour watch. **Journeys Settings → Encounter Dice → Night encounter frequency** can instead select eight hourly checks. Roll the whole night as a pool before playing it out: a 1 triggers an encounter, or a 1 or 2 with a visible campfire. Maximums cancel the latest triggered periods first, except on d4 and d6. Surviving encounters retain their hour range and watch. Each affected watch automatically gets one Perception request as a chat card; resolve it there, including GM rolls for offline or disconnected owners. Resolve and Continue waits for pending watch Perception checks. The GM chooses combat or non-combat and records each encounter’s actual rest interruptions. Weather, tents, and stopped travel do not modify these dice. The old d100 Peaceful Rest result is no longer generated; saved historical outcomes and existing rest benefits remain supported.
 
 A fire remains required for Craft, Cook, and Prepare. Night encounters can be disabled independently from Sleep & Shelter using journey step choices.
 
@@ -209,7 +209,7 @@ Before starting a new day, the GM can expand **Adjust Remaining Travel**, enter 
 
 Daily Route Ratings precede supplies. Weather checks and forecasts use two columns. Pace options express this module’s travel scale in miles: Slow 2/hour and 16/day, Normal 3/hour and 24/day, Fast 4/hour and 32/day, Stopped 0.
 
-A triggered encounter is highlighted as combat or non-combat; the GM may close Journeys while resolving it and return afterward. Dice-count arithmetic is in Outcome Details, and phase help stays beside the section title.
+A triggered encounter is highlighted as combat or non-combat; the GM may close Journeys while resolving it and return afterward. Dice-count arithmetic is in Outcome Details. The Night Encounter(s) callout appears immediately after Outcome Details. Phase help stays beside the section title.
 
 Lost navigation removes base pace progress but balances delays against extra travel, with a minimum of zero travel credit. Thus a ⅓-day encounter delay plus ⅓-day Press On produces zero credit after a lost-navigation day. Previously completed historical logs are retained.
 
@@ -219,3 +219,17 @@ Lost navigation removes base pace progress but balances delays against extra tra
 The GM’s **Go Back** button restores the previous recorded step to its entry state, including journey progress, rolls, delays, and Journey-applied inventory, hunger, Exhaustion, and automatic Inspiration changes. It also undoes changes already applied in the current step. Resolve pending player requests first. Repeat the step to recalculate; old chat messages remain historical and are not deleted. Manually applied effects and activities in other modules are outside this undo record.
 
 Undo history starts when this version first opens or saves the journey; earlier actions cannot be reconstructed. It retains the latest 24 step checkpoints across reloads. If an affected value or a generated item has since changed elsewhere, Go Back stops before changing anything. Resolve the conflicting edit before retrying. If a document write fails during restoration, retry Go Back to finish; normal journey changes are blocked until restoration completes.
+
+Each surviving rolled night encounter has its own **Encounter Interruption** outcome. Each counts as one rest-breaking event per traveler, with timing derived from the rolled period. Two surviving encounters therefore produce two events. Set only **Duration (hours)** using the decrease/increase buttons; it defaults to 1 hour, changes in whole hours, and retains the existing 8-hour maximum. Manual entry is disabled. Cancelled encounters produce no interruption outcome. Existing durations below one hour are raised to one when this outcome is displayed or saved.
+
+The GM can use the **Reject encounter** trash icon beside each rolled encounter to remove it and its interruption outcome. Its rolled dice are retained for review. Watch Perception requests remain when another accepted encounter needs that watch; otherwise pending requests are retired.
+
+## Saved Journeys
+
+Configure the full planner setup, then click **Save Journey**, between **Save as Default** and **Create Journey**. A popup asks for **Journey Name**; choose **Save Journey** to store it or close the popup to cancel. Saving the same name updates that setup.
+
+**Choose Saved Journey** appears immediately above **Journey Steps**, only when a saved setup exists. It opens a manager with the same list-and-editor layout as Location Manager. Select a journey on the left to review its route and duration and edit **Journey Name**. **Select Journey** is the first, primary button; it fills the planner and closes the manager. The **Save Journey** button with its disk icon saves the edited name, and **Delete** with its trash icon removes the selected preset. Both actions close the manager after succeeding; errors leave it open. There is no Saved Journeys section on the planner.
+
+Choosing restores route, travel time, ratings, enabled steps, party, individual Long Rest hours, and roles. Saved journeys contain no inventory or supply quantities. Choosing a saved journey loads only its setup; creating a journey reads supplies from current actor inventories. Missing actors are omitted, and roles should be reviewed. Loading never starts travel or changes world defaults; click **Create Journey** to begin a fresh journey without old progress, rolls, or interruptions.
+
+For a return trip, choose Neverwinter to Phandalin, exchange Origin and Destination, and save under Phandalin to Neverwinter. For camping, save the desired location and enabled Camp, Night Encounters, and Sleep & Shelter steps, disabling travel steps as appropriate. Existing positive route-length and role requirements apply. **Save as Default** remains independent of named journeys.

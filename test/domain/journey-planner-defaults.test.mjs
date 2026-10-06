@@ -10,6 +10,8 @@ const form = inputs => ({
 
 test("planner defaults round-trip all fields, unchecked steps, party selections and individual rest hours", () => {
   const inputs = [
+    field("savedJourneyId", "preset"),
+    field("savedJourneyName", "Camping"),
     ...Object.entries({ journeyName: "Homeward", routeName: "Coast", origin: "Port", destination: "Home", lengthDays: "8", lengthThirds: "2", danger: "3", discoveryDC: "20", resourcesDC: "15", navigationDC: "10", routeTraffic: "high", activityHoursPerDay: "2.5" }).map(([name, value]) => field(name, value)),
     field("step-weather", "on", { type: "checkbox", checked: false }),
     field("travelerUuid", "a", { type: "checkbox", checked: true }),
@@ -20,6 +22,8 @@ test("planner defaults round-trip all fields, unchecked steps, party selections 
     field("observerUuid", "c", { options: [{ value: "a" }, { value: "c" }] })
   ];
   const defaults = readPlannerDefaults(form(inputs));
+  assert.equal(defaults.fields.savedJourneyId, undefined);
+  assert.equal(defaults.fields.savedJourneyName, undefined);
   assert.deepEqual(defaults.travelers, ["a"]);
   assert.deepEqual(defaults.longRestHours, { a: "4", b: "6" });
   assert.equal(defaults.fields.activityHoursPerDay, "2.5");

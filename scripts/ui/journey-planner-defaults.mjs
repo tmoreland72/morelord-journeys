@@ -3,6 +3,7 @@ import { synchronizeExclusiveRoleSelects } from "./exclusive-role-controls.mjs";
 export function readPlannerDefaults(element) {
   const defaults = { fields: {}, travelers: [], longRestHours: {} };
   for (const input of element.querySelectorAll("input[name], select[name], textarea[name]")) {
+    if (input.name.startsWith("savedJourney")) continue;
     if (input.name === "travelerUuid") {
       if (input.checked) defaults.travelers.push(input.value);
     } else if (input.name === "longRestHours") defaults.longRestHours[input.dataset.actorUuid] = input.value;

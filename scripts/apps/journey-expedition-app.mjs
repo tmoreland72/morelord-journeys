@@ -1,3 +1,4 @@
+import { SavedJourneyManager } from "./saved-journey-manager.mjs";
 import { preparePlannerSections } from "../ui/planner-sections.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { applyPlannerDefaults, readPlannerDefaults } from "../ui/journey-planner-defaults.mjs";
@@ -44,7 +45,9 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     actions: {
       createJourney: this.createJourney,
       refreshSupplies: this.refreshSupplies,
-      saveJourneyDefaults: this.saveJourneyDefaults
+      saveJourneyDefaults: this.saveJourneyDefaults,
+      saveJourneySetup: this.saveJourneySetup,
+      selectJourneySetup: this.selectJourneySetup
     }
   };
 
@@ -66,6 +69,7 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
     }
     const labels = { weather: "Weather", pace: "Pace", encounters: "Day Encounters", discovery: "Discoveries", navigation: "Navigation", pressOn: "Press On", foraging: "Foraging & Supplies", camp: "Camp", nightEncounters: "Night Encounters", sleep: "Sleep & Shelter" };
     context.journeySteps = Object.entries(getJourneyStepDefaults()).map(([key, enabled]) => ({ key, enabled, label: labels[key] }));
+    context.hasSavedJourneys = Boolean(game.settings.get(MODULE_ID, "savedJourneys")?.entries?.length);
     return context;
   }
 
@@ -292,6 +296,50 @@ export class JourneyExpeditionApplication extends BaseJourneyApplication {
       console.error("Morelord Journeys | Unable to create journey.", error);
       ui.notifications.error(error.message);
     }
+  }
+
+  static async loadJourneySetup(entry) {
+    if (!game.user.isGM) throw new Error("Only the GM can load saved journeys.");
+    if (!entry || await getActiveJourney()) throw new Error("Open the journey planner before choosing a saved journey.");
+    applyPlannerDefaults(this.element, entry.setup);
+    ui.notifications.info("Saved journey setup loaded.");
+  }
+
+  static async selectJourneySetup(event) {
+    event.preventDefault();
+    if (!game.user.isGM) return;
+    new SavedJourneyManager({ choose: entry => JourneyExpeditionApplication.loadJourneySetup.call(this, entry), onChange: () => this.element.querySelector('[data-action="selectJourneySetup"]')?.toggleAttribute('hidden', !game.settings.get(MODULE_ID, 'savedJourneys')?.entries?.length) }).render({ force: true });
+  }
+
+  static async saveJourneySetup(event) {
+    event.preventDefault();
+    try {
+      if (!game.user.isGM) throw new Error("Only the GM can save journeys.");
+      const setup = readPlannerDefaults(this.element);
+      const initial = `${value(this.element, "origin")} to ${value(this.element, "destination")}`;
+      const name = await foundry.applications.api.DialogV2.prompt({
+        window: { title: "Save Journey" }, modal: true,
+        content: `<label class="ml-stack"><span>Journey Name</span><input name="journeyName" type="text" required value="${foundry.utils.escapeHTML(initial)}"></label>`,
+        ok: { label: "Save Journey", callback: (_event, button) => button.form.elements.journeyName.value.trim() }, rejectClose: false
+      });
+      if (!name) return;
+      const stored = structuredClone(game.settings.get(MODULE_ID, "savedJourneys") ?? { entries: [] });
+      const existing = stored.entries.find(entry => entry.name === name);
+      const entry = { id: existing?.id ?? crypto.randomUUID(), name, setup };
+      stored.entries = [...stored.entries.filter(item => item.id !== entry.id), entry];
+      await game.settings.set(MODULE_ID, "savedJourneys", stored);
+      let select = this.element.querySelector('[data-action="selectJourneySetup"]');
+      if (!select) {
+        select = document.createElement('button');
+        select.type = 'button'; select.dataset.action = 'selectJourneySetup'; select.textContent = 'Choose Saved Journey';
+        const chooser = document.createElement('div');
+        chooser.className = 'ml-toolbar journey-saved-chooser';
+        chooser.append(select);
+        this.element.querySelector('.journey-step-planner').before(chooser);
+      }
+      select.hidden = false;
+      ui.notifications.info("Journey setup saved.");
+    } catch (error) { ui.notifications.error(error.message); }
   }
 
   static async saveJourneyDefaults(event) {

@@ -1,0 +1,26 @@
+<div class="ml-app ml-app-shell">
+<div class="ml-location-manager__layout ml-grid" data-columns="auto">
+  <aside class="ml-location-manager__sidebar ml-stack" data-gap="2">
+    <h2>Journeys</h2>
+    <nav class="ml-location-manager__list ml-grid" data-columns="auto" aria-label="Saved Journeys">
+      {{#each entries}}<button type="button" class="ml-location-manager__location {{#if selected}}is-active{{/if}}" data-action="edit" data-journey-id="{{id}}"><strong>{{name}}</strong><small>{{setup.fields.origin}} → {{setup.fields.destination}}</small></button>{{else}}<p class="ml-empty-message">No saved journeys.</p>{{/each}}
+    </nav>
+  </aside>
+  <main class="ml-location-manager__editor ml-stack" data-gap="4">
+    {{#if draft}}
+      <header class="ml-hero"><div class="ml-hero__body"><h2>Edit Journey</h2></div></header>
+      <section class="ml-surface ml-stack">
+        <label><span>Journey Name</span><input name="name" type="text" value="{{draft.name}}" required></label>
+        <p>{{fields.origin}} → {{fields.destination}}</p>
+        <p>{{fields.lengthDays}} days and {{fields.lengthThirds}} thirds</p>
+      </section>
+      <footer class="ml-page-footer ml-actions">
+        <button type="button" class="ml-button" data-tone="accent" data-action="choose">Select Journey</button>
+        <button type="button" data-action="save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Journey</button>
+        <button type="button" data-action="delete"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button>
+      </footer>
+    {{else}}<p class="ml-empty-message">Save a journey from the planner to reuse its setup.</p>{{/if}}
+  </main>
+</div>
+
+</div>
