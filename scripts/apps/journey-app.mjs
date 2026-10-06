@@ -91,6 +91,11 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     return documentation.open("morelord-journeys");
   }
 
+  _canRender(options) {
+    if (!game.user.isGM) throw new Error("Only the GM can open Journeys.");
+    return super._canRender(options);
+  }
+
   render(options = {}) {
     const reset = this._resetScrollOnNextRender === true;
     this._resetScrollOnNextRender = false;

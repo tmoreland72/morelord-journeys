@@ -4,12 +4,14 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.3.9
+version: 0.3.10
 foundry: 14
 order: 20
 ---
 
 # Morelord Journeys: Player Guide
+
+The Journeys toolbar button and expedition dashboard are GM-only. Players follow public progress updates and respond to their characters’ chat roll requests; they cannot create, edit, advance, or clear journeys.
 
 Morelord Journeys gives players direct responsibility for the checks their characters make during travel. When the GM requests checks, a persistent public chat card lists the participating characters together. Each player can use the controls for their assigned character; the GM can roll for any character, including after a player disconnects.
 

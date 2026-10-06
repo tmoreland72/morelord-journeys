@@ -59,6 +59,8 @@ The journey subtitle contains progress; daily ratings precede supplies, weather 
 
 ## Journey dashboard and rest
 
+The Journeys toolbar button and expedition dashboard are GM-only. Players follow public progress updates and use their characters’ chat roll controls.
+
 The header shows the current or upcoming travel day, beginning at Day 1. Above Ready for the Road, Journey Progress displays Days Traveled, Days Remaining, Original Duration, and Current Duration in four Core cards. Current Duration is traveled plus remaining time.
 
 Before starting a new day, the GM can expand **Adjust Remaining Travel**, enter whole days and thirds, and select **Apply Adjustment**. This changes remaining time and current duration, preserves original duration and earned progress, and records the old and new values in the Expedition Log. Zero remaining time marks arrival. Adjustments are unavailable while a travel day is underway.

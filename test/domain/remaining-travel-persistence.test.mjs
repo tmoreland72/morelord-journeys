@@ -7,10 +7,13 @@ import { getActiveJourney, saveActiveJourney } from "../../scripts/foundry/setti
 
 test("remaining travel adjustments survive storage without rewriting earned progress", async () => {
   const original = globalThis.game;
+  const originalFoundry = globalThis.foundry, originalChat = globalThis.ChatMessage;
+  globalThis.foundry = { utils: { escapeHTML: value => value } };
+  globalThis.ChatMessage = { create: async () => {} };
   let stored = readyJourney(createJourney({ id: "journey", route: createRoute({ id: "route", origin: { name: "A" }, destination: { name: "B" }, lengthSteps: 16 }) }));
   stored.progressSteps = 4;
   stored.remainingSteps = 12;
-  globalThis.game = { user: { isGM: false }, settings: { get: () => structuredClone(stored), set: async (m, k, value) => { stored = structuredClone(value); } } };
+  globalThis.game = { user: { isGM: true }, settings: { get: () => structuredClone(stored), set: async (m, k, value) => { stored = structuredClone(value); } } };
   try {
     for (const remaining of [5, 20, 0]) {
       const adjusted = adjustRemainingTravel(await getActiveJourney(), remaining);
@@ -21,5 +24,5 @@ test("remaining travel adjustments survive storage without rewriting earned prog
       assert.equal(loaded.routeSnapshot.lengthSteps, 16);
       assert.equal(loaded.status, remaining ? "ready" : "arrived");
     }
-  } finally { globalThis.game = original; }
+  } finally { globalThis.game = original; globalThis.foundry = originalFoundry; globalThis.ChatMessage = originalChat; }
 });

@@ -25,7 +25,7 @@ Hooks.once("init", () => { registerSettings(); registerJourneySettings(); });
 Hooks.on("getSceneControlButtons", controls => {
   const tokenTools = controls?.tokens?.tools;
   if (!tokenTools) return;
-  tokenTools.morelordJourneys = { name: "morelordJourneys", title: "Morelord Journeys", icon: "fa-solid fa-person-hiking", order: Object.keys(tokenTools).length, button: true, visible: true,
+  tokenTools.morelordJourneys = { name: "morelordJourneys", title: "Morelord Journeys", icon: "fa-solid fa-person-hiking", order: Object.keys(tokenTools).length, button: true, visible: game.user.isGM,
     onChange: () => { const api = globalThis.MorelordJourneys ?? game.modules.get(MODULE_ID)?.api; if (!api?.open) return ui.notifications.warn("Morelord Journeys is still initializing."); api.open(); } };
 });
 Hooks.once("ready", async () => {
@@ -47,6 +47,7 @@ Hooks.once("ready", async () => {
   await coreAccess.refresh({ quiet: true });
   let journeyApp = null;
   const open = async () => {
+    if (!game.user.isGM) throw new Error("Only the GM can open Journeys.");
     const journey = await getActiveJourney();
     if (journey?.travelers?.length) {
       journey.supplies = await supplyManifest.build({

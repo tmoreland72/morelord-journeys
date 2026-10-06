@@ -37,6 +37,7 @@ export async function getActiveJourney() {
 }
 
 export async function saveActiveJourney(journey) {
+  if (!game.user?.isGM) throw new Error("Only the GM can save a journey.");
   assertUndoComplete();
   validateJourney(journey);
   const stored = game.settings.get(MODULE_ID, ACTIVE_JOURNEY_KEY);
@@ -53,5 +54,6 @@ export async function saveActiveJourney(journey) {
 }
 
 export async function clearActiveJourney() {
+  if (!game.user?.isGM) throw new Error("Only the GM can clear a journey.");
   return game.settings.set(MODULE_ID, ACTIVE_JOURNEY_KEY, null);
 }

@@ -4,12 +4,14 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.3.9
+version: 0.3.10
 foundry: 14
 order: 10
 ---
 
 # Morelord Journeys: Game Master Manual
+
+The Journeys toolbar button and expedition dashboard are GM-only. Players follow public progress updates and respond to their characters’ chat roll requests; they cannot create, edit, advance, or clear journeys.
 
 ## Requirements
 
