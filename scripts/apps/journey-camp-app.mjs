@@ -2,7 +2,7 @@ import { rejectNightEncounter } from "../domain/reject-night-encounter.mjs";
 import { completeChatRoll } from "../../../morelord-core/scripts/services/chat-roll-requests.js";
 import { JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { nightEncounterTiming } from "../domain/encounter-rules.mjs";
-import { readNightInterruptions } from "../ui/night-interruption-controls.mjs";
+import { clampEncounterDuration, readNightInterruptions } from "../ui/night-interruption-controls.mjs";
 import { campPerceptionRollService } from "../services/camp-perception-roll-service.mjs";
 import { actorIdentity } from "../../../morelord-core/scripts/ui/actor-identity.js";
 import { nightEncountersEnabled } from "../core/journey-settings.mjs";
@@ -307,17 +307,17 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       }
       const fields = document.createElement("fieldset");
       fields.className = "ml-field-group";
-      const duration = Math.max(1, Math.min(8, Math.ceil(Number(saved?.hours) || 1)));
-      fields.innerHTML = '<legend>Encounter Interruption</legend><label><span>Duration (hours)</span><div class="ml-stepper"><button type="button" data-night-decrease aria-label="Decrease encounter duration">-</button><input data-night-hours type="number" min="1" max="8" step="1" readonly value="' + duration + '"><button type="button" data-night-increase aria-label="Increase encounter duration">+</button></div></label>';
+      const duration = clampEncounterDuration(saved?.hours, 1);
+      fields.innerHTML = '<legend>Encounter Interruption</legend><label><span>Duration (hours)</span><div class="ml-stepper"><button type="button" data-night-decrease aria-label="Decrease encounter duration">-</button><input data-night-hours type="number" min="0" max="8" step="1" readonly value="' + duration + '"><button type="button" data-night-increase aria-label="Increase encounter duration">+</button></div></label>';
       const durationInput = fields.querySelector('[data-night-hours]');
       const decrease = fields.querySelector('[data-night-decrease]');
       const increase = fields.querySelector('[data-night-increase]');
       const syncDuration = () => {
-        decrease.disabled = Number(durationInput.value) <= 1;
+        decrease.disabled = Number(durationInput.value) <= 0;
         increase.disabled = Number(durationInput.value) >= 8;
       };
       for (const [button, delta] of [[decrease, -1], [increase, 1]]) button.addEventListener('click', () => {
-        durationInput.value = Math.max(1, Math.min(8, Number(durationInput.value) + delta));
+        durationInput.value = clampEncounterDuration(Number(durationInput.value) + delta, 0);
         syncDuration();
         durationInput.dispatchEvent(new Event('change', { bubbles: true }));
       });

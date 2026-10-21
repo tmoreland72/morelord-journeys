@@ -36,6 +36,8 @@ export function evaluateRest2024({ assignment, requiredSleepHours = 6, sleepHour
     const time = boundaries[i];
     if (completedAt === null && slept >= required && rested >= duration + count && eligibleToStart) completedAt = time;
     for (const event of events.filter(e => e.start === time)) {
+      // A recorded duration of 0 does not interrupt: no recovery hour and no lost rest time.
+      if (event.end <= event.start) continue;
       if (completedAt !== null) ignored.push(event);
       else { relevant.push(event); if (event.interruptsRest) count += Math.max(1, Math.floor(hours(event.count ?? 1))); }
     }
@@ -43,7 +45,7 @@ export function evaluateRest2024({ assignment, requiredSleepHours = 6, sleepHour
     const next = boundaries[i + 1];
     const span = next - time;
     const slot = slots.find(s => s.start <= time && s.end > time);
-    const interrupted = events.some(e => e.start < next && e.end > time);
+    const interrupted = events.some(e => e.end > e.start && e.start < next && e.end > time);
     if (slot?.kind === "sleep" && interrupted) lostSleep += span;
     if (interrupted) continue;
     let sleepCredit = slot?.kind === "sleep" ? Math.min(span, Math.max(0, plannedSleepHours - slept - lostSleep)) : 0;
@@ -67,6 +69,23 @@ export function evaluateRest2024({ assignment, requiredSleepHours = 6, sleepHour
     missingSleepHours: Math.max(0, required - slept), missingRestHours: Math.max(0, duration + count - rested) };
 }
 
+/** Outcome text for a recorded interruption length. Zero hours is not an interruption. */
+export function describeInterruptedHours(value) {
+  const hours = Number(value);
+  if (!Number.isFinite(hours) || hours <= 0) return "not interrupted";
+  return `${hours} hours`;
+}
+
+export function interruptionSourceSummary(sources, interruptedHours) {
+  const positive = (sources ?? []).filter(source => Number(source.hours) > 0);
+  const describedHours = positive.reduce((total, source) => total + Number(source.hours ?? 0), 0);
+  const hoursTotal = Number(interruptedHours);
+  const complete = [...positive];
+  if (Number.isFinite(hoursTotal) && hoursTotal > describedHours) complete.push({ reason: "GM-entered adjustment", hours: hoursTotal - describedHours, watchIndex: null });
+  if (!complete.length) return hoursTotal > 0 ? "Source was not recorded by an earlier Journeys version" : "not interrupted";
+  return complete.map(source => `${source.reason === "combat" ? "Combat encounter" : source.reason}${Number.isInteger(source.watchIndex) ? ` during Watch ${source.watchIndex + 1}` : ""}: ${source.hours} hour(s)`).join("; ");
+}
+
 export function restResultBullets(result) {
   const hourLabel = value => `${value} hour${value === 1 ? "" : "s"}`;
   const timing = result.restAssessment;
@@ -79,6 +98,7 @@ export function restResultBullets(result) {
     if (timing.awakeActivities?.length) bullets.push(`Time awake: ${timing.awakeActivities.join("; ")}.`);
     if (timing.lostSleepHours) bullets.push(`Interruptions took away ${hourLabel(timing.lostSleepHours)} of scheduled sleep.`);
     if (timing.interruptionCount) bullets.push(`${timing.interruptionCount} interruption${timing.interruptionCount === 1 ? "" : "s"} before completion added ${hourLabel(timing.interruptionCount)} to the required rest, in addition to time spent interrupted.`);
+    else if (!timing.lostSleepHours && !timing.ignoredInterruptions.length) bullets.push("The long rest was not interrupted.");
     if (timing.ignoredInterruptions.length) bullets.push("Later encounters or camp activities happened after your rest was complete and did not cancel it.");
     if (timing.missingRestHours) bullets.push(`You still needed ${hourLabel(timing.missingRestHours)} more rest${timing.missingSleepHours ? `, including ${hourLabel(timing.missingSleepHours)} of sleep or meditation` : ""}.`);
     if (!timing.eligibleToStart) bullets.push("You were not eligible to start: you need at least 1 HP and 16 hours since finishing your previous Long Rest.");
@@ -86,6 +106,7 @@ export function restResultBullets(result) {
   } else {
     bullets.push(result.succeeded ? "You passed the sleep check." : "You failed the sleep check, so the earlier Journeys rules denied the Long Rest.");
     if (Number(result.interruptionHours ?? 0) >= 1) bullets.push(`The earlier Journeys rules denied the rest because ${result.interruptionHours} interrupted hours were recorded, regardless of when they occurred.`);
+    else if (Number(result.interruptionHours) === 0) bullets.push("The long rest was not interrupted.");
     bullets.push("This is a saved result from the earlier rules; it has not been recalculated.");
   }
   bullets.push(result.longRestCompleted ? "Long Rest completed." : "Long Rest not completed.");

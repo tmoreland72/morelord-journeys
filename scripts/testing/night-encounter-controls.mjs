@@ -21,11 +21,17 @@ export const nightEncounterControlsCheck = { id: "journeys.night-encounter-contr
     await app.render({ force: true });
     const first = app.element.querySelector('[data-night-encounter-id="encounter-0"]');
     const duration = first.querySelector('[data-night-hours]');
-    assert(duration.readOnly && duration.value === "1", "Duration must default to one hour and disallow typing.");
+    assert(duration.readOnly && duration.min === "0" && duration.value === "1", "Duration must default to one hour, allow zero, and disallow typing.");
+    assert(!first.querySelector('[data-night-decrease]').disabled, "Decrease must be available at the one-hour default.");
     first.querySelector('[data-night-increase]').click();
     await waitFor(() => game.settings.get(moduleId, "activeJourney").currentDay.sleepInterruptions?.some(entry => entry.encounterId === "encounter-0" && entry.hours === 2));
     const interruptions = game.settings.get(moduleId, "activeJourney").currentDay.sleepInterruptions;
     assert(interruptions.length === 2 && interruptions.every(entry => entry.count === 1 && entry.interruptsRest), "Each encounter must create its own timed rest interruption.");
+    first.querySelector('[data-night-decrease]').click();
+    first.querySelector('[data-night-decrease]').click();
+    await waitFor(() => game.settings.get(moduleId, "activeJourney").currentDay.sleepInterruptions?.some(entry => entry.encounterId === "encounter-0" && entry.hours === 0 && entry.interruptsRest === false && entry.count === 0));
+    const zeroed = game.settings.get(moduleId, "activeJourney").currentDay.sleepInterruptions;
+    assert(zeroed.some(entry => entry.encounterId === "encounter-1" && entry.hours === 1 && entry.interruptsRest), "A one-hour encounter must still interrupt when another encounter is zero hours.");
     first.querySelector('[aria-label="Reject encounter"]').click();
     await waitFor(() => game.settings.get(moduleId, "activeJourney").currentDay.nightEncounterCheck.encounterCount === 1);
     await waitFor(() => !app.element.querySelector('[data-night-encounter-id="encounter-0"]'));
