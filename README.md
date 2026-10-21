@@ -34,6 +34,10 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 npm test
 ```
 
+### GitHub Actions release
+
+Dispatch the **Release** workflow from the `main` branch. Inputs are `bump` (`patch`, `minor`, or `major`), an optional `version` override, and `publish_only`. Troy adds `RELEASE_PUBLISH_TOKEN` and `FOUNDRY_RELEASE_TOKEN` under Settings > Secrets and variables > Actions before the first run. The workflow does not run in-Foundry tests. See [RELEASING.md](RELEASING.md).
+
 ### Release documentation check
 
 Production releases require the `docs` directory in the archive. Before releasing, update the manuals and set `docs/README.md` frontmatter to the target version; the shared release script rejects a missing or mismatched documentation landing page. Review all manuals as part of each code change, including behavior and compatibility requirements.
