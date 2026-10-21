@@ -1,0 +1,136 @@
+# Dispatch from the main branch after this workflow is on main.
+# In-Foundry tests are not part of this workflow.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Bump when version is empty and publish_only is false
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      version:
+        description: Explicit x.y.z. Empty bumps, or uses module.json when publish_only is true.
+        type: string
+        required: false
+      publish_only:
+        description: Publish an existing version to the website and Foundry only
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the main branch
+        run: |
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Dispatch this workflow from the main branch. Current ref: $env:GITHUB_REF"
+          }
+
+      - name: Require publish secrets
+        env:
+          RELEASE_PUBLISH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
+          FOUNDRY_RELEASE_TOKEN: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_PUBLISH_TOKEN)) {
+            throw 'RELEASE_PUBLISH_TOKEN is empty. Add it under Settings > Secrets and variables > Actions.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_RELEASE_TOKEN)) {
+            throw 'FOUNDRY_RELEASE_TOKEN is empty. Add it under Settings > Secrets and variables > Actions.'
+          }
+
+      - name: Checkout Journeys
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # morelord-core is not publicly cloneable. GITHUB_TOKEN can read this
+      # repository only, so this step fails while core stays private. See RELEASING.md.
+      - name: Checkout Morelord Core
+        if: ${{ inputs.publish_only == false }}
+        uses: actions/checkout@v4
+        with:
+          repository: tmorelord72/morelord-core
+          path: morelord-core-checkout
+          token: ${{ github.token }}
+
+      - name: Place Morelord Core beside this repository
+        if: ${{ inputs.publish_only == false }}
+        run: |
+          $dest = Join-Path (Split-Path -Parent $env:GITHUB_WORKSPACE) 'morelord-core'
+          $source = Join-Path $env:GITHUB_WORKSPACE 'morelord-core-checkout'
+          if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+          Move-Item -LiteralPath $source -Destination $dest
+          $identity = Join-Path $dest 'scripts/ui/actor-identity.js'
+          if (-not (Test-Path -LiteralPath $identity)) {
+            throw "morelord-core is missing $identity. Tests import that sibling path."
+          }
+
+      - name: Setup Node
+        if: ${{ inputs.publish_only == false }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run unit tests
+        if: ${{ inputs.publish_only == false }}
+        run: npm test
+
+      - name: Resolve release version
+        id: version
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_VERSION: ${{ inputs.version }}
+          PUBLISH_ONLY: ${{ inputs.publish_only }}
+        run: |
+          $resolverArgs = @{
+            ModuleManifest = 'module.json'
+            Bump = $(if ([string]::IsNullOrWhiteSpace($env:INPUT_BUMP)) { 'patch' } else { $env:INPUT_BUMP })
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_VERSION)) {
+            $resolverArgs.Version = $env:INPUT_VERSION
+          }
+          if ($env:PUBLISH_ONLY -eq 'true') { $resolverArgs.PublishOnly = $true }
+          $version = (& ./tools/resolve-release-version.ps1 @resolverArgs | Select-Object -Last 1).ToString().Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version resolver returned a value that is not x.y.z.' }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version" -Encoding utf8NoBOM
+          Write-Host "Resolved release version $version"
+
+      - name: Publish existing release
+        if: ${{ inputs.publish_only }}
+        env:
+          RELEASE_PUBLISH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
+          FOUNDRY_RELEASE_TOKEN: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./release.ps1 -Version $env:RELEASE_VERSION -WebsiteOnly
+          ./release.ps1 -Version $env:RELEASE_VERSION -FoundryOnly
+
+      - name: Create GitHub release
+        if: ${{ inputs.publish_only == false }}
+        env:
+          RELEASE_PUBLISH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
+          FOUNDRY_RELEASE_TOKEN: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: ./release.ps1 -Version $env:RELEASE_VERSION
