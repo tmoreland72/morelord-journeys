@@ -17,7 +17,7 @@ import { adjustActorExhaustion } from "../services/actor-exhaustion-service.mjs"
 import { JourneyFinalApplication as BaseJourneyApplication } from "./journey-final-app.mjs";
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
-import { restResultBullets } from "../domain/rest-2024.mjs";
+import { describeInterruptedHours, interruptionSourceSummary, restResultBullets } from "../domain/rest-2024.mjs";
 import { longRestFailureReasons } from "../domain/sleep-rules.mjs";
 import { availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
 
@@ -58,12 +58,8 @@ function describeInterruptionSources(result, currentDay) {
   const sources = (result.interruptionSources?.length ? result.interruptionSources : (currentDay?.sleepInterruptions ?? [])
     .filter(item => item.actorUuid === result.actorUuid)
     .map(item => ({ reason: item.reason ?? "recorded interruption", hours: Number(item.hours ?? Number(item.minutes ?? 0) / 60), watchIndex: item.watchIndex != null && Number.isInteger(Number(item.watchIndex)) ? Number(item.watchIndex) : null })));
-  const describedHours = sources.reduce((total, source) => total + Number(source.hours ?? 0), 0);
   const interruptedHours = Number(result.interruptionHours ?? Number(result.interruptionMinutes ?? 0) / 60);
-  const complete = [...sources];
-  if (interruptedHours > describedHours) complete.push({ reason: "GM-entered adjustment", hours: interruptedHours - describedHours, watchIndex: null });
-  if (!complete.length) return interruptedHours > 0 ? "Source was not recorded by an earlier Journeys version" : "No interruption";
-  return complete.map(source => `${source.reason === "combat" ? "Combat encounter" : source.reason}${Number.isInteger(source.watchIndex) ? ` during Watch ${source.watchIndex + 1}` : ""}: ${source.hours} hour(s)`).join("; ");
+  return interruptionSourceSummary(sources, interruptedHours);
 }
 
 export class JourneyForagingApplication extends BaseJourneyApplication {
@@ -267,7 +263,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     section.innerHTML = `<div class="journey-sleep-intro"><p class="notes">2024 Long Rest rules use time and interruptions; no sleep check is required. Confirm starting eligibility and enter any extra rest after the four watches. Equipment remains recorded for camp planning.</p><button type="button" class="ml-icon-button journey-help-button" data-size="compact" data-variant="ghost" data-sleep-help aria-label="Explain sleep and interruption outcomes" data-tooltip="Explain sleep and interruption outcomes"><i class="fa-solid fa-circle-question"></i></button></div><div class="ml-audit-card journey-night-confirmation"><small>Night encounter result</small><strong>${nightLabel}</strong><span>${night?.pendingSleepConfirmation ? "Pending confirmation with the sleep results" : "Confirmed"}</span></div><div class="ml-stack journey-camp-sleep-list"></div>`;
     section.querySelector("[data-sleep-help]").addEventListener("click", event => {
       event.preventDefault();
-      void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><h3>2024 Long Rests</h3><ul><li>A normal rest needs 8 hours, including at least 6 hours asleep and no more than 2 hours of light activity.</li><li>Trance can finish after 4 hours of meditation. Later encounters do not cancel completed rests.</li><li>Initiative, damage, a leveled spell, or an hour of exertion interrupts a rest. Each interruption adds 1 recovery hour, plus time spent interrupted.</li><li>Night encounter timing uses the selected watch and start offset. Extra rest after Watch 4 is sleeping or meditation time.</li><li>Confirm at least 1 HP at the start and 16 hours since the last Long Rest.</li><li>No sleep check or shelter DC is required. The existing optional Xanathar deprivation setting and nutrition rules remain separate.</li><li>Journeys records eligibility and adjusts Exhaustion. After all rolls resolve, use Send Long Rest Buttons to let eligible characters apply HP, Hit Dice, and feature recovery without a second Exhaustion reduction.</li></ul></div>", ok: { label: "Close" } });
+      void foundry.applications.api.DialogV2.prompt({ window: { title: "Sleep, Interruptions, and Long Rests", icon: "fa-solid fa-circle-question" }, content: "<div class='ml-stack'><h3>2024 Long Rests</h3><ul><li>A normal rest needs 8 hours, including at least 6 hours asleep and no more than 2 hours of light activity.</li><li>Trance can finish after 4 hours of meditation. Later encounters do not cancel completed rests.</li><li>Initiative, damage, a leveled spell, or an hour of exertion interrupts a rest. Each interruption adds 1 recovery hour, plus time spent interrupted. A duration of 0 hours does not interrupt the rest.</li><li>Night encounter timing uses the selected watch and start offset. Extra rest after Watch 4 is sleeping or meditation time.</li><li>Confirm at least 1 HP at the start and 16 hours since the last Long Rest.</li><li>No sleep check or shelter DC is required. The existing optional Xanathar deprivation setting and nutrition rules remain separate.</li><li>Journeys records eligibility and adjusts Exhaustion. After all rolls resolve, use Send Long Rest Buttons to let eligible characters apply HP, Hit Dice, and feature recovery without a second Exhaustion reduction.</li></ul></div>", ok: { label: "Close" } });
     });
     const list = section.querySelector(".journey-camp-sleep-list");
       for (const traveler of context.journey.travelers) {
@@ -325,7 +321,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
           .filter(item => item.actorUuid === entry.actorUuid)
           .reduce((total, item) => total + Math.max(0, Number(item.hours ?? Number(item.minutes ?? 0) / 60)), 0);
         const savedInterruptionHours = 0;
-        row.querySelector("[data-interruption-display]").textContent = `${Math.max(Number(savedInterruptionHours), encounterHours)} hours`;
+        row.querySelector("[data-interruption-display]").textContent = describeInterruptedHours(Math.max(Number(savedInterruptionHours), encounterHours));
       }
       recalculate();
       const pendingSleep = active.currentDay?.pendingSleepRolls ?? [];
@@ -359,7 +355,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
           { label: "Sleep", value: `${result.sleepHours ?? 0} hours` },
           { label: "Required sleep for Long Rest", value: `${result.requiredSleepHours ?? 6} hours` },
           { label: "Requirement source", value: result.requiredSleepHoursSource ?? "Standard Long Rest sleep requirement" },
-          { label: "Interrupted", value: `${result.interruptionHours ?? Number(result.interruptionMinutes ?? 0) / 60} hours` },
+          { label: "Interrupted", value: describeInterruptedHours(result.interruptionHours ?? Number(result.interruptionMinutes ?? 0) / 60) },
           { label: "Interruption source", value: describeInterruptionSources(result, active.currentDay) },
           { label: "Long Rest", value: result.longRestCompleted ? "Completed" : "Not completed" },
           { label: "Long Rest determination", value: result.restAssessment ? restResultBullets(result).join(" ") : result.longRestCompleted ? "Earlier rules: all requirements were met." : `Earlier rules: ${longRestFailureReasons({ sleepCheckSucceeded: result.succeeded, sleepHours: result.sleepHours, requiredSleepHours: result.requiredSleepHours, interruptionHours: result.interruptionHours }).join("; ")}.` },

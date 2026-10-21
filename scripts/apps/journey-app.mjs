@@ -281,13 +281,14 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
           source.currentDay.sleepInterruptions = readNightInterruptions(this.element, source);
         } else if (["minor", "nightAttack"].includes(source.currentDay?.nightEncounterCheck?.outcome)) {
           const interruptionHours = Math.max(0, Number(value(this.element, "nightInterruptionHours") || 0));
+          const interruptionCount = Math.max(0, Math.floor(Number(value(this.element, "nightInterruptionCount") || 0)));
           source.currentDay.sleepInterruptions = source.travelers.map(traveler => ({
             actorUuid: traveler.actorUuid,
             actorName: traveler.name,
             watchIndex: source.currentDay.nightEncounterCheck.watchIndex,
             reason: source.currentDay.nightEncounterCheck.outcome === "nightAttack" ? "night attack" : "night encounter",
-            count: Math.max(0, Math.floor(Number(value(this.element, "nightInterruptionCount") || 0))),
-            interruptsRest: Number(value(this.element, "nightInterruptionCount") || 0) > 0,
+            count: interruptionHours > 0 ? interruptionCount : 0,
+            interruptsRest: interruptionHours > 0 && interruptionCount > 0,
             offsetHours: Math.max(0, Math.min(2, Number(value(this.element, "nightInterruptionOffset") || 0))),
             startHour: Number(source.currentDay.nightEncounterCheck.watchIndex ?? 0) * 2 + Math.max(0, Math.min(2, Number(value(this.element, "nightInterruptionOffset") || 0))),
             suggestedHours: interruptionHours,

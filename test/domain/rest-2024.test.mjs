@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRest2024, restResultBullets } from "../../scripts/domain/rest-2024.mjs";
+import { describeInterruptedHours, evaluateRest2024, interruptionSourceSummary, restResultBullets } from "../../scripts/domain/rest-2024.mjs";
 
 const assignment = (...actions) => ({ periods: actions.map(action => ({ action, watch: action === "Take a Watch" })) });
 const bufoma = assignment("Take a Watch", "Slumber", "Slumber", "Task");
@@ -32,9 +32,50 @@ test("interruption subtracts sleep; extra rest can cover lost time and the recov
   assert.equal(resumed.longRestCompleted, true);
   assert.equal(resumed.completedAt, 10);
 });
-test("zero-duration initiative still interrupts, but a non-interrupting quiet event does not", () => {
-  assert.equal(evaluateRest2024({ assignment: normal, interruptionSources: [attack(2, 0)] }).longRestCompleted, false);
-  assert.equal(evaluateRest2024({ assignment: normal, interruptionSources: [{ ...attack(2, 0), interruptsRest: false }] }).longRestCompleted, true);
+test("zero hours does not interrupt, and one hour still does", () => {
+  const quiet = evaluateRest2024({ assignment: normal, interruptionSources: [attack(2, 0)] });
+  assert.equal(quiet.longRestCompleted, true);
+  assert.equal(quiet.interruptionCount, 0);
+  assert.equal(quiet.interruptionHours, 0);
+  assert.equal(quiet.lostSleepHours, 0);
+  assert.equal(quiet.sleepHours, 6);
+  assert.equal(quiet.missingRestHours, 0);
+  const quietBullets = restResultBullets({ ...quiet, restAssessment: quiet, exhaustionChange: 0 });
+  assert.ok(quietBullets.some(text => text.includes("not interrupted")));
+  assert.equal(quietBullets.some(text => text.includes("added")), false);
+  const counted = evaluateRest2024({ assignment: normal, interruptionSources: [{ ...attack(2, 0), interruptsRest: true, count: 3 }] });
+  assert.equal(counted.longRestCompleted, true);
+  assert.equal(counted.interruptionCount, 0);
+  assert.equal(counted.interruptionHours, 0);
+  const midpoint = evaluateRest2024({ assignment: normal, interruptionSources: [{ startHour: 4.5, hours: 0, interruptsRest: true, count: 1 }] });
+  assert.equal(midpoint.longRestCompleted, true);
+  assert.equal(midpoint.lostSleepHours, 0);
+  assert.equal(midpoint.sleepHours, 6);
+  const hour = evaluateRest2024({ assignment: normal, interruptionSources: [attack(2, 1)] });
+  assert.equal(hour.longRestCompleted, false);
+  assert.equal(hour.interruptionCount, 1);
+  assert.equal(hour.interruptionHours, 1);
+  assert.equal(hour.lostSleepHours, 1);
+  assert.equal(hour.sleepHours, 5);
+  const hourBullets = restResultBullets({ ...hour, restAssessment: hour, exhaustionChange: 1 });
+  assert.ok(hourBullets.some(text => text.includes("added 1 hour")));
+  assert.equal(hourBullets.some(text => text.includes("not interrupted")), false);
+  const beside = evaluateRest2024({ assignment: normal, interruptionSources: [attack(1, 0), attack(2, 1)] });
+  assert.equal(beside.interruptionCount, hour.interruptionCount);
+  assert.equal(beside.lostSleepHours, hour.lostSleepHours);
+  assert.equal(beside.interruptionHours, hour.interruptionHours);
+  assert.equal(beside.sleepHours, hour.sleepHours);
+  assert.equal(beside.longRestCompleted, hour.longRestCompleted);
+  assert.equal(describeInterruptedHours(0), "not interrupted");
+  assert.equal(describeInterruptedHours(1), "1 hours");
+  assert.equal(describeInterruptedHours(2), "2 hours");
+  assert.equal(interruptionSourceSummary([{ reason: "night encounter", hours: 0, watchIndex: 1 }], 0), "not interrupted");
+  assert.equal(interruptionSourceSummary([{ reason: "night encounter", hours: 1, watchIndex: 2 }, { reason: "night encounter", hours: 0, watchIndex: 0 }], 1), "night encounter during Watch 3: 1 hour(s)");
+  const legacyQuiet = restResultBullets({ sleepHours: 8, requiredSleepHours: 6, succeeded: true, longRestCompleted: true, interruptionHours: 0, exhaustionChange: 0 });
+  assert.ok(legacyQuiet.some(text => text.includes("not interrupted")));
+  const legacyHour = restResultBullets({ sleepHours: 8, requiredSleepHours: 6, succeeded: true, longRestCompleted: false, interruptionHours: 1, exhaustionChange: 0 });
+  assert.ok(legacyHour.some(text => text.includes("1 interrupted")));
+  assert.equal(legacyHour.some(text => text.includes("not interrupted")), false);
 });
 test("Trance interrupted before completion requires extra recovery time", () => {
   const result = evaluateRest2024({ assignment: bufoma, requiredSleepHours: 4, interruptionSources: [attack(2)] });
