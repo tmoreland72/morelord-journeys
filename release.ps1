@@ -20,6 +20,9 @@ param(
     [switch]$DryRun,
 
     [Parameter(Mandatory = $false)]
+    [switch]$ValidateOnly,
+
+    [Parameter(Mandatory = $false)]
     [switch]$SkipWebsitePublish,
 
     [Parameter(Mandatory = $false)]
@@ -502,12 +505,166 @@ function Request-DocumentationDeployment {
     if ($LASTEXITCODE -ne 0) { throw "Unable to request documentation deployment from $Repository." }
 }
 
+function Test-ChangelogHorizontalRule {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Line)
+    return $Line.Trim() -match '^([-*_])\1{2,}$'
+}
+
+function Format-ChangelogLine {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Line)
+    $Trimmed = $Line.Trim()
+    if ([string]::IsNullOrWhiteSpace($Trimmed)) { return '' }
+    if ($Trimmed -match '^(#{1,6})\s+(\S.*?)\s*$') {
+        return "$($Matches[1]) $($Matches[2].Trim())"
+    }
+    if ($Trimmed -match '^(#{1,6})(\S.*?)\s*$') {
+        return "$($Matches[1]) $($Matches[2].Trim())"
+    }
+    if ($Trimmed -match '^[-*+]\s+(.*\S)\s*$') {
+        $BulletText = $Matches[1].Trim()
+        $Indent = ''
+        if ($Line -match '^([ \t]+)') { $Indent = $Matches[1] }
+        return "$Indent- $BulletText"
+    }
+    return $Line.TrimEnd()
+}
+
+function Get-ChangelogBodyLines {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $RawLines = @([System.IO.File]::ReadAllLines($Path, $Utf8NoBom))
+    $Body = New-Object System.Collections.Generic.List[string]
+    $ChangeHeadings = @{
+        'added' = $true; 'new' = $true; 'feature' = $true; 'features' = $true
+        'improvement' = $true; 'improvements' = $true; 'changed' = $true; 'changes' = $true
+        'fixed' = $true; 'fix' = $true; 'fixes' = $true; 'bug fixes' = $true; 'bugfixes' = $true
+        'breaking' = $true; 'breaking changes' = $true; 'security' = $true
+    }
+
+    $WhatChangedIndex = -1
+    for ($Index = 0; $Index -lt $RawLines.Count; $Index++) {
+        if ($RawLines[$Index].Trim() -match '^##\s+What Changed\s*$') {
+            $WhatChangedIndex = $Index
+            break
+        }
+    }
+
+    if ($WhatChangedIndex -ge 0) {
+        for ($Index = $WhatChangedIndex + 1; $Index -lt $RawLines.Count; $Index++) {
+            $Trimmed = $RawLines[$Index].Trim()
+            if ($Trimmed -match '^##\s+') { break }
+            if (Test-ChangelogHorizontalRule -Line $RawLines[$Index]) { continue }
+            $Body.Add((Format-ChangelogLine -Line $RawLines[$Index]))
+        }
+    }
+    else {
+        $Including = $false
+        foreach ($RawLine in $RawLines) {
+            $Trimmed = $RawLine.Trim()
+            if ($Trimmed -match '^#\s+' -and $Trimmed -notmatch '^##') { continue }
+            if ($Trimmed -match '^##\s+(.+)$') {
+                $Heading = $Matches[1].Trim()
+                if ($ChangeHeadings.ContainsKey($Heading.ToLowerInvariant())) {
+                    $Including = $true
+                    $Body.Add("### $Heading")
+                }
+                else { $Including = $false }
+                continue
+            }
+            if (-not $Including) { continue }
+            if (Test-ChangelogHorizontalRule -Line $RawLine) { continue }
+            $Body.Add((Format-ChangelogLine -Line $RawLine))
+        }
+    }
+
+    $Compact = New-Object System.Collections.Generic.List[string]
+    $PreviousBlank = $false
+    foreach ($BodyLine in $Body) {
+        $Blank = [string]::IsNullOrWhiteSpace($BodyLine)
+        if ($Blank -and $PreviousBlank) { continue }
+        $Compact.Add($BodyLine)
+        $PreviousBlank = $Blank
+    }
+    $Body = $Compact
+
+    while ($Body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($Body[0])) { $Body.RemoveAt(0) }
+    while ($Body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($Body[$Body.Count - 1])) { $Body.RemoveAt($Body.Count - 1) }
+    return @($Body.ToArray())
+}
+
+function New-ChangelogMarkdown {
+    param(
+        [Parameter(Mandatory = $true)][string]$ModuleTitle,
+        [Parameter(Mandatory = $true)][string]$ReleaseNotesDirectory
+    )
+    if (-not (Test-Path -LiteralPath $ReleaseNotesDirectory -PathType Container)) {
+        throw "Release notes directory was not found: $ReleaseNotesDirectory"
+    }
+
+    $Entries = New-Object System.Collections.Generic.List[object]
+    foreach ($File in @(Get-ChildItem -LiteralPath $ReleaseNotesDirectory -Filter 'RELEASE-NOTES-*.md' -File)) {
+        if ($File.Name -notmatch '^RELEASE-NOTES-(\d+\.\d+\.\d+)\.md$') {
+            throw "Release notes file '$($File.Name)' does not use RELEASE-NOTES-<x.y.z>.md."
+        }
+        $Entries.Add([pscustomobject]@{
+            Version = $Matches[1]
+            SortKey = [version]$Matches[1]
+            Path = $File.FullName
+        })
+    }
+    if ($Entries.Count -eq 0) {
+        throw "No RELEASE-NOTES-<x.y.z>.md files were found in $ReleaseNotesDirectory."
+    }
+
+    $Sorted = @($Entries | Sort-Object -Property SortKey -Descending)
+    $Seen = @{}
+    $Lines = New-Object System.Collections.Generic.List[string]
+    $Lines.Add("# $ModuleTitle Changelog")
+    $Lines.Add('')
+    foreach ($Entry in $Sorted) {
+        if ($Seen.ContainsKey($Entry.Version)) { throw "Duplicate release notes for version $($Entry.Version)." }
+        $Seen[$Entry.Version] = $true
+        $Lines.Add("## $($Entry.Version)")
+        $Body = @(Get-ChangelogBodyLines -Path $Entry.Path)
+        if ($Body.Count -gt 0) {
+            $Lines.Add('')
+            foreach ($BodyLine in $Body) { $Lines.Add([string]$BodyLine) }
+        }
+        $Lines.Add('')
+    }
+    return (($Lines -join "`n").TrimEnd("`n") + "`n")
+}
+
+function Update-ChangelogFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Text
+    )
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        $Existing = [System.IO.File]::ReadAllText($Path)
+        if ($Existing -eq $Text) { return $false }
+    }
+    Write-Utf8NoBom -Path $Path -Text $Text
+    return $true
+}
+
+function Update-Changelog {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ModuleTitle,
+        [Parameter(Mandatory = $true)][string]$ReleaseNotesDirectory
+    )
+    $Text = New-ChangelogMarkdown -ModuleTitle $ModuleTitle -ReleaseNotesDirectory $ReleaseNotesDirectory
+    $Changed = Update-ChangelogFile -Path $Path -Text $Text
+    return [pscustomobject]@{ Changed = [bool]$Changed; Text = $Text }
+}
+
 function Show-Usage {
     param([string]$Title)
     Write-Host ''
     Write-Host "$Title - Standard Morelord Release Workflow" -ForegroundColor Cyan
     Write-Host ''
     Write-Host '  .\release.ps1 -Version <x.y.z> [-DryRun] [-Prerelease] [-Draft]' -ForegroundColor Yellow
+    Write-Host '  .\release.ps1 -Version <x.y.z> -ValidateOnly' -ForegroundColor Yellow
     Write-Host '  .\release.ps1 -Version <x.y.z> -WebsiteOnly' -ForegroundColor Yellow
     Write-Host '  .\release.ps1 -Version <x.y.z> -FoundryOnly' -ForegroundColor Yellow
     Write-Host ''
@@ -517,6 +674,8 @@ function Show-Usage {
     Write-Host 'Use -SkipWebsitePublish only for exceptional cases.'
     Write-Host 'Draft and prerelease builds are not published to the public website release feed.'
     Write-Host '-WebsiteOnly and -FoundryOnly publish an existing version. They do not commit, tag, or create a GitHub Release.'
+    Write-Host '-ValidateOnly rebuilds CHANGELOG.md when it differs, checks the archive, and does not commit, tag, or publish.'
+    Write-Host 'When CHANGELOG.md is already current, -ValidateOnly leaves the Git worktree unchanged.'
     Write-Host ''
 }
 
@@ -536,6 +695,11 @@ $RequiredPaths = @($Config.requiredPaths | ForEach-Object { [string]$_ })
 $OptionalPaths = @($Config.optionalPaths | ForEach-Object { [string]$_ })
 if ($RequiredPaths.Count -eq 0) { throw 'release.config.json requiredPaths must contain at least one path.' }
 
+if ([string]::IsNullOrWhiteSpace($Version) -and $ValidateOnly) {
+    if (-not (Test-Path -LiteralPath $ManifestPath)) { throw 'module.json was not found.' }
+    $Version = [string]((Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json).version)
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "module.json version '$Version' is not x.y.z." }
+}
 if ([string]::IsNullOrWhiteSpace($Version)) { Show-Usage -Title $ModuleTitle; exit 0 }
 
 $Tag = "v$Version"
@@ -564,8 +728,8 @@ $WorkingPath = Join-Path $ProjectRoot 'tmp'
 New-Item -ItemType Directory -Path $WorkingPath -Force | Out-Null
 $StagingPath = Join-Path $WorkingPath ("$ModuleId-release-" + [guid]::NewGuid().ToString('N'))
 $DryRunArchivePath = Join-Path $WorkingPath ("$ModuleId-dry-run-" + [guid]::NewGuid().ToString('N') + '.zip')
-$ShouldPublishWebsite = -not $SkipWebsitePublish -and -not $Draft -and -not $Prerelease
-$ShouldPublishFoundry = -not $SkipFoundryPublish -and -not $Draft -and -not $Prerelease
+$ShouldPublishWebsite = -not $SkipWebsitePublish -and -not $Draft -and -not $Prerelease -and -not $ValidateOnly
+$ShouldPublishFoundry = -not $SkipFoundryPublish -and -not $Draft -and -not $Prerelease -and -not $ValidateOnly
 if ($WebsiteOnly) { $ShouldPublishWebsite = $true }
 if ($WebsiteOnly -and $FoundryOnly) { throw 'Pass -WebsiteOnly or -FoundryOnly, not both. Run the script once for each destination.' }
 
@@ -646,12 +810,13 @@ if ($WebsiteOnly) {
 Write-Host ''
 Write-Host "Preparing $ModuleTitle $Tag..." -ForegroundColor Cyan
 if ($DryRun) { Write-Host 'DRY RUN: no project files, Git history, GitHub releases, or website records will be changed.' -ForegroundColor Yellow }
+if ($ValidateOnly) { Write-Host 'VALIDATE ONLY: no commit, tag, push, or publication. CHANGELOG.md is rewritten only when its text changes.' -ForegroundColor Yellow }
 if (($Draft -or $Prerelease) -and -not $SkipWebsitePublish) { Write-Host 'Website publication will be skipped for draft/prerelease builds.' -ForegroundColor Yellow }
 
 try {
     Write-Step 'Checking prerequisites and release metadata...'
     Assert-CommandExists 'git'
-    if (-not $DryRun) { Assert-CommandExists 'gh' }
+    if (-not $DryRun -and -not $ValidateOnly) { Assert-CommandExists 'gh' }
     if (-not (Test-Path $ManifestPath)) { throw 'module.json was not found.' }
     if (-not (Test-Path $ReleaseNotesPath -PathType Leaf)) { throw "Release notes were not found: $ReleaseNotesPath" }
     if (-not [string]::IsNullOrWhiteSpace($ProductDocumentationPath)) {
@@ -669,22 +834,24 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($ProductDocumentationPath)) { Write-Host "  Documentation   : $ProductDocumentationPath" }
     Write-Host "  Website changes : $($ReleaseMetadata.changes.Count)"
 
-    Write-Step 'Checking repository identity and state...'
-    git rev-parse --is-inside-work-tree *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'This directory is not a Git repository.' }
-    $CurrentBranch = Get-GitOutput -Command { git branch --show-current } -FailureMessage 'Unable to determine the current Git branch.'
-    if ($CurrentBranch -ne $ReleaseBranch) { throw "Releases must run from '$ReleaseBranch'. Current branch: '$CurrentBranch'." }
-    $OriginUrl = Get-GitOutput -Command { git remote get-url origin } -FailureMessage "Git remote 'origin' was not found."
-    if ($OriginUrl -notmatch [regex]::Escape($Repository)) { throw "Git remote 'origin' does not point to $Repository. Current: $OriginUrl" }
-    $InitialStatus = Get-GitOutput -Command { git status --porcelain } -FailureMessage 'Unable to inspect the Git working tree.'
-    if (-not [string]::IsNullOrWhiteSpace($InitialStatus)) { throw "The working tree is not clean:`n$InitialStatus" }
-    Invoke-NativeCommand -Command { git fetch origin --tags --prune } -FailureMessage 'Unable to fetch origin.'
-    $Behind = [int](Get-GitOutput -Command { git rev-list --count "HEAD..origin/$ReleaseBranch" } -FailureMessage 'Unable to compare local and remote branches.')
-    if ($Behind -gt 0) { throw "Local '$ReleaseBranch' is $Behind commit(s) behind origin. Pull before releasing." }
-    if (-not $DryRun) { Invoke-NativeCommand -Command { gh auth status } -FailureMessage "GitHub CLI is not authenticated. Run 'gh auth login'." }
-    if (git tag --list $Tag) { throw "Git tag '$Tag' already exists locally." }
-    if (Test-RemoteTagExists -Tag $Tag) { throw "Git tag '$Tag' already exists on origin." }
-    if (-not $DryRun -and (Test-GitHubReleaseExists -Tag $Tag -Repository $Repository)) { throw "GitHub Release '$Tag' already exists." }
+    if (-not $ValidateOnly) {
+        Write-Step 'Checking repository identity and state...'
+        git rev-parse --is-inside-work-tree *> $null
+        if ($LASTEXITCODE -ne 0) { throw 'This directory is not a Git repository.' }
+        $CurrentBranch = Get-GitOutput -Command { git branch --show-current } -FailureMessage 'Unable to determine the current Git branch.'
+        if ($CurrentBranch -ne $ReleaseBranch) { throw "Releases must run from '$ReleaseBranch'. Current branch: '$CurrentBranch'." }
+        $OriginUrl = Get-GitOutput -Command { git remote get-url origin } -FailureMessage "Git remote 'origin' was not found."
+        if ($OriginUrl -notmatch [regex]::Escape($Repository)) { throw "Git remote 'origin' does not point to $Repository. Current: $OriginUrl" }
+        $InitialStatus = Get-GitOutput -Command { git status --porcelain } -FailureMessage 'Unable to inspect the Git working tree.'
+        if (-not [string]::IsNullOrWhiteSpace($InitialStatus)) { throw "The working tree is not clean:`n$InitialStatus" }
+        Invoke-NativeCommand -Command { git fetch origin --tags --prune } -FailureMessage 'Unable to fetch origin.'
+        $Behind = [int](Get-GitOutput -Command { git rev-list --count "HEAD..origin/$ReleaseBranch" } -FailureMessage 'Unable to compare local and remote branches.')
+        if ($Behind -gt 0) { throw "Local '$ReleaseBranch' is $Behind commit(s) behind origin. Pull before releasing." }
+        if (-not $DryRun) { Invoke-NativeCommand -Command { gh auth status } -FailureMessage "GitHub CLI is not authenticated. Run 'gh auth login'." }
+        if (git tag --list $Tag) { throw "Git tag '$Tag' already exists locally." }
+        if (Test-RemoteTagExists -Tag $Tag) { throw "Git tag '$Tag' already exists on origin." }
+        if (-not $DryRun -and (Test-GitHubReleaseExists -Tag $Tag -Repository $Repository)) { throw "GitHub Release '$Tag' already exists." }
+    }
 
     Write-Step 'Validating and preparing module manifest...'
     Assert-Utf8JsonFile -Path $ManifestPath
@@ -715,17 +882,34 @@ try {
     Write-Host "  Repository      : $Repository"
     Write-Host "  Archive         : $ArchiveName"
 
+    Write-Step 'Updating cumulative changelog...'
+    $ChangelogModuleTitle = [string]$Manifest.title
+    if ([string]::IsNullOrWhiteSpace($ChangelogModuleTitle)) { throw 'module.json title is required to build CHANGELOG.md.' }
+    $ReleaseNotesDirectory = Join-Path $ProjectRoot 'release-notes'
+    $ChangelogPath = Join-Path $ProjectRoot 'CHANGELOG.md'
+    if ($DryRun) {
+        $ChangelogText = New-ChangelogMarkdown -ModuleTitle $ChangelogModuleTitle.Trim() -ReleaseNotesDirectory $ReleaseNotesDirectory
+        Write-Host '  Changelog       : dry run leaves CHANGELOG.md unchanged'
+    }
+    else {
+        $ChangelogResult = Update-Changelog -Path $ChangelogPath -ModuleTitle $ChangelogModuleTitle.Trim() -ReleaseNotesDirectory $ReleaseNotesDirectory
+        $ChangelogText = [string]$ChangelogResult.Text
+        if ($ChangelogResult.Changed) { Write-Host '  Changelog       : updated CHANGELOG.md' }
+        else { Write-Host '  Changelog       : CHANGELOG.md already current' }
+    }
+
     Write-Step 'Building and validating release archive...'
     Copy-ReleaseContent -Destination $StagingPath -RequiredPaths $RequiredPaths -OptionalPaths $OptionalPaths
+    Write-Utf8NoBom -Path (Join-Path $StagingPath 'CHANGELOG.md') -Text $ChangelogText
     $StagedManifest = Join-Path $StagingPath 'module.json'
     Update-ManifestFile -Path $StagedManifest -ReleaseVersion $Version -DownloadUrl $DownloadUrl -RepositoryUrl $RepositoryUrl -ManifestUrl $ManifestUrl -ExpectedModuleId $ModuleId
-    if (-not $DryRun) {
+    if (-not $DryRun -and -not $ValidateOnly) {
         $OriginalManifestText = Get-Content $ManifestPath -Raw
         Update-ManifestFile -Path $ManifestPath -ReleaseVersion $Version -DownloadUrl $DownloadUrl -RepositoryUrl $RepositoryUrl -ManifestUrl $ManifestUrl -ExpectedModuleId $ModuleId
         $ManifestWasModified = $true
         Copy-Item $ManifestPath $StagedManifest -Force
     }
-    $OutputArchive = if ($DryRun) { $DryRunArchivePath } else { $ArchivePath }
+    $OutputArchive = if ($DryRun -or $ValidateOnly) { $DryRunArchivePath } else { $ArchivePath }
     Build-Archive -SourceDirectory $StagingPath -DestinationArchive $OutputArchive
     Assert-Archive -Path $OutputArchive -ExpectedVersion $Version -ExpectedDownloadUrl $DownloadUrl -ExpectedModuleId $ModuleId -RequiredPaths $RequiredPaths
     Write-Host "  Archive verified: $OutputArchive" -ForegroundColor Green
@@ -740,17 +924,23 @@ try {
     if ($ShouldPublishWebsite) { Write-Host "  Website         : $WebsiteUrl/releases" } else { Write-Host '  Website         : skipped' -ForegroundColor Yellow }
     if ($ShouldPublishFoundry) { Write-Host '  Foundry VTT     : publish after GitHub Release' } else { Write-Host '  Foundry VTT     : skipped' -ForegroundColor Yellow }
 
-    if ($DryRun) {
+    if ($DryRun -or $ValidateOnly) {
         Write-Host ''
-        Write-Host "Dry run for $Tag completed successfully." -ForegroundColor Green
-        Write-Host 'Git, GitHub, and the website were not modified.' -ForegroundColor Green
+        if ($ValidateOnly) {
+            Write-Host "Validation for $Tag completed successfully." -ForegroundColor Green
+            Write-Host 'No commit, tag, or publication was created.' -ForegroundColor Green
+        }
+        else {
+            Write-Host "Dry run for $Tag completed successfully." -ForegroundColor Green
+            Write-Host 'Git, GitHub, and the website were not modified.' -ForegroundColor Green
+        }
         exit 0
     }
 
     Write-Step 'Creating release commit and tag...'
-    git add -- module.json
+    git add -- module.json CHANGELOG.md
     git diff --cached --quiet
-    if ($LASTEXITCODE -eq 0) { throw 'No staged manifest change was detected. The requested version may already be committed.' }
+    if ($LASTEXITCODE -eq 0) { throw 'No staged manifest or changelog change was detected. The requested version may already be committed.' }
     Invoke-NativeCommand -Command { git diff --cached --check } -FailureMessage 'Staged changes contain whitespace errors.'
     Invoke-NativeCommand -Command { git commit -m $CommitMessage } -FailureMessage 'git commit failed.'
     $CommitWasCreated = $true
@@ -820,5 +1010,5 @@ catch {
 }
 finally {
     if (Test-Path $StagingPath) { Remove-Item $StagingPath -Recurse -Force -ErrorAction SilentlyContinue }
-    if ($DryRun -and (Test-Path $DryRunArchivePath)) { Remove-Item $DryRunArchivePath -Force -ErrorAction SilentlyContinue }
+    if (($DryRun -or $ValidateOnly) -and (Test-Path $DryRunArchivePath)) { Remove-Item $DryRunArchivePath -Force -ErrorAction SilentlyContinue }
 }

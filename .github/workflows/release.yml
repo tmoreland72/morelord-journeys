@@ -133,4 +133,5 @@ jobs:
           FOUNDRY_RELEASE_TOKEN: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           GH_TOKEN: ${{ github.token }}
+        # release.ps1 rebuilds CHANGELOG.md, puts it at the zip root, and commits it with module.json.
         run: ./release.ps1 -Version $env:RELEASE_VERSION

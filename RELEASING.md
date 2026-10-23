@@ -35,6 +35,14 @@ With `module.json` at `0.4.1` and no explicit version, the bumps are:
 
 A normal release still needs `release-notes/RELEASE-NOTES-<version>.md` and `docs/README.md` frontmatter for that version before the dispatch. `release.ps1` creates the commit, tag, GitHub Release, website record, and Foundry release.
 
+## Changelog
+
+Per-version release notes live in `release-notes/RELEASE-NOTES-<version>.md`. Those files are excluded from release archives. Every release maintains a cumulative root `CHANGELOG.md`: newest version first, `#`/`##`/`###` headings with a space after `#`, `- ` bullets, and no `---` horizontal rules. `release.ps1` rebuilds that file from `release-notes/RELEASE-NOTES-*.md` before it stages the archive, keeps the user-facing sections under `## What Changed`, and omits `## Verification` and other internal test sections. It then commits `CHANGELOG.md` with `module.json` (`git add -- module.json CHANGELOG.md`).
+
+`release.config.json` lists `CHANGELOG.md` in `requiredPaths`, so the file is copied to the root of the release `.zip` and `Assert-Archive` checks that it is present. In-Foundry changelog viewers and GitHub users read that packaged file.
+
+`-ValidateOnly` runs the same changelog rebuild and archive checks without committing, tagging, or publishing, and it does not require the release branch. When `CHANGELOG.md` is already up to date, the rebuild does not rewrite the file and leaves the Git worktree unchanged. `-DryRun` does not modify `CHANGELOG.md`; the generated text is still what the dry-run archive contains.
+
 ## Morelord Core and tests
 
 When `publish_only` is false, the workflow checks out `tmorelord72/morelord-core` and moves it beside this repository so `npm test` can import Core. That checkout uses `GITHUB_TOKEN`.
