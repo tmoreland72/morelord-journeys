@@ -14,6 +14,22 @@ Morelord Journeys turns overland travel into a shared expedition workflow. A Gam
 
 Journey distance uses exact thirds of a normal travel day. Routes can begin with fractional lengths, and pace, weather, discoveries, navigation, and forced marches add or remove thirds while the original plan remains visible.
 
+## See Journeys in action
+
+<p class="docs-video-intro">
+	Take a guided tour of planning a route, resolving the travel day, and making camp.
+</p>
+
+<div class="docs-video">
+	<iframe
+		src="https://www.youtube-nocookie.com/embed/T4_9GPdveBw"
+		title="Morelord Journeys demo"
+		loading="lazy"
+		allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+		allowfullscreen
+	></iframe>
+</div>
+
 ## Choose a guide
 
 - [Game Master Manual](gm-manual.md) — installation, journey setup, every travel phase, supplies, camp, integrations, and troubleshooting.
