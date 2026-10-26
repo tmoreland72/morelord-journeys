@@ -25,7 +25,7 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 ## Platform
 
 - Foundry Virtual Tabletop v14 only
-- Morelord Core 0.3.15 or later
+- Morelord Core 0.6.0 or later
 - D&D 5e adapter first, with a system-neutral journey engine
 
 ## Development
@@ -63,7 +63,7 @@ The journey subtitle contains progress; daily ratings precede supplies, weather 
 
 ## Journey dashboard and rest
 
-The Journeys toolbar button and expedition dashboard are GM-only. Players follow public progress updates and use their characters’ chat roll controls.
+The **Morelord Journeys** button on the **Morelord Tools** scene control and the expedition dashboard are GM-only. Players follow public progress updates and use their characters’ chat roll controls.
 
 Disabled or skipped journey steps produce no completion chat card and are omitted from the displayed step sequence and recent activity. Completion cards count only included steps for that day, including pace-based skips. Internal skip records retain the defaults needed to advance the journey. On the next journey save, completion cards identified with this journey are removed if their step is now disabled/skipped, and remaining cards are renumbered. Historical cards without a journey identifier are retained because they cannot safely be distinguished from another journey's cards.
 

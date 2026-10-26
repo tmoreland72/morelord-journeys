@@ -1,5 +1,12 @@
 # Morelord Journeys Changelog
 
+## 0.5.0
+
+### Features
+
+- The GM opens Journeys from **Morelord Tools** on the left scene-controls bar. The **Morelord Journeys** button keeps the hiking-person icon, stays GM-only, and still warns "Morelord Journeys is still initializing." when the module is not ready.
+- Morelord Core 0.6.0 or later is required. If Core does not provide the tools registry, the same button remains on the Token controls.
+
 ## 0.4.1
 
 ### Fixes

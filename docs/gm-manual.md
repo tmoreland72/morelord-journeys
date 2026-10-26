@@ -4,20 +4,20 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.4.1
+version: 0.5.0
 foundry: 14
 order: 10
 ---
 
 # Morelord Journeys: Game Master Manual
 
-The Journeys toolbar button and expedition dashboard are GM-only. Players follow public progress updates and respond to their characters’ chat roll requests; they cannot create, edit, advance, or clear journeys.
+The **Morelord Journeys** button on **Morelord Tools**, and the expedition dashboard, are GM-only. Players follow public progress updates and respond to their characters’ chat roll requests; they cannot create, edit, advance, or clear journeys.
 
 ## Requirements
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.3.15 or later
+- Morelord Core 0.6.0 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.
@@ -32,7 +32,7 @@ Enable **Morelord Core** and **Morelord Journeys** in the world. Reload the worl
 
 ## Opening Journeys
 
-Open the Token scene controls and select the hiking-person button. Opening Journeys refreshes the Supply Manifest from the current party and traveler inventories. The refresh button remains available when inventory changes while the window is already open.
+Open **Morelord Tools** on the left scene-controls bar and select **Morelord Journeys**, the hiking-person button. If Journeys is not ready, that button warns "Morelord Journeys is still initializing." Opening Journeys refreshes the Supply Manifest from the current party and traveler inventories. The refresh button remains available when inventory changes while the window is already open.
 
 ## Planning a journey
 
