@@ -20,6 +20,7 @@ import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { describeInterruptedHours, interruptionSourceSummary, restResultBullets } from "../domain/rest-2024.mjs";
 import { longRestFailureReasons } from "../domain/sleep-rules.mjs";
 import { availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
+import { renderJourneyInBackground } from "../ui/render-in-background.mjs";
 
 const SLEEP_MODIFIER_LABELS = Object.freeze({ tent: "Tent", bedroll: "Bedroll", blanket: "Blanket in cold weather", extremeWeather: "Extreme weather", peacefulNight: "Peaceful night" });
 const supplyConsumption = new SupplyConsumptionService();
@@ -124,12 +125,12 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     }
   }
 
-  #foragingUpdated = () => { if (this.rendered) void this.render({ force: true }); };
-  #supplyUpdated = () => { if (this.rendered) void this.render({ force: true }); };
-  #campPerceptionUpdated = () => { if (this.rendered) void this.render({ force: true }); };
-  #peacefulRestUpdated = () => { if (this.rendered) void this.render({ force: true }); };
-  #forcedMarchUpdated = () => { if (this.rendered) void this.render({ force: true }); };
-  #sleepUpdated = () => { if (this.rendered) void this.render({ force: true }); };
+  #foragingUpdated = () => { void renderJourneyInBackground(this); };
+  #supplyUpdated = () => { void renderJourneyInBackground(this); };
+  #campPerceptionUpdated = () => { void renderJourneyInBackground(this); };
+  #peacefulRestUpdated = () => { void renderJourneyInBackground(this); };
+  #forcedMarchUpdated = () => { void renderJourneyInBackground(this); };
+  #sleepUpdated = () => { void renderJourneyInBackground(this); };
   #sleepWindowExpanded = false;
 
   constructor(options = {}) {

@@ -17,7 +17,7 @@ The **Morelord Journeys** button on **Morelord Tools**, and the expedition dashb
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.6.0 or later
+- Morelord Core 0.9.0 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.

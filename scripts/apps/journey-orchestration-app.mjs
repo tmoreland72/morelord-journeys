@@ -6,6 +6,7 @@ import { JourneyRouteSelectApplication as BaseJourneyApplication } from "./journ
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { navigationOutcomeLabel } from "../domain/navigation-rules.mjs";
 import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
+import { renderJourneyInBackground } from "../ui/render-in-background.mjs";
 
 function button(action, label, icon = null) {
   const element = document.createElement("button");
@@ -32,9 +33,7 @@ export class JourneyOrchestrationApplication extends BaseJourneyApplication {
     }
   };
 
-  #roleRollUpdated = () => {
-    if (this.rendered) void this.render({ force: true });
-  };
+  #roleRollUpdated = () => { void renderJourneyInBackground(this); };
 
   constructor(options = {}) {
     super(options);
