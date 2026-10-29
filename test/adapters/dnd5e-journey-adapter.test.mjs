@@ -31,11 +31,38 @@ test("navigation treats a route without a DC as automatic success", async () => 
 
 test("navigation uses the natural d20 for Turned Around and Shortcut", async () => {
   const adapter = new Dnd5eJourneyAdapter();
-  const actor = { name: "Guide", rollSkill: async () => ({ total: 25, dice: [{ faces: 20, results: [{ result: 1, active: true }] }] }) };
+  const actor = { name: "Guide", rollSkill: async () => [{ total: 25, dice: [{ faces: 20, results: [{ result: 1, active: true }] }] }] };
   globalThis.fromUuid = async () => actor;
   const journey = { roles: { navigatorUuid: "Actor.guide" }, routeSnapshot: { name: "Wild Trail", navigationDC: 15 } };
   assert.equal((await adapter.rollNavigation(journey)).outcome, "reversed");
-  actor.rollSkill = async () => ({ total: 8, dice: [{ faces: 20, results: [{ result: 20, active: true }] }] });
+  actor.rollSkill = async () => [{ total: 8, dice: [{ faces: 20, results: [{ result: 20, active: true }] }] }];
   assert.equal((await adapter.rollNavigation(journey)).outcome, "shortcut");
+  delete globalThis.fromUuid;
+});
+
+test("navigation opens the dnd5e dialog and presets extreme-weather disadvantage", async () => {
+  let seen;
+  const actor = {
+    name: "Guide",
+    rollSkill: async (config, dialog) => {
+      seen = { config, dialog };
+      return [{ total: 12, dice: [{ faces: 20, results: [{ result: 9, active: true }] }] }];
+    }
+  };
+  globalThis.fromUuid = async () => actor;
+  const journey = {
+    roles: { navigatorUuid: "Actor.guide" },
+    currentDay: { phases: { weather: { extreme: true } } },
+    routeSnapshot: { name: "Wild Trail", navigationDC: 15 }
+  };
+  const result = await new Dnd5eJourneyAdapter().rollNavigation(journey);
+  assert.equal(result.outcome, "lost");
+  assert.equal(result.total, 12);
+  assert.equal(seen.config.skill, "sur");
+  assert.equal(seen.config.target, 15);
+  assert.equal(seen.config.disadvantage, true);
+  assert.equal("advantage" in seen.config, false);
+  assert.equal(seen.dialog.configure, undefined);
+  assert.equal("configure" in seen.dialog, false);
   delete globalThis.fromUuid;
 });

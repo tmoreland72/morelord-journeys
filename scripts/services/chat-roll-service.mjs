@@ -1,15 +1,33 @@
 import { getActiveJourney, saveActiveJourney } from "../foundry/settings-repository.mjs";
-import { JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
-import { naturalD20 } from "../domain/d20-roll.mjs";
+import { getMorelordSocketChannel, JOURNEY_STATE_SERIAL_KEY } from "../core/morelord-core-socket-service.mjs";
 import { afterDiceAnimation } from "../../../morelord-core/scripts/services/dice-animation.js";
 import { rollAuthority, completeChatRoll } from "../../../morelord-core/scripts/services/chat-roll-requests.js";
+import { registerSystemCheckRoll, rollSystemCheck } from "./system-check-roll.mjs";
 
 const requests = () => globalThis.MorelordCore.chatRequests;
-export function createJourneyChatRequest(type, request, title, { modes = true } = {}) {
+export function createJourneyChatRequest(type, request, title, { modes = false } = {}) {
   if (!game.user.isGM) return; // Legacy socket delivery never creates player-authored cards.
   const groupKey = type === "role" ? null : `${request.journeyId}:${request.dayNumber}:${type}:${request.chatGroupId ?? "day"}`;
   return requests().create({ type: `journeys.${type}`, key: request.id, groupKey, groupTitle: type === "watch" ? "Watch Discovery Checks" : title, title, actorUuid: request.actorUuid,
     dc: request.dc ?? null, modes, data: { requestId: request.id, journeyId: request.journeyId, dayNumber: request.dayNumber } });
+}
+
+function waitForChatMessage(messageId, timeoutMs = 2000) {
+  const existing = game.messages.get(messageId);
+  if (existing || !globalThis.Hooks?.on) return Promise.resolve(existing ?? null);
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      Hooks.off("createChatMessage", onCreate);
+      resolve(game.messages.get(messageId) ?? null);
+    }, timeoutMs);
+    const onCreate = message => {
+      if (message.id !== messageId) return;
+      clearTimeout(timeout);
+      Hooks.off("createChatMessage", onCreate);
+      resolve(message);
+    };
+    Hooks.on("createChatMessage", onCreate);
+  });
 }
 export function registerJourneyChatRoll(type, { pendingKey, phase, options, apply }) {
   const findPending = (journey, data) => {
@@ -26,29 +44,41 @@ export function registerJourneyChatRoll(type, { pendingKey, phase, options, appl
       await apply(current, pending, pending.chatRollResult.result);
     }, JOURNEY_STATE_SERIAL_KEY).catch(error => ui.notifications.error(`Journey roll saved. Reload to retry its result: ${error.message}`));
   };
+  registerSystemCheckRoll(getMorelordSocketChannel());
   requests().register(`journeys.${type}`, async (data, context) => {
     const journey = await getActiveJourney();
     const request = findPending(journey, data);
     if (!request || request.actorUuid !== context.actor?.uuid) return { accepted: false, reason: "This journey request is no longer pending." };
     if (request.chatRollResult) { scheduleResult(journey, request); return { accepted: true }; }
     const config = options(request);
-    const advantage = Boolean(config.advantage || context.mode === "adv");
-    const disadvantage = Boolean(config.disadvantage || context.mode === "dis");
-    let roll;
-    if (config.skill) roll = (await MorelordCore.rolls.skill(context.actor, config.skill, { dc: request.dc ?? null, configure: false, create: false, advantage, disadvantage })).roll;
-    else {
-      const native = await context.actor.rollSavingThrow({ ability: "con", target: request.dc, advantage, disadvantage }, { configure: false }, { create: false });
-      roll = Array.isArray(native) ? native[0] : native?.rolls?.[0] ?? native?.roll ?? native;
+    const { skipDiceAnimation } = await import("../core/journey-settings.mjs");
+    const messageData = {
+      flavor: config.title,
+      speaker: ChatMessage.getSpeaker({ actor: context.actor }),
+      flags: { "morelord-journeys": { journeyRequest: { journeyId: journey.id, requestId: request.id } } }
+    };
+    const messageConfig = { create: !skipDiceAnimation(), rollMode: "public", data: messageData };
+    const rolled = await rollSystemCheck({
+      actor: context.actor,
+      senderUserId: context.senderUserId,
+      skill: config.skill ?? null,
+      ability: config.skill ? null : "con",
+      dc: request.dc ?? null,
+      advantage: Boolean(config.advantage),
+      disadvantage: Boolean(config.disadvantage),
+      message: messageConfig
+    });
+    if (rolled.cancelled) return { accepted: false, reason: rolled.reason ?? "The roll was cancelled." };
+    const result = { total: rolled.total, natural: rolled.natural, succeeded: rolled.total >= request.dc, automatic: false, resolvedBy: context.senderUserId };
+    let message = rolled.messageId ? game.messages.get(rolled.messageId) : null;
+    if (!message && rolled.messageId) message = await waitForChatMessage(rolled.messageId);
+    if (!message && !rolled.messageId && rolled.roll && messageConfig.create !== false) {
+      try {
+        const { displayJourneyRoll } = await import("../ui/journey-roll-display.mjs");
+        message = await displayJourneyRoll(rolled.roll, messageData, { messageMode: "public" }, { waitForAnimation: false });
+      } catch (error) { console.error("Journey chat display failed; recording the result.", error); }
     }
-    if (!Number.isFinite(roll?.total)) throw new Error("The requested roll did not return a total.");
-    const result = { total: roll.total, natural: naturalD20(roll), succeeded: roll.total >= request.dc, automatic: false, resolvedBy: context.senderUserId };
-    const { displayJourneyRoll } = await import("../ui/journey-roll-display.mjs");
-    let message;
-    try { message = await displayJourneyRoll(roll, { flavor: config.title, speaker: ChatMessage.getSpeaker({actor:context.actor}),
-      flags: {"morelord-journeys": {journeyRequest: {journeyId:journey.id, requestId:request.id}}}
-    }, { messageMode: "public" }, { waitForAnimation: false }); }
-    catch (error) { console.error("Journey chat display failed; recording the result.", error); }
-    request.chatRollResult = { result, messageId: message?.id ?? null };
+    request.chatRollResult = { result, messageId: message?.id ?? rolled.messageId ?? null };
     await saveActiveJourney(journey);
     scheduleResult(journey, request);
     return { accepted: true };

@@ -10,7 +10,17 @@ test("pending dice survive recovery and out-of-order animation completion withou
   globalThis.foundry={applications:{api:{ApplicationV2:class{},HandlebarsApplicationMixin:Base=>Base}}};
   const gm={id:"gm",isGM:true,active:true}, users=[gm];users.get=id=>users.find(user=>user.id===id);
   const messages=[];messages.get=id=>messages.find(message=>message.id===id);
+  const seen=[];
   const actors=[{id:"a",uuid:"Actor.a"},{id:"b",uuid:"Actor.b"}];
+  for (const actor of actors) actor.rollSkill = async (config, dialog, message) => {
+    seen.push({ config, dialog, message });
+    rolls++;
+    return { total: 5, dice: [], async toMessage(data) {
+      const message = { ...data, id: `roll-${rolls}`, _dice3danimating: true, getFlag(scope, key) { return this.flags?.[scope]?.[key]; } };
+      messages.push(message);
+      return message;
+    } };
+  };
   let stored=createJourney({id:"journey",route:createRoute({id:"route",origin:{name:"A"},destination:{name:"B"},lengthSteps:3}),travelers:actors.map(actor=>({actorUuid:actor.uuid,name:actor.id}))});
   stored.dayNumber=1;stored.phase="foraging";
   stored.currentDay={pending:actors.map(actor=>({id:actor.id,actorUuid:actor.uuid,dc:10})),results:[]};
@@ -23,7 +33,7 @@ test("pending dice survive recovery and out-of-order animation completion withou
   globalThis.Hooks={on(name,fn){const id=++hookId;hooks.set(id,{name,fn});return id;},off(_name,id){hooks.delete(id);}};
   const socket=new ContextualSocketService();let handler,rolls=0,commits=0;
   globalThis.MorelordCore={socket,chatRequests:{register(_type,resolve){handler=resolve;}},rolls:{skill:async()=>{
-    rolls++;return {roll:{total:5,dice:[],async toMessage(data){const message={...data,id:`roll-${rolls}`,_dice3danimating:true,getFlag(id,key){return this.flags?.[id]?.[key];}};messages.push(message);return message;}}};
+    throw new Error("Journeys must call actor.rollSkill instead of the custom skill helper.");
   }}};
   const config={pendingKey:"pending",phase:"foraging",options:()=>({skill:"sur",title:"Test"}),apply:async(journey,request,result)=>{
     commits++;journey.currentDay.results.push({id:request.id,total:result.total});
@@ -33,6 +43,13 @@ test("pending dice survive recovery and out-of-order animation completion withou
   registerJourneyChatRoll("fixture",config);
   for(const actor of actors) assert.equal((await socket.runSerialized(serial,()=>handler({journeyId:"journey",dayNumber:1,requestId:actor.id},{actor,mode:"normal",senderUserId:gm.id}))).accepted,true);
   assert.equal(rolls,2);assert.equal(commits,0);
+  assert.equal(seen[0].config.skill,"sur");
+  assert.equal(seen[0].config.target,10);
+  assert.equal("advantage" in seen[0].config,false);
+  assert.equal("disadvantage" in seen[0].config,false);
+  assert.equal(seen[0].dialog.configure,undefined);
+  assert.equal(seen[0].message.create,true);
+  assert.ok(seen[0].config.event);
   assert.ok(stored.currentDay.pending.every(request=>request.chatRollResult.result.total===5));
   registerJourneyChatRoll("fixture",config); // Startup recovery sees the persisted dice.
   await socket.runSerialized(serial,()=>{});

@@ -1,6 +1,6 @@
 import { listCharacterActors, listCharacterChoices, primaryPartyGroup } from "../../../morelord-core/scripts/ui/actor-participation.js";
-import { naturalD20 } from "../domain/d20-roll.mjs";
 import { navigationOutcome } from "../domain/navigation-rules.mjs";
+import { rollActorCheck } from "../services/system-check-roll.mjs";
 
 export class Dnd5eJourneyAdapter {
   getAvailableTravelers() {
@@ -50,18 +50,19 @@ export class Dnd5eJourneyAdapter {
 
     const dc = journey.routeSnapshot.navigationDC;
     if (dc === null) return { cancelled: false, actorUuid, actorName: actor.name, dc, total: null, outcome: "success" };
-    const result = await actor.rollSkill(
-      { skill: "sur", target: dc },
-      { configure: true, title: `Navigate ${journey.routeSnapshot.name} — DC ${dc}` },
-      { create: true, data: { flavor: `${actor.name} navigates ${journey.routeSnapshot.name} — DC ${dc}` } }
-    );
-    if (!result) return { cancelled: true };
-    const roll = Array.isArray(result) ? result[0] : result?.rolls?.[0] ?? result?.roll ?? result;
-    const total = Number(roll?.total ?? result?.total ?? Number.NaN);
-    if (!Number.isFinite(total)) throw new Error("The Navigation roll did not return a numeric total.");
-    const natural = naturalD20(roll);
-    const outcome = navigationOutcome({ total, dc, natural });
-    return { cancelled: false, actorUuid, actorName: actor.name, dc, total, natural, outcome, roll };
+    const rolled = await rollActorCheck(actor, {
+      skill: "sur",
+      dc,
+      disadvantage: Boolean(journey.currentDay?.phases?.weather?.extreme),
+      message: {
+        create: true,
+        rollMode: "public",
+        data: { flavor: `${actor.name} navigates ${journey.routeSnapshot.name} — DC ${dc}` }
+      }
+    });
+    if (rolled.cancelled) return { cancelled: true };
+    const outcome = navigationOutcome({ total: rolled.total, dc, natural: rolled.natural });
+    return { cancelled: false, actorUuid, actorName: actor.name, dc, total: rolled.total, natural: rolled.natural, outcome, roll: rolled.roll };
   }
 
   #candidate(actor, { selectedByDefault, group = null }) {

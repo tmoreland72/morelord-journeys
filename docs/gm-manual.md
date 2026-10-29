@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.5.0
+version: 0.5.1
 foundry: 14
 order: 10
 ---
@@ -101,7 +101,7 @@ When a complication occurs, **Open Morelord Encounters** appears as an orange ac
 
 ## Discovery
 
-The assigned Observer receives a Perception request. The dialog opens automatically on the active owning player's client and returns the result to the GM interface.
+The assigned Observer receives a Perception request in chat. **Roll** opens the D&D 5e skill dialog on that player's client. When the GM rolls for an offline or disconnected owner, the same dialog opens for the GM. Journeys records the total from that roll.
 
 Discovery pursuit is inferred from its duration. Enter zero when the clue is ignored; otherwise enter any number of whole days plus zero, one, or two thirds. This supports extended ruins or dungeon expeditions rather than limiting discoveries to one day.
 
@@ -109,7 +109,7 @@ The GM can resolve a pending request automatically when no player is available. 
 
 ## Foraging
 
-Each traveler makes a Survival check against the route's Resources DC. Player dialogs open on the appropriate clients and report results to the GM.
+Each traveler makes a Survival check against the route's Resources DC. **Roll** on the group card opens the D&D 5e skill dialog for that traveler. Slow and Stopped pace start the dialog at advantage. Fast pace starts it at disadvantage. Effects and flags combine with that selection, and advantage cancels disadvantage.
 
 After all checks resolve:
 
@@ -122,11 +122,11 @@ After all checks resolve:
 
 ## Navigation
 
-The assigned Navigator receives a Survival request against the Navigation DC. Success applies the day's movement, failure by 1–4 applies no progress, and failure by 5 or more adds the day's movement back to distance remaining.
+The assigned Navigator receives a Survival request against the Navigation DC. **Roll** opens the D&D 5e skill dialog. Extreme weather starts that dialog at disadvantage. Success applies the day's movement. A natural 1 turns the party around and adds one day. A natural 20 finds a shortcut and removes ⅓ day. Any other result below the DC loses the day's progress. Journeys reads the total and the active d20 from the system roll.
 
 ## Press On
 
-Pressing on adds ⅓ day. Every traveler receives a DC 12 Constitution saving throw request; failure adds one Exhaustion.
+Pressing on adds ⅓ day. Every traveler receives a DC 12 Constitution saving throw request. **Roll** opens the D&D 5e saving throw dialog. Failure adds one Exhaustion.
 
 ## Camp
 
@@ -147,7 +147,7 @@ Selecting Craft displays a GM reminder and an orange **Open Morelord Craftworks 
 
 ### Rolling night encounters
 
-Use the same Danger die at night. By default, roll four dice, one for each two-hour watch. **Journeys Settings → Encounter Dice → Night encounter frequency** can instead select eight hourly checks. Roll the whole night as a pool before playing it out: a 1 triggers an encounter, or a 1 or 2 with a visible campfire. Maximums cancel the latest triggered periods first, except on d4 and d6. Surviving encounters retain their hour range and watch. Each affected watch automatically gets one Perception request as a chat card; resolve it there, including GM rolls for offline or disconnected owners. Resolve and Continue waits for pending watch Perception checks. The GM chooses combat or non-combat and records each encounter’s actual rest interruptions. Weather, tents, and stopped travel do not modify these dice. The old d100 Peaceful Rest result is no longer generated; saved historical outcomes and existing rest benefits remain supported.
+Use the same Danger die at night. By default, roll four dice, one for each two-hour watch. **Journeys Settings → Encounter Dice → Night encounter frequency** can instead select eight hourly checks. Roll the whole night as a pool before playing it out: a 1 triggers an encounter, or a 1 or 2 with a visible campfire. Maximums cancel the latest triggered periods first, except on d4 and d6. Surviving encounters retain their hour range and watch. Each affected watch automatically gets one Perception request as a chat card with a single **Roll** button. **Roll** opens the D&D 5e Perception dialog, including when the GM rolls for an offline or disconnected owner. Take a Watch starts as a normal roll. Any other camp action starts the dialog at disadvantage. Resolve and Continue waits for pending watch Perception checks. The GM chooses combat or non-combat and records each encounter’s actual rest interruptions. Weather, tents, and stopped travel do not modify these dice. The old d100 Peaceful Rest result is no longer generated; saved historical outcomes and existing rest benefits remain supported.
 
 A fire remains required for Craft, Cook, and Prepare. Night encounters can be disabled independently from Sleep & Shelter using journey step choices.
 
@@ -159,7 +159,7 @@ The GM confirms eligibility at the start (at least 1 HP and sixteen hours since 
 
 A later event cannot cancel a completed rest. For example, an elf standing Watch 1 and meditating through Watches 2 and 3 finishes before a Watch 4 encounter. Rest Results explain sleep received, interruptions, missing rest time, and Exhaustion in bullet points. Saved results from earlier rules remain labeled historical results and are not recalculated.
 
-Shelter equipment is recorded for camp planning and does not change rest timing. The existing supply rule still prevents Exhaustion recovery when food or water is missing. The optional Xanathar-style deprivation save remains separate: a missed rest starts at DC 10 and increases by 5 on consecutive missed rests. Enable **Do not add Exhaustion for lack of sleep** to disable that save and its Exhaustion. Offline or disconnected players' pending saves can be resolved by the GM.
+Shelter equipment is recorded for camp planning and does not change rest timing. The existing supply rule still prevents Exhaustion recovery when food or water is missing. The optional Xanathar-style deprivation save remains separate: a missed rest starts at DC 10 and increases by 5 on consecutive missed rests. Its chat card has one **Roll** button, which opens the D&D 5e Constitution saving throw dialog. Stopped pace starts that dialog at advantage. Enable **Do not add Exhaustion for lack of sleep** to disable that save and its Exhaustion. Offline or disconnected players' pending saves can be resolved by the GM.
 
 Journeys applies its recorded Exhaustion change and Heroic Inspiration selections. After all Sleep & Shelter rolls resolve, select **Send Long Rest Buttons** to post Core chat actions for eligible travelers. Each player (or the GM) can apply native Long Rest recovery once, without reducing Exhaustion again. Re-sending retains completed actions. Use these buttons before the next travel day; native recovery is not reversed by Go Back. Other Peaceful Rest choices remain manual; the world clock is not advanced.
 
