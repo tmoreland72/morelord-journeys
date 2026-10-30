@@ -14,6 +14,24 @@ It manages route planning, travel-day decisions, progress, supplies, discoveries
 - Optional Morelord Encounters and Morelord Craftworks integrations
 - Expedition log with phase names and recorded results
 
+## Shared Locations
+
+Journeys reads places from Morelord Core's shared Locations. Create and edit those places with **Morelord Core → Manage Shared Locations**. Names, settlement types, facilities, and Scene links are explained under **Shared Locations** in the [Morelord Core GM guide](https://morelordgaming.com/docs/morelord-core). The [Journeys GM manual](docs/gm-manual.md#shared-locations) carries the same explanation.
+
+The shared Location linked to the open Scene is Core's current Location.
+
+**Create Journey** leaves the expedition without a shared Location. Each new travel day copies whatever place the expedition currently stores. With none stored, or when that place is no longer in Core, Journeys reports the day as **On the Road**. On the Road is a stand-in for the travel day. It has no settlement facilities, and Core's Location list is unchanged.
+
+The Journeys window has no list of shared Locations. **Origin** and **Destination** name the route. Another Morelord module can store a shared Location on the active expedition through Journeys' travel context. Only a GM can make that change. The place is saved on the expedition and on the current travel day, and Journeys records the change for modules that are listening. Facilities recorded only for the journey stay on the expedition. The Location in Core keeps the facilities saved there.
+
+Personal activity time is stored with the same context. It defaults to 2 hours.
+
+Completing a travel day looks up the stored place and sends a completed-day notice. The notice includes that place, the day's personal activity hours, and whether the party has arrived. The party arrives when the completed day uses up the remaining travel. **Adjust Remaining Travel** set to zero also marks the expedition arrived and records the route destination in the expedition log. In both cases, Core's current Location stays the shared Location linked to the open Scene.
+
+Morelord Downtime listens for the completed-day notice. One active GM advances Downtime activities that count elapsed days, and that same day is advanced only once. Downtime Sessions keep the Locations chosen for those Sessions. Journeys runs the same way when Downtime is absent.
+
+While an expedition is active, other Morelord modules can read its current place, personal activity hours, and journey-only facilities from Journeys.
+
 ## Installation
 
 Install using the manifest URL:

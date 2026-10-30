@@ -32,7 +32,7 @@ Journey distance uses exact thirds of a normal travel day. Routes can begin with
 
 ## Choose a guide
 
-- [Game Master Manual](gm-manual.md) — installation, journey setup, every travel phase, supplies, camp, integrations, and troubleshooting.
+- [Game Master Manual](gm-manual.md) — installation, journey setup, every travel phase, supplies, camp, shared Locations, and troubleshooting.
 - [Game Master Travel Rules Reference](gm-travel-rules-reference.md) — draft granular rules for the planned travel-mechanics update.
 - [Player Guide](player-guide.md) — responding to roll requests, managing supplies, keeping watch, and understanding expedition results.
 

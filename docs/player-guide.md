@@ -87,8 +87,8 @@ Journeys applies its recorded Exhaustion change and Heroic Inspiration selection
 3. Ask the GM to resend or reroll the relevant step.
 4. Reload the Foundry world if the module was just installed or updated.
 
-## Automatic checks and personal activity time
+## Automatic checks
 
 When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Rest uses 2024 timing without a sleep check. Ordinary foraging rewards and food or water consequences continue to apply.
 
-The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. Character portraits help distinguish assignments when you control more than one traveler.
+Completed travel days can advance Downtime activities that count elapsed days. Ask the GM which activities are available. Character portraits help distinguish assignments when you control more than one traveler.
