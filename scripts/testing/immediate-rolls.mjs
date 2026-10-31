@@ -28,6 +28,9 @@ export const immediateJourneyRollCheck = {id:"journeys.immediate-group-rolls", a
       assert(!button.disabled,"Other foragers remain clickable during earlier dice.");
       button.click();
       assert(row.querySelector(".ml-roll-completed") && !row.querySelector("button"),"The clicked row immediately becomes Completed.");
+      const normalRoll = () => document.querySelector(".roll-configuration [data-action='normal']");
+      await untilRollCheck(normalRoll, "The D&D 5e roll configuration dialog is open.");
+      normalRoll().click();
       await untilRollCheck(()=>card.getFlag("morelord-core","rollRequest").entries[key].completed,"The roll acknowledges before its animation completes.");
     }
     assert(gate.held.size===2,"Both real rolls start while animations are held.");

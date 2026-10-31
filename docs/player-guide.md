@@ -4,7 +4,7 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.5.0
+version: 0.5.1
 foundry: 14
 order: 20
 ---
@@ -30,7 +30,7 @@ You may place `Water (Pint)` inside a waterskin. Journeys counts the contained w
 
 Keep the Foundry world open during the expedition. One grouped request card identifies the characters, purpose, and each applicable DC. Day encounter, foraging, Press On, sleep deprivation, and watch checks use this grouped layout. Single-character navigation and discovery checks use the same controls.
 
-Choose DIS, Roll, or ADV on your character’s row (encounter dice use a single Roll button). Your controls immediately become centered **Completed** text, and other characters can roll while your dice animate. If a request is rejected or cancelled, your controls return for retry. The result returns to Journeys after the dice finish; a reload recovers saved dice without rerolling. Resending a pending request reuses its card. Request cards are public; encounter outcomes remain GM-only.
+Select **Roll** on your character’s row. That opens the D&D 5e roll configuration dialog for the skill check or saving throw. The dialog includes advantage and disadvantage from the character’s effects and flags, and its Advantage, Normal, and Disadvantage buttons choose the roll. The system’s modifier keys apply while **Roll** is used. By default, Shift rolls normally, Alt rolls with advantage, and Control rolls with disadvantage. Journey situations start the dialog at advantage or disadvantage when the travel rules require it: foraging pace, extreme weather on Navigation, a watch spent on something other than Take a Watch, and a stopped pace on a sleep deprivation save. Advantage and disadvantage cancel. Day encounter dice use the same single **Roll** button and roll the Danger die directly. Your controls immediately become centered **Completed** text, and other characters can roll while your dice animate. If a request is rejected or the dialog is cancelled, your controls return for retry. Journeys reads the total from the D&D 5e roll and applies it after the dice finish. A reload recovers saved dice without rerolling. Resending a pending request reuses its card. Request cards are public; encounter outcomes remain GM-only.
 
 ## Discovery checks
 
@@ -62,7 +62,7 @@ Your selected camp action may affect how alert the character is:
 
 Craft, Cook, and Prepare require a campfire. A character who is not assigned to Take a Watch receives the same rest treatment as Slumber.
 
-Follow the GM's instruction about advantage or disadvantage in the D&D 5e roll configuration dialog.
+Select **Roll** on the watch card. The D&D 5e Perception dialog opens for you. Take a Watch starts as a normal roll. Craft, Cook, Prepare, and most other tasks start that dialog at disadvantage. Effects, flags, and the dialog buttons still apply, and advantage cancels disadvantage.
 
 When Morelord Downtime is active, the GM can select **Open Downtime** on the Camp stage. That opens the Downtime dashboard so the GM can track a couple of hours of downtime while the party sets up camp. Players do not see this button.
 
@@ -94,3 +94,5 @@ Journeys applies its recorded Exhaustion change and Heroic Inspiration selection
 When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Rest uses 2024 timing without a sleep check. Ordinary foraging rewards and food or water consequences continue to apply.
 
 The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. During Camp, **Open Downtime** lets the GM open Downtime and track a couple of hours while the party sets up camp. Character portraits help distinguish assignments when you control more than one traveler.
+
+Completed travel days can advance Downtime activities that count elapsed days. Ask the GM which activities are available.
