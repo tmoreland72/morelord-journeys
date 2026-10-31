@@ -64,6 +64,8 @@ Craft, Cook, and Prepare require a campfire. A character who is not assigned to 
 
 Follow the GM's instruction about advantage or disadvantage in the D&D 5e roll configuration dialog.
 
+When Morelord Downtime is active, the GM can select **Open Downtime** on the Camp stage. That opens the Downtime dashboard so the GM can track a couple of hours of downtime while the party sets up camp. Players do not see this button.
+
 ## Crafting during camp
 
 If Craft is selected, the GM will tell the assigned player to open Morelord Craftworks and perform a Craft action. Journeys records the camp assignment, while Craftworks resolves the crafting activity.
@@ -91,4 +93,4 @@ Journeys applies its recorded Exhaustion change and Heroic Inspiration selection
 
 When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Rest uses 2024 timing without a sleep check. Ordinary foraging rewards and food or water consequences continue to apply.
 
-The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. Character portraits help distinguish assignments when you control more than one traveler.
+The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. During Camp, **Open Downtime** lets the GM open Downtime and track a couple of hours while the party sets up camp. Character portraits help distinguish assignments when you control more than one traveler.

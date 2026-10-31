@@ -10,7 +10,7 @@ order: 0
 
 # Morelord Journeys Documentation
 
-Morelord Journeys turns overland travel into a shared expedition workflow. A Game Master defines the route and party, then resolves each travel day through Weather, Pace, Encounters, Discovery, Foraging, Navigation, Press On, and Camp.
+Morelord Journeys turns overland travel into a shared expedition workflow. A Game Master defines the route and party, then resolves each travel day through Weather, Pace, Encounters, Discovery, Foraging, Navigation, Press On, and Camp. During Camp, **Open Downtime** appears when Morelord Downtime is active and opens the Downtime dashboard.
 
 Journey distance uses exact thirds of a normal travel day. Routes can begin with fractional lengths, and pace, weather, discoveries, navigation, and forced marches add or remove thirds while the original plan remains visible.
 

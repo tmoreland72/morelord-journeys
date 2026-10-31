@@ -197,6 +197,8 @@ The Camp phase establishes:
 - Each traveler's camp action.
 - Whether the derived setup is poor, ordinary, or excellent.
 
+When Morelord Downtime is active, **Open Downtime** appears above **Continue**. It opens the Downtime dashboard so the GM can track a couple of hours of downtime while the party sets up camp. The button is omitted when Downtime is not active.
+
 The following Sleep & Shelter phase handles personal tents, bedrolls, blankets, interruptions, sleep saves, and Peaceful Rest choices.
 
 A campfire is required for Craft, Cook, and Prepare. It makes camp setup excellent (-10) while its visibility adds +5, for a combined -5 night modifier. A camp with neither fire nor any tent is poor (+10). All other camps are ordinary.

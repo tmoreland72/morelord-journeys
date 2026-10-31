@@ -20,7 +20,7 @@ The **Morelord Journeys** button on **Morelord Tools**, and the expedition dashb
 - Morelord Core 0.6.0 or later
 - GM permission in the world
 
-Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs.
+Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs. Morelord Downtime is optional. When it is active, Camp shows **Open Downtime**.
 
 ## Installation
 
@@ -134,6 +134,8 @@ Pressing on adds ⅓ day. Every traveler receives a DC 12 Constitution saving th
 
 Assign a traveler and camp action to each watch. Assignments save automatically and carry into the following day.
 
+**Open Downtime** appears above **Continue** when Morelord Downtime is active. It opens the Downtime dashboard so the GM can track a couple of hours of downtime while the party sets up camp. Selecting the button does not spend those hours or advance Downtime Projects. The button is omitted when Morelord Downtime is not active.
+
 Available camp actions include:
 
 - Take a Watch
@@ -187,7 +189,7 @@ Confirm the player is active and owns the assigned Actor. Reload both GM and pla
 
 ### An integration button is unavailable
 
-Confirm the corresponding Morelord Gaming module is installed and active. Reload the world after enabling modules so their public APIs are available.
+Confirm the corresponding Morelord Gaming module is installed and active. **Open Downtime** appears on Camp only while Morelord Downtime is active. Reload the world after enabling modules so their public APIs are available.
 
 ## Shared travel context and automatic checks
 
