@@ -3,14 +3,14 @@ title: Morelord Journeys Documentation
 description: Plan and run structured D&D 5e travel days with supplies, player checks, encounters, foraging, and camp.
 slug: morelord-journeys
 product: morelord-journeys
-version: 0.5.0
+version: 0.5.1
 foundry: 14
 order: 0
 ---
 
 # Morelord Journeys Documentation
 
-Morelord Journeys turns overland travel into a shared expedition workflow. A Game Master defines the route and party, then resolves each travel day through Weather, Pace, Encounters, Discovery, Foraging, Navigation, Press On, and Camp.
+Morelord Journeys turns overland travel into a shared expedition workflow. A Game Master defines the route and party, then resolves each travel day through Weather, Pace, Encounters, Discovery, Foraging, Navigation, Press On, and Camp. During Camp, **Open Downtime** appears when Morelord Downtime is active and opens the Downtime dashboard.
 
 Journey distance uses exact thirds of a normal travel day. Routes can begin with fractional lengths, and pace, weather, discoveries, navigation, and forced marches add or remove thirds while the original plan remains visible.
 
@@ -32,14 +32,14 @@ Journey distance uses exact thirds of a normal travel day. Routes can begin with
 
 ## Choose a guide
 
-- [Game Master Manual](gm-manual.md) — installation, journey setup, every travel phase, supplies, camp, integrations, and troubleshooting.
+- [Game Master Manual](gm-manual.md) — installation, journey setup, every travel phase, supplies, camp, shared Locations, and troubleshooting.
 - [Game Master Travel Rules Reference](gm-travel-rules-reference.md) — draft granular rules for the planned travel-mechanics update.
 - [Player Guide](player-guide.md) — responding to roll requests, managing supplies, keeping watch, and understanding expedition results.
 
-These guides describe Morelord Journeys 0.5.0 for Foundry Virtual Tabletop v14 and D&D 5e 5.3 or later.
+These guides describe Morelord Journeys 0.5.1 for Foundry Virtual Tabletop v14 and D&D 5e 5.3 or later.
 
 Developer regression: in Dev1, import `plannerFooterCheck` from `scripts/testing/planner-footer.mjs` and pass it to Core's `runChecks([plannerFooterCheck])` or `runInGameTests({ checks: [plannerFooterCheck] })`. It renders the planner with harmless fixture actions, checks footer scrolling and click routing at 720px/400px, and verifies new and previously posted watch labels without changing world data.
 
 Version 0.3.8 adds Long Rest chat actions after Sleep & Shelter, keeps planner actions visible, and corrects watch request labels. Requires Morelord Core 0.3.15 or later.
 
-Version 0.5.0 opens Journeys from the **Morelord Tools** scene control and requires Morelord Core 0.6.0 or later. The **Morelord Journeys** button remains GM-only. Version 0.4.1 lets a rolled night encounter use a **Duration (hours)** of 0. Zero hours does not interrupt the long rest. Version 0.4.0 adds named saved journey setups. GMs can save a planner setup, choose it for a fresh expedition, rename it, or delete it; current actor inventories supply the new journey. See **Saved Journeys** in the GM manual.
+Version 0.5.1 rolls skill checks and Constitution saves through the D&D 5e roll configuration dialog. Chat cards show one **Roll** button. Roll updates refresh the open Journeys window in place and require Morelord Core 0.9.0 or later. Version 0.5.0 opens Journeys from the **Morelord Tools** scene control and requires Morelord Core 0.6.0 or later. The **Morelord Journeys** button remains GM-only. Version 0.4.1 lets a rolled night encounter use a **Duration (hours)** of 0. Zero hours does not interrupt the long rest. Version 0.4.0 adds named saved journey setups. GMs can save a planner setup, choose it for a fresh expedition, rename it, or delete it; current actor inventories supply the new journey. See **Saved Journeys** in the GM manual.

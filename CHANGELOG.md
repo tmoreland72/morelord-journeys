@@ -1,5 +1,15 @@
 # Morelord Journeys Changelog
 
+## 0.5.1
+
+### Fixes
+
+- Discovery, Navigation, foraging, and watch Perception checks call `actor.rollSkill`. Press On and sleep deprivation call `actor.rollSavingThrow`. Both use the D&D 5e configuration dialog, so effects, flags, dialog choices, and the system's modifier keys apply. The dialog stays closed only when those keys request it.
+- Pace, extreme weather, divided watch attention, and a stopped pace on a deprivation save start that dialog at advantage or disadvantage. Those selections are passed through only when they apply, so they combine with the character's other modifiers and cancel in the normal way.
+- Journey chat cards show one **Roll** button. The person who clicks it gets the dialog, including a GM rolling for someone who is offline. Journeys reads the total and the active d20 from the returned roll and keeps the existing outcome rules.
+- The direct **Roll Navigation** action uses the same Survival dialog. Extreme weather starts it at disadvantage.
+- Foraging, supply, watch Perception, Peaceful Rest, Press On, sleep, Discovery, Navigation, and day-encounter updates refresh the open Journeys window through Core's `api.ui.renderInBackground`. That refresh does not bring the window forward. Morelord Core 0.9.0 or later is required. If that function is missing, the same refresh uses `render({ force: false })`.
+
 ## 0.5.0
 
 ### Features

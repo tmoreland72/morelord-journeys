@@ -11,8 +11,26 @@ It manages route planning, travel-day decisions, progress, supplies, discoveries
 - D&D 5e expedition roles and player-side Survival, Perception, encounter, and foraging roll requests
 - Expedition-pooled food and `Water (Pint)`, plus traveler-owned tents, bedrolls, and blankets
 - Persistent camp watch order, private watch rolls, 2024 rest timing, and explicit consequences
-- Optional Morelord Encounters and Morelord Craftworks integrations
+- Optional Morelord Encounters, Morelord Craftworks, and Morelord Downtime integrations
 - Expedition log with phase names and recorded results
+
+## Shared Locations
+
+Journeys reads places from Morelord Core's shared Locations. Create and edit those places with **Morelord Core → Manage Shared Locations**. Names, settlement types, facilities, and Scene links are explained under **Shared Locations** in the [Morelord Core GM guide](https://morelordgaming.com/docs/morelord-core). The [Journeys GM manual](docs/gm-manual.md#shared-locations) carries the same explanation.
+
+The shared Location linked to the open Scene is Core's current Location.
+
+**Create Journey** leaves the expedition without a shared Location. Each new travel day copies whatever place the expedition currently stores. With none stored, or when that place is no longer in Core, Journeys reports the day as **On the Road**. On the Road is a stand-in for the travel day. It has no settlement facilities, and Core's Location list is unchanged.
+
+The Journeys window has no list of shared Locations. **Origin** and **Destination** name the route. Another Morelord module can store a shared Location on the active expedition through Journeys' travel context. Only a GM can make that change. The place is saved on the expedition and on the current travel day, and Journeys records the change for modules that are listening. Facilities recorded only for the journey stay on the expedition. The Location in Core keeps the facilities saved there.
+
+Personal activity time is stored with the same context. It defaults to 2 hours.
+
+Completing a travel day looks up the stored place and sends a completed-day notice. The notice includes that place, the day's personal activity hours, and whether the party has arrived. The party arrives when the completed day uses up the remaining travel. **Adjust Remaining Travel** set to zero also marks the expedition arrived and records the route destination in the expedition log. In both cases, Core's current Location stays the shared Location linked to the open Scene.
+
+Morelord Downtime listens for the completed-day notice. One active GM advances Downtime activities that count elapsed days, and that same day is advanced only once. Downtime Sessions keep the Locations chosen for those Sessions. Journeys runs the same way when Downtime is absent.
+
+While an expedition is active, other Morelord modules can read its current place, personal activity hours, and journey-only facilities from Journeys.
 
 ## Installation
 
@@ -25,7 +43,7 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 ## Platform
 
 - Foundry Virtual Tabletop v14 only
-- Morelord Core 0.6.0 or later
+- Morelord Core 0.9.0 or later
 - D&D 5e adapter first, with a system-neutral journey engine
 
 ## Development
@@ -84,7 +102,7 @@ When a compatible Morelord Core is active, its explicit reporting choices can sh
 This release requires Morelord Core 0.3.15 or newer for the shared UI and service updates. Optional integrations remain optional.
 
 
-Foraging pending rows show status only; resolve checks on the grouped chat card rather than Resend/Fail/Succeed controls. A clicked chat row immediately shows centered **Completed** text without buttons, and other characters can roll while earlier dice animate. Rejected submissions restore their controls. Outcomes still wait for dice animations; pending evaluated dice are saved and recovered after reload without rerolling. Night encounters are direct GM rolls from Roll Night Encounter; only the resulting watch checks use player requests.
+Foraging pending rows show status only; resolve checks on the grouped chat card rather than Resend/Fail/Succeed controls. Each chat request has one **Roll** button. It opens the D&D 5e skill or saving throw dialog, so effects, flags, dialog choices, and the system's modifier keys apply. Journeys reads the total from that roll. A clicked chat row immediately shows centered **Completed** text without buttons, and other characters can roll while earlier dice animate. Rejected or cancelled submissions restore their controls. Outcomes still wait for dice animations; pending evaluated dice are saved and recovered after reload without rerolling. Night encounters are direct GM rolls from Roll Night Encounter; only the resulting watch checks use player requests.
 
 Journey Progress separates elapsed time from route distance: Days Completed counts finished travel days, Estimated Days Remaining assumes normal pace, and Estimated Total Duration adds those two figures. Route covered is shown separately in normal-pace travel-day equivalents. Before Day 7, six days are complete; with 1⅔ days of travel remaining, the total estimate is 7⅔ days. The original route estimate remains unchanged.
 
