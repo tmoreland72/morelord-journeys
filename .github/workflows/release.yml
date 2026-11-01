@@ -63,13 +63,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # morelord-core is not publicly cloneable. GITHUB_TOKEN can read this
-      # repository only, so this step fails while core stays private. See RELEASING.md.
+      # Public repo. Owner is tmoreland72, the same githubOwner as this
+      # repository. tmorelord72/morelord-core does not exist, and checkout
+      # fails there with Not Found while resolving the default branch.
+      # The job GITHUB_TOKEN can read the public repository. See RELEASING.md.
       - name: Checkout Morelord Core
         if: ${{ inputs.publish_only == false }}
         uses: actions/checkout@v4
         with:
-          repository: tmorelord72/morelord-core
+          repository: tmoreland72/morelord-core
           path: morelord-core-checkout
           token: ${{ github.token }}
 

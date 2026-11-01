@@ -45,9 +45,11 @@ Per-version release notes live in `release-notes/RELEASE-NOTES-<version>.md`. Th
 
 ## Morelord Core and tests
 
-When `publish_only` is false, the workflow checks out `tmorelord72/morelord-core` and moves it beside this repository so `npm test` can import Core. That checkout uses `GITHUB_TOKEN`.
+When `publish_only` is false, the workflow checks out the public repository `tmoreland72/morelord-core` and moves it beside this repository so `npm test` can import Core. Checkout uses the Actions `GITHUB_TOKEN` already granted to the job. Morelord Core is public, so that token can read the repository and no cross-repo secret is required.
 
-`morelord-core` is not publicly cloneable. `GITHUB_TOKEN` from this repository can read **this** repository only. It cannot read another private repository. Until `morelord-core` is public, or the checkout token can read it, the Core checkout step fails and the full unit suite does not run. `publish_only` skips that checkout and skips `npm test`.
+The owner is `tmoreland72`, the same value as `githubOwner` in `release.config.json`. The raw manifest is `https://raw.githubusercontent.com/tmoreland72/morelord-core/main/module.json`.
+
+`publish_only` skips that checkout and skips `npm test`.
 
 ## Local equivalents
 
