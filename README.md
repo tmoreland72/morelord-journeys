@@ -43,7 +43,7 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 ## Platform
 
 - Foundry Virtual Tabletop v14 only
-- Morelord Core 0.9.0 or later
+- Morelord Core 0.8.2 or later
 - D&D 5e adapter first, with a system-neutral journey engine
 
 ## Development

@@ -4,7 +4,7 @@ description: Install, configure, and run complete expeditions with Morelord Jour
 slug: morelord-journeys/gm-manual
 product: morelord-journeys
 audience: game-master
-version: 0.5.1
+version: 0.6.0
 foundry: 14
 order: 10
 ---
@@ -17,7 +17,7 @@ The **Morelord Journeys** button on **Morelord Tools**, and the expedition dashb
 
 - Foundry Virtual Tabletop v14
 - D&D 5e system 5.3 or later
-- Morelord Core 0.9.0 or later
+- Morelord Core 0.8.2 or later
 - GM permission in the world
 
 Morelord Encounters is recommended for encounter construction. Morelord Craftworks is optional and adds Gather and Craft handoffs. Morelord Downtime is optional. When it is active, Camp shows **Open Downtime**.
