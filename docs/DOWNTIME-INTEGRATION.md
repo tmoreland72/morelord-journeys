@@ -2,6 +2,10 @@
 
 Journeys owns travel-day context. It does not advance Downtime Projects directly and remains fully functional when Morelord Downtime is absent.
 
+## Camp window
+
+When `morelord-downtime` is active and its public API exposes `open`, the Camp stage shows **Open Downtime** above **Continue**. The button calls `game.modules.get("morelord-downtime").api.open()` (also `MorelordDowntime.open()`), which opens the Downtime dashboard. Journeys does not allocate hours or advance Projects from this button. If Downtime is inactive, or `open` is missing, the button is omitted.
+
 ## Public API
 
 The API is available at `game.modules.get("morelord-journeys").api.travel` and `MorelordJourneys.travel`.

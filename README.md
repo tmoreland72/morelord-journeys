@@ -11,7 +11,7 @@ It manages route planning, travel-day decisions, progress, supplies, discoveries
 - D&D 5e expedition roles and player-side Survival, Perception, encounter, and foraging roll requests
 - Expedition-pooled food and `Water (Pint)`, plus traveler-owned tents, bedrolls, and blankets
 - Persistent camp watch order, private watch rolls, 2024 rest timing, and explicit consequences
-- Optional Morelord Encounters and Morelord Craftworks integrations
+- Optional Morelord Encounters, Morelord Craftworks, and Morelord Downtime integrations
 - Expedition log with phase names and recorded results
 
 ## Shared Locations
@@ -43,7 +43,7 @@ https://raw.githubusercontent.com/tmoreland72/morelord-journeys/main/module.json
 ## Platform
 
 - Foundry Virtual Tabletop v14 only
-- Morelord Core 0.9.0 or later
+- Morelord Core 0.8.2 or later
 - D&D 5e adapter first, with a system-neutral journey engine
 
 ## Development

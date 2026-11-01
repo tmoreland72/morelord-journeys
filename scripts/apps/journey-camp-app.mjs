@@ -13,8 +13,11 @@ import { JourneyActionApplication as BaseJourneyApplication } from "./journey-ac
 import { createOutcomeDetails } from "../ui/outcome-details.mjs";
 import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { createEncountersCallout } from "../ui/encounters-callout.mjs";
+import { renderCampDowntimeCallout } from "../ui/camp-downtime-callout.mjs";
+import { DowntimeOpenIntegration } from "../integrations/downtime-open-integration.mjs";
 
 const CAMP_ACTIONS = ["Take a Watch", "Craft", "Cook", "Prepare", "Slumber", "Task"];
+const downtimeOpen = new DowntimeOpenIntegration();
 
 function option(value, label, selected) {
   const entry = document.createElement("option");
@@ -28,7 +31,8 @@ export class JourneyCampApplication extends BaseJourneyApplication {
   static DEFAULT_OPTIONS = {
     actions: {
       resendRoleRoll: this.resendRoleRoll,
-      saveCampPlan: this.saveCampPlan
+      saveCampPlan: this.saveCampPlan,
+      openDowntime: this.openDowntime
     }
   };
 
@@ -215,6 +219,7 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       }
     }
     notes.before(panel);
+    renderCampDowntimeCallout(notes, downtimeOpen.snapshot());
     const syncValidity = () => {
       let message = "";
       try {
@@ -356,6 +361,16 @@ export class JourneyCampApplication extends BaseJourneyApplication {
       ui.notifications.info("The roll request was sent again.");
       await this.render({ force: true });
     } catch (error) {
+      ui.notifications.error(error.message);
+    }
+  }
+
+  static async openDowntime(event) {
+    event.preventDefault();
+    try {
+      await downtimeOpen.open();
+    } catch (error) {
+      console.error("Morelord Journeys | Unable to open Downtime.", error);
       ui.notifications.error(error.message);
     }
   }

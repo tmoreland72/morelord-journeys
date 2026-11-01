@@ -4,7 +4,7 @@ description: Respond to journey checks, manage travel supplies, and resolve camp
 slug: morelord-journeys/player-guide
 product: morelord-journeys
 audience: player
-version: 0.5.1
+version: 0.6.0
 foundry: 14
 order: 20
 ---
@@ -64,6 +64,8 @@ Craft, Cook, and Prepare require a campfire. A character who is not assigned to 
 
 Select **Roll** on the watch card. The D&D 5e Perception dialog opens for you. Take a Watch starts as a normal roll. Craft, Cook, Prepare, and most other tasks start that dialog at disadvantage. Effects, flags, and the dialog buttons still apply, and advantage cancels disadvantage.
 
+When Morelord Downtime is active, the GM can select **Open Downtime** on the Camp stage. That opens the Downtime dashboard so the GM can track a couple of hours of downtime while the party sets up camp. Players do not see this button.
+
 ## Crafting during camp
 
 If Craft is selected, the GM will tell the assigned player to open Morelord Craftworks and perform a Craft action. Journeys records the camp assignment, while Craftworks resolves the crafting activity.
@@ -87,8 +89,10 @@ Journeys applies its recorded Exhaustion change and Heroic Inspiration selection
 3. Ask the GM to resend or reroll the relevant step.
 4. Reload the Foundry world if the module was just installed or updated.
 
-## Automatic checks
+## Automatic checks and personal activity time
 
 When the effective DC is zero, Journeys resolves the check without opening a player roll dialog. Rest uses 2024 timing without a sleep check. Ordinary foraging rewards and food or water consequences continue to apply.
 
-Completed travel days can advance Downtime activities that count elapsed days. Ask the GM which activities are available. Character portraits help distinguish assignments when you control more than one traveler.
+The GM may provide personal activity hours and Location capabilities for the travel day. If Downtime is enabled, eligible Projects can use that travel context; ask the GM which activities are available. During Camp, **Open Downtime** lets the GM open Downtime and track a couple of hours while the party sets up camp. Character portraits help distinguish assignments when you control more than one traveler.
+
+Completed travel days can advance Downtime activities that count elapsed days. Ask the GM which activities are available.

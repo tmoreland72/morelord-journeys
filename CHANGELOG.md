@@ -1,6 +1,11 @@
 # Morelord Journeys Changelog
 
-## 0.5.1
+## 0.6.0
+
+### Features
+
+- Camp shows **Open Downtime** above **Continue** when Morelord Downtime is active. The button opens the Downtime dashboard through Downtime's public `open()` API so the GM can track a couple of hours of downtime while the party sets up camp. Selecting it does not spend those hours or advance Downtime Projects. The button stays hidden when Downtime is not active.
+- Journeys documents how it reads Morelord Core shared Locations. A new travel day copies the expedition's stored place, or reports **On the Road** when none is stored. Completing a day sends that place, the day's personal activity hours, and whether the party arrived. Arrival leaves Core's current Location on the open Scene.
 
 ### Fixes
 
@@ -8,7 +13,7 @@
 - Pace, extreme weather, divided watch attention, and a stopped pace on a deprivation save start that dialog at advantage or disadvantage. Those selections are passed through only when they apply, so they combine with the character's other modifiers and cancel in the normal way.
 - Journey chat cards show one **Roll** button. The person who clicks it gets the dialog, including a GM rolling for someone who is offline. Journeys reads the total and the active d20 from the returned roll and keeps the existing outcome rules.
 - The direct **Roll Navigation** action uses the same Survival dialog. Extreme weather starts it at disadvantage.
-- Foraging, supply, watch Perception, Peaceful Rest, Press On, sleep, Discovery, Navigation, and day-encounter updates refresh the open Journeys window through Core's `api.ui.renderInBackground`. That refresh does not bring the window forward. Morelord Core 0.9.0 or later is required. If that function is missing, the same refresh uses `render({ force: false })`.
+- Foraging, supply, watch Perception, Peaceful Rest, Press On, sleep, Discovery, Navigation, and day-encounter updates refresh the open Journeys window through Core's `api.ui.renderInBackground`. That refresh does not bring the window forward. Morelord Core 0.8.2 or later is required. If that function is missing, the same refresh uses `render({ force: false })`.
 
 ## 0.5.0
 
