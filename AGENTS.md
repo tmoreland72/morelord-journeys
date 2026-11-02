@@ -4,6 +4,7 @@
 
 - HARD RULE: Use D&D 5e 2024 rules (SRD 5.2) only. Never use or add 2014 rules, never add a 2014/2024 rules-version switch or detection, and use 2024 terms and mechanics in code, data, UI text and docs.
 - All module settings are world-scoped and GM-only unless Troy says otherwise.
+- HARD RULE: Always use morelord-core's global features (shared CSS, UI components, helper functions, settings, APIs) instead of building Journeys-local versions. For every new feature, decide whether its CSS, UI component or helper belongs in Core so other modules can share it. If so, request it from the Core owner and use it from Core. Never change morelord-core from this repo.
 
 ## Shared assets in Morelord Core
 
