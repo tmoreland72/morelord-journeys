@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Journeys
+        uses: actions/checkout@v4
+
+      - name: Checkout Morelord Core
+        uses: actions/checkout@v4
+        with:
+          repository: tmoreland72/morelord-core
+          path: morelord-core-checkout
+          token: ${{ github.token }}
+
+      - name: Place Morelord Core beside this repository
+        shell: pwsh
+        run: |
+          $dest = Join-Path (Split-Path -Parent $env:GITHUB_WORKSPACE) 'morelord-core'
+          $source = Join-Path $env:GITHUB_WORKSPACE 'morelord-core-checkout'
+          if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+          Move-Item -LiteralPath $source -Destination $dest
+          $identity = Join-Path $dest 'scripts/ui/actor-identity.js'
+          if (-not (Test-Path -LiteralPath $identity)) {
+            throw "morelord-core is missing $identity. Tests import that sibling path."
+          }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run check
+        run: npm run check
