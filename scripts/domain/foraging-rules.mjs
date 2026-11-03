@@ -42,7 +42,10 @@ export function foragingFoodSplit(resolution = {}) {
 
 export function formatForagingFoodSplit(resolution) {
   const { found, toPool, excess } = foragingFoodSplit(resolution);
-  return `Found ${found} food: ${toPool} to pool, ${excess} excess to foragers`;
+  const parts = [];
+  if (toPool > 0) parts.push(`${toPool} to pool`);
+  if (excess > 0) parts.push(`${excess} excess to foragers`);
+  return parts.length ? `Found ${found} food: ${parts.join(", ")}` : `Found ${found} food`;
 }
 
 export function formatForagingLogResult(resolution) {

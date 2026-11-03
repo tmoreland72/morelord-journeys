@@ -513,7 +513,11 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     if (phase === "discovery") return result.pursued ? "Discovery pursued" : "Passed by";
     if (phase === "pressOn") return result.pressedOn ? `Pressed on — ${formatDistance(1)}` : "Did not press on — 0 days";
     if (phase === "foraging") return formatForagingLogResult(result.resolution);
-    if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} rest results`;
+    if (phase === "camp") {
+      const watches = `${result.watches?.length ?? 0} watches`;
+      // Camp is logged before rest. A missing sleep list is not a count of zero.
+      return Array.isArray(result.sleep) ? `${watches}; ${result.sleep.length} rest results` : watches;
+    }
     if (phase === "sleep") return `${result.sleep?.length ?? 0} rest results`;
     return "Resolved";
   }

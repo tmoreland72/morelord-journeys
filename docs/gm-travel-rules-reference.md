@@ -166,7 +166,7 @@ Every traveler rolls Wisdom (Survival) against the route's Resources DC.
 
 - A successful traveler finds a full meal and does not consume a ration.
 - A total of 20 or a natural 20 finds one extra ration. That ration covers a traveler who failed. Any extra ration still left is added to the successful forager's inventory.
-- The Foraging outcome and the Expedition Log report the same split, for example `Found 4 food: 3 to pool, 1 excess to foragers`. Food to the pool supplies travelers today. Excess is the surplus stored on the foragers.
+- The Foraging outcome and the Expedition Log report the same split, for example `Found 4 food: 3 to pool, 1 excess to foragers`. Food to the pool supplies travelers today. Excess is the surplus stored on the foragers. Each clause appears only when its amount is greater than zero.
 - A failed traveler consumes one ration from the expedition's pooled food.
 - The pool includes recognized food carried by every traveler and the Group actor.
 - Journeys shows which items and actors will supply the rations before you confirm consumption.

@@ -44,3 +44,31 @@ test("foraging log and outcome agree on found, pool, and excess food", async () 
   assert.equal(entry.result.startsWith(`${split};`), true);
   assert.equal(entry.result.slice(0, split.length), outcome.slice(0, split.length));
 });
+
+test("the foraging outcome and expedition log omit a pool clause when no food was added to the pool", async () => {
+  const resolution = { totalFoodFound: 2, excessFoodByActorUuid: { "Actor.a": 2 }, foodRequired: 0, waterRequired: 0 };
+  const split = "Found 2 food: 2 excess to foragers";
+  assert.equal(formatForagingFoodSplit(resolution), split);
+  const outcome = formatForagingOutcomeText(resolution);
+  const logged = formatForagingLogResult(resolution);
+  assert.equal(outcome.startsWith(`${split};`), true);
+  assert.equal(logged.startsWith(`${split};`), true);
+  assert.equal(outcome.includes("to pool"), false);
+  assert.equal(logged.includes("to pool"), false);
+
+  const route = createRoute({ id: "route", origin: { name: "A" }, destination: { name: "B" }, lengthSteps: 12 });
+  const journey = {
+    ...createJourney({ id: "test", route }),
+    routeSnapshot: route,
+    remainingSteps: 9,
+    progressSteps: 3,
+    phase: "dayComplete",
+    travelers: [],
+    log: [{ type: "phaseRecorded", dayNumber: 0, data: { phase: "foraging", result: { resolution } } }]
+  };
+  globalThis.game = { user: { isGM: true }, settings: { get: () => journey }, i18n: { localize: key => key } };
+  const context = await new JourneyApplication()._prepareContext({});
+  const entry = context.recentLog.find(item => item.data?.phase === "foraging");
+  assert.equal(entry.result.startsWith(`${split};`), true);
+  assert.equal(entry.result.includes("to pool"), false);
+});
