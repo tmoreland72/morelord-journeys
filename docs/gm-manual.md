@@ -111,6 +111,8 @@ The GM can resolve a pending request automatically when no player is available. 
 
 Each traveler makes a Survival check against the route's Resources DC. **Roll** on the group card opens the D&D 5e skill dialog for that traveler. Slow and Stopped pace start the dialog at advantage. Fast pace starts it at disadvantage. Effects and flags combine with that selection, and advantage cancels disadvantage.
 
+A success finds one ration, which is that traveler's meal. A total of 20 or a natural 20 finds a second ration. Each extra ration covers one traveler who failed before any remainder is stored on the forager who found it. The **Foraging outcome** and the Expedition Log use the same sentence for that split. `Found 4 food: 3 to pool, 1 excess to foragers` means four rations were found, three supply travelers today, and one surplus ration was added to a forager's inventory. Food still required is the number of failed travelers not covered by extra food.
+
 After all checks resolve:
 
 1. Review the food and water required.

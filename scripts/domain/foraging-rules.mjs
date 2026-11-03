@@ -28,3 +28,31 @@ export function resolveForagingResults(travelers, results) {
     waterSourceFound: successful.length > 0
   };
 }
+
+// Found food splits into today's expedition supply and surplus stored on foragers.
+// Extra rations cover failed travelers first. The surplus is excessFoodByActorUuid,
+// not the inventory receipt in excessRationsAdded.
+export function foragingFoodSplit(resolution = {}) {
+  const found = Math.max(0, Number(resolution?.totalFoodFound ?? resolution?.successfulActorUuids?.length ?? 0) || 0);
+  const excess = Math.max(0, resolution?.excessFoodByActorUuid
+    ? Object.values(resolution.excessFoodByActorUuid).reduce((total, amount) => total + (Number(amount) || 0), 0)
+    : (resolution?.excessRationsAdded ?? []).reduce((total, entry) => total + (Number(entry?.quantity) || 0), 0));
+  return { found, toPool: Math.max(0, found - excess), excess };
+}
+
+export function formatForagingFoodSplit(resolution) {
+  const { found, toPool, excess } = foragingFoodSplit(resolution);
+  return `Found ${found} food: ${toPool} to pool, ${excess} excess to foragers`;
+}
+
+export function formatForagingLogResult(resolution) {
+  if (!resolution) return "Resolved";
+  return `${formatForagingFoodSplit(resolution)}; ${resolution.foodRequired ?? 0} ration(s) and ${resolution.waterRequired ?? 0} water pint(s) still required`;
+}
+
+export function formatForagingOutcomeText(resolution = {}) {
+  const water = resolution?.waterSourceFound
+    ? " A forager found water for everyone; carried water is not consumed and containers may be refilled."
+    : "";
+  return `${formatForagingFoodSplit(resolution)}; ${resolution?.foodRequired ?? 0} ration(s) still required; ${resolution?.waterRequired ?? 0} pint(s) of water required.${water}`;
+}

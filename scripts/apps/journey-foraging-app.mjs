@@ -21,6 +21,7 @@ import { describeInterruptedHours, interruptionSourceSummary, restResultBullets 
 import { longRestFailureReasons } from "../domain/sleep-rules.mjs";
 import { availableCampSleepHours } from "../domain/camp-watch-rules.mjs";
 import { renderJourneyInBackground } from "../ui/render-in-background.mjs";
+import { formatForagingOutcomeText } from "../domain/foraging-rules.mjs";
 
 const SLEEP_MODIFIER_LABELS = Object.freeze({ tent: "Tent", bedroll: "Bedroll", blanket: "Blanket in cold weather", extremeWeather: "Extreme weather", peacefulNight: "Peaceful night" });
 const supplyConsumption = new SupplyConsumptionService();
@@ -444,8 +445,7 @@ export class JourneyForagingApplication extends BaseJourneyApplication {
     if (saved) {
       const summary = document.createElement("div");
       summary.className = "ml-audit-card journey-foraging-summary";
-      const excess = Object.values(saved.excessFoodByActorUuid ?? {}).reduce((total, amount) => total + Number(amount), 0);
-      summary.innerHTML = `<strong>Foraging outcome:</strong> ${saved.totalFoodFound ?? saved.successfulActorUuids?.length ?? 0} food found; ${saved.foodRequired} ration(s) still required; ${saved.waterRequired} pint(s) of water required.${saved.waterSourceFound ? " A forager found water for everyone; carried water is not consumed and containers may be refilled." : ""}${excess ? ` ${excess} excess ration(s) added to the successful forager inventories.` : ""}<br><small>Expedition pool: ${context.journey.supplies?.totals?.food ?? 0} food, ${context.journey.supplies?.totals?.water ?? 0} water pints.</small>`;
+      summary.innerHTML = `<strong>Foraging outcome:</strong> ${formatForagingOutcomeText(saved)}<br><small>Expedition pool: ${context.journey.supplies?.totals?.food ?? 0} food, ${context.journey.supplies?.totals?.water ?? 0} water pints.</small>`;
       panel.append(summary);
       if (!pending.length && results.length >= context.journey.travelers.length && !context.journey.currentDay?.supplyResolution) {
         this.#renderSupplyAllocation(panel, context, saved);

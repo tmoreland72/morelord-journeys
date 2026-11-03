@@ -15,6 +15,7 @@ import { readCampAssignments } from "../ui/camp-assignment-controls.mjs";
 import { phaseSkipReason } from "../domain/phase-rules.mjs";
 import { displayJourneyRoll } from "../ui/journey-roll-display.mjs";
 import { createDayCompletionPayload } from "../domain/travel-context.mjs";
+import { formatForagingLogResult } from "../domain/foraging-rules.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const value = (element, name) => element.querySelector(`[name="${name}"]`)?.value ?? "";
@@ -511,11 +512,7 @@ export class JourneyApplication extends HandlebarsApplicationMixin(ApplicationV2
     }
     if (phase === "discovery") return result.pursued ? "Discovery pursued" : "Passed by";
     if (phase === "pressOn") return result.pressedOn ? `Pressed on — ${formatDistance(1)}` : "Did not press on — 0 days";
-    if (phase === "foraging") {
-      if (!result.resolution) return "Resolved";
-      const added = (result.resolution.excessRationsAdded ?? []).reduce((total, entry) => total + Number(entry.quantity ?? 0), 0);
-      return `+${added} food added; ${result.resolution.foodRequired ?? 0} ration(s) and ${result.resolution.waterRequired ?? 0} water pint(s) still required`;
-    }
+    if (phase === "foraging") return formatForagingLogResult(result.resolution);
     if (phase === "camp") return `${result.watches?.length ?? 0} watches; ${result.sleep?.length ?? 0} rest results`;
     if (phase === "sleep") return `${result.sleep?.length ?? 0} rest results`;
     return "Resolved";
