@@ -1,5 +1,12 @@
 # Morelord Journeys Changelog
 
+## 0.6.1
+
+### Fixes
+
+- The **Foraging outcome** and the Expedition Log use one sentence for food found on the day's foraging checks. `Found 4 food: 3 to pool, 1 excess to foragers` means four rations were found, three supply travelers today, and one surplus ration was added to a forager's inventory. **to pool** appears only when that amount is greater than zero. **excess to foragers** appears only when surplus food was stored. The sentence then says how many rations and how many pints of water are still required. A success still finds one ration, which is that traveler's meal. A total of 20 or a natural 20 still finds one extra ration. Each extra ration still covers a traveler who failed before any remainder is stored. Any success still finds water for the party, and carried water is not consumed. Those amounts are unchanged. The outcome and the log report that split instead of counting a separate inventory receipt.
+- The Expedition Log lists Camp as its watch assignments. It includes a rest-result count only when that Camp entry recorded rest. Sleep & Shelter lists the rest-result count after rest is resolved. Continuing from Camp before rest no longer shows zero rest results beside the watches.
+
 ## 0.6.0
 
 ### Features
