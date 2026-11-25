@@ -30,6 +30,10 @@ Install the module using this manifest URL:
 
 Enable **Morelord Core** and **Morelord Journeys** in the world. Reload the world after installing or updating so Foundry loads the current module JavaScript and socket services.
 
+## Game Settings
+
+A GM can open **Configure Settings → Morelord Journeys → Configure Journeys**. **Save Changes** saves the world settings and closes the window after every write succeeds. A failed save leaves the window open for retry. Closing without saving discards edits.
+
 ## Opening Journeys
 
 Open **Morelord Tools** on the left scene-controls bar and select **Morelord Journeys**, the hiking-person button. If Journeys is not ready, that button warns "Morelord Journeys is still initializing." Opening Journeys refreshes the Supply Manifest from the current party and traveler inventories. The refresh button remains available when inventory changes while the window is already open.
