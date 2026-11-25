@@ -1,5 +1,11 @@
 # Morelord Journeys Changelog
 
+## 0.6.2
+
+### Fixed
+
+- Use Core's shared form footer for Save Changes in Journey settings.
+
 ## 0.6.1
 
 ### Fixes
